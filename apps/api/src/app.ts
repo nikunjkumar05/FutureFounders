@@ -5,132 +5,181 @@ config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "..", ".env") })
 
 import express from "express";
 import cors from "cors";
-import pg from "pg";
+import { createClient } from "@supabase/supabase-js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || undefined,
-  host: process.env.DATABASE_URL ? undefined : (process.env.PGHOST || "localhost"),
-  port: process.env.DATABASE_URL ? undefined : parseInt(process.env.PGPORT || "5432"),
-  user: process.env.DATABASE_URL ? undefined : (process.env.PGUSER || "postgres"),
-  password: process.env.DATABASE_URL ? undefined : (process.env.PGPASSWORD || "postgres"),
-  database: process.env.DATABASE_URL ? undefined : (process.env.PGDATABASE || "futurefounders"),
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined,
+const supabaseUrl = "https://ewiwhnojnqdqbelzxvvq.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey!, {
+  auth: { persistSession: false },
 });
 
 // ─── Jobs ────────────────────────────────────────────
 app.get("/api/jobs", async (_req, res) => {
-  const { rows } = await pool.query(`
-    SELECT j.id, j.status, j.scheduled_date::text, j.completed_at::text,
-           j.site_lat, j.site_lng,
-           c.name AS customer, w.name AS worker
-    FROM jobs j
-    LEFT JOIN customers c ON c.id = j.customer_id
-    LEFT JOIN workers w ON w.id = j.worker_id
-    ORDER BY j.created_at DESC
-  `);
-  res.json(rows);
+  const { data, error } = await supabase
+    .from("jobs")
+    .select(`id, status, scheduled_date, completed_at, site_lat, site_lng,
+      customer:customers(name), worker:workers(name)`)
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data.map((j: any) => ({
+    id: j.id,
+    status: j.status,
+    scheduled_date: j.scheduled_date,
+    completed_at: j.completed_at,
+    site_lat: j.site_lat,
+    site_lng: j.site_lng,
+    customer: j.customer?.name,
+    worker: j.worker?.name,
+  })));
 });
 
 app.post("/api/jobs/:id/complete", async (req, res) => {
   const { id } = req.params;
-  const { rows } = await pool.query(
-    `UPDATE jobs SET status = 'completed' WHERE id = $1 AND status != 'completed' RETURNING id, status, completed_at`,
-    [id]
-  );
-  if (rows.length === 0) {
-    return res.status(404).json({ error: "Job not found or already completed" });
-  }
-  res.json(rows[0]);
+  const { data, error } = await supabase
+    .from("jobs")
+    .update({ status: "completed" })
+    .eq("id", id)
+    .neq("status", "completed")
+    .select("id, status, completed_at")
+    .single();
+  if (error) return res.status(404).json({ error: "Job not found or already completed" });
+  res.json(data);
 });
 
 // ─── Inventory ───────────────────────────────────────
 app.get("/api/inventory", async (_req, res) => {
-  const { rows } = await pool.query(`
-    SELECT id, name, quantity::text, unit, min_threshold::text,
-           quantity < min_threshold AS low_stock
-    FROM inventory ORDER BY name
-  `);
-  res.json(rows);
+  const { data, error } = await supabase
+    .from("inventory")
+    .select("id, name, quantity, unit, min_threshold")
+    .order("name");
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data.map((i: any) => ({
+    id: i.id,
+    name: i.name,
+    quantity: String(i.quantity),
+    unit: i.unit,
+    min_threshold: String(i.min_threshold),
+    low_stock: i.quantity < i.min_threshold,
+  })));
 });
 
 // ─── Metrics ────────────────────────────────────────
 app.get("/api/metrics", async (_req, res) => {
-  const { rows } = await pool.query(`
-    SELECT
-      (SELECT COUNT(*) FROM jobs WHERE status = 'completed' AND completed_at >= CURRENT_DATE) AS completed_today,
-      (SELECT COUNT(*) FROM inventory WHERE quantity < min_threshold) AS low_stock_count,
-      (SELECT COUNT(*) FROM service_reminders WHERE status = 'pending' AND due_date <= CURRENT_DATE + INTERVAL '7 days') AS reminders_due_soon
-  `);
-  res.json(rows[0]);
+  const today = new Date().toISOString().slice(0, 10);
+  const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+
+  const [completed, allInventory, reminders] = await Promise.all([
+    supabase.from("jobs").select("id", { count: "exact", head: true })
+      .eq("status", "completed").gte("completed_at", today),
+    supabase.from("inventory").select("quantity, min_threshold"),
+    supabase.from("service_reminders").select("id", { count: "exact", head: true })
+      .eq("status", "pending").lte("due_date", weekFromNow),
+  ]);
+
+  const lowStockCount = allInventory.data?.filter((i: any) => i.quantity < i.min_threshold).length ?? 0;
+
+  res.json({
+    completed_today: completed.count,
+    low_stock_count: lowStockCount,
+    reminders_due_soon: reminders.count,
+  });
 });
 
 // ─── Reminders ───────────────────────────────────────
 app.get("/api/reminders", async (_req, res) => {
-  const { rows } = await pool.query(`
-    SELECT sr.id, sr.due_date::text, sr.status, sr.sent_at::text,
-           c.name AS customer, c.phone, c.address
-    FROM service_reminders sr
-    JOIN customers c ON c.id = sr.customer_id
-    ORDER BY sr.due_date ASC, sr.created_at DESC
-  `);
-  res.json(rows);
+  const { data, error } = await supabase
+    .from("service_reminders")
+    .select(`id, due_date, status, sent_at,
+      customer:customers(name, phone, address)`)
+    .order("due_date", { ascending: true });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data.map((r: any) => ({
+    id: r.id,
+    due_date: r.due_date,
+    status: r.status,
+    sent_at: r.sent_at,
+    customer: r.customer?.name,
+    phone: r.customer?.phone,
+    address: r.customer?.address,
+  })));
 });
 
 app.post("/api/reminders/:id/send", async (req, res) => {
   const { id } = req.params;
-  const { rows } = await pool.query(
-    `UPDATE service_reminders SET status = 'sent', sent_at = now() WHERE id = $1 AND status = 'pending' RETURNING id, status, sent_at`,
-    [id]
-  );
-  if (rows.length === 0) return res.status(404).json({ error: "Reminder not found or already sent" });
-  res.json(rows[0]);
+  const { data, error } = await supabase
+    .from("service_reminders")
+    .update({ status: "sent", sent_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("id, status, sent_at")
+    .single();
+  if (error) return res.status(404).json({ error: "Reminder not found or already sent" });
+  res.json(data);
 });
 
 // ─── Attendance ──────────────────────────────────────
 app.get("/api/attendance", async (_req, res) => {
-  const { rows } = await pool.query(`
-    SELECT
-      w.id, w.name, w.phone,
-      j.id AS job_id,
-      j.status AS job_status,
-      j.site_lat, j.site_lng,
-      c.name AS customer,
-      ci.status AS check_in_status,
-      ci.distance_meters::text,
-      ci.received_at::text AS checked_in_at
-    FROM workers w
-    LEFT JOIN LATERAL (
-      SELECT * FROM jobs
-      WHERE worker_id = w.id AND status != 'completed'
-      ORDER BY created_at DESC LIMIT 1
-    ) j ON true
-    LEFT JOIN customers c ON c.id = j.customer_id
-    LEFT JOIN LATERAL (
-      SELECT * FROM check_ins
-      WHERE worker_id = w.id AND received_at >= CURRENT_DATE
-      ORDER BY received_at DESC LIMIT 1
-    ) ci ON true
-    WHERE w.active = true
-    ORDER BY w.name
-  `);
-  res.json(rows);
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: workers, error } = await supabase
+    .from("workers")
+    .select("id, name, phone")
+    .eq("active", true)
+    .order("name");
+  if (error) return res.status(500).json({ error: error.message });
+
+  const result = await Promise.all(workers.map(async (w: any) => {
+    const { data: jobs } = await supabase
+      .from("jobs")
+      .select("id, status, site_lat, site_lng, customer:customers(name)")
+      .eq("worker_id", w.id)
+      .neq("status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    const { data: checkins } = await supabase
+      .from("check_ins")
+      .select("status, distance_meters, received_at")
+      .eq("worker_id", w.id)
+      .gte("received_at", today)
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .single();
+    return {
+      id: w.id,
+      name: w.name,
+      phone: w.phone,
+      job_id: jobs?.id || null,
+      job_status: jobs?.status || null,
+      site_lat: jobs?.site_lat || null,
+      site_lng: jobs?.site_lng || null,
+      customer: jobs?.customer?.name || null,
+      check_in_status: checkins?.status || null,
+      distance_meters: checkins?.distance_meters ? String(checkins.distance_meters) : null,
+      checked_in_at: checkins?.received_at || null,
+    };
+  }));
+  res.json(result);
 });
 
 app.post("/api/attendance/checkin", async (req, res) => {
   const { worker_id, job_id, lat, lng } = req.body;
   if (!worker_id) return res.status(400).json({ error: "worker_id required" });
-
-  const { rows } = await pool.query(
-    `INSERT INTO check_ins (job_id, worker_id, status, reported_lat, reported_lng)
-     VALUES ($1, $2, 'on_time', $3, $4)
-     RETURNING id, status, distance_meters::text, received_at`,
-    [job_id || null, worker_id, lat || null, lng || null]
-  );
-  res.status(201).json(rows[0]);
+  const { data, error } = await supabase
+    .from("check_ins")
+    .insert({ job_id: job_id || null, worker_id, status: "on_time", reported_lat: lat || null, reported_lng: lng || null })
+    .select("id, status, distance_meters, received_at")
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({
+    id: data.id,
+    status: data.status,
+    distance_meters: data.distance_meters ? String(data.distance_meters) : null,
+    received_at: data.received_at,
+  });
 });
 
 // ─── AI Chat (NVIDIA API) ────────────────────────────
@@ -188,10 +237,10 @@ app.post("/api/chat", async (req, res) => {
           messages: conversation,
           temperature: 1,
           top_p: 1,
-          max_tokens: 16384,
+          max_tokens: 512,
           stream: false,
         }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(5000),
       });
 
       if (nvRes.ok) {
@@ -221,10 +270,13 @@ app.post("/api/chat", async (req, res) => {
 
 // ─── Workers ─────────────────────────────────────────
 app.get("/api/workers", async (_req, res) => {
-  const { rows } = await pool.query(`
-    SELECT id, name, phone FROM workers WHERE active = true ORDER BY name
-  `);
-  res.json(rows);
+  const { data, error } = await supabase
+    .from("workers")
+    .select("id, name, phone")
+    .eq("active", true)
+    .order("name");
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
-export { app, pool };
+export { app, supabase };
