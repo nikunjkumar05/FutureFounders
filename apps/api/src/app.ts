@@ -256,7 +256,7 @@ app.post("/api/chat", async (req, res) => {
 
   const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
   const text = lastUserMsg?.text?.toLowerCase() ?? "";
-  const reply = text.includes("price") || text.includes("cost") || text.includes("rate") || text.includes("₹")
+  const reply = text.includes("price") || text.includes("pricing") || text.includes("cost") || text.includes("rate") || text.includes("₹")
     ? FAQ.price
     : text.includes("book") || text.includes("schedule") || text.includes("when") || text.includes("slot") || text.includes("time") || text.includes("hour")
       ? FAQ.schedule
