@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@theme {
+  --font-syne: "Syne", sans-serif;
+  --font-dm-mono: "DM Mono", monospace;
+  --font-plus: "Plus Jakarta Sans", sans-serif;
+  --color-navy-900: #050811;
+  --color-navy-800: #0A0F1C;
+  --color-navy-700: #111827;
+  --color-glass: rgba(255, 255, 255, 0.03);
+  --color-glass-border: rgba(255, 255, 255, 0.07);
+  --color-aqua: #4F8EF7;
+  --color-purple: #9B6EF3;
+}
+
+/* ───── Base ───── */
+body {
+  font-family: "Plus Jakarta Sans", sans-serif;
+  background: linear-gradient(135deg, #050811, #0A0F1C);
+  min-height: 100vh;
+}
+
+/* ───── Glass card ───── */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* ───── Status accent borders ───── */
+.border-left-amber  { border-left: 3px solid #f59e0b; }
+.border-left-blue   { border-left: 3px solid #3b82f6; }
+.border-left-teal   { border-left: 3px solid #14b8a6; }
+.border-left-red    { border-left: 3px solid #ef4444; }
+
+/* ───── Sparkline container ───── */
+.sparkline-bg {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ───── Animated value ───── */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-count {
+  animation: countUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ───── Staggered inventory bars ───── */
+@keyframes barGrow {
+  from { width: 0%; }
+}
+.bar-animate {
+  animation: barGrow 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ───── Checkmark burst ───── */
+@keyframes burst {
+  0%   { transform: scale(0.3); opacity: 1; }
+  50%  { transform: scale(1.3); opacity: 0.8; }
+  100% { transform: scale(1);   opacity: 0; }
+}
+.burst {
+  animation: burst 0.5s ease-out forwards;
+}
+
+/* ───── Low-stock pulse glow ───── */
+@keyframes lowGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(240, 82, 82, 0.15); }
+  50%      { box-shadow: 0 0 18px rgba(240, 82, 82, 0.3); }
+}
+.low-glow {
+  animation: lowGlow 2s ease-in-out infinite;
+}
+
+/* ───── Thinking dots ───── */
+@keyframes dotPulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1; }
+}
+.thinking-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #4F8EF7;
+  display: inline-block;
+}
+.thinking-dot:nth-child(1) { animation: dotPulse 1.2s ease-in-out infinite; }
+.thinking-dot:nth-child(2) { animation: dotPulse 1.2s ease-in-out 0.2s infinite; }
+.thinking-dot:nth-child(3) { animation: dotPulse 1.2s ease-in-out 0.4s infinite; }
+
+/* ───── WhatsApp slide-in ───── */
+@keyframes slideInRight {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.whatsapp-enter {
+  animation: slideInRight 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ───── Scrollbar ───── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
