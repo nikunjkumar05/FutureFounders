@@ -1,19 +1,18 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
-const FAQ_REPLIES: Record<string, string> = {
-  price: "Our standard water tank cleaning starts at ₹999 for residential tanks up to 1000L.",
-  schedule: "You can book via WhatsApp or call. Typical slots are 8 AM – 5 PM, Mon–Sat.",
-  chemical: "We use NSF-certified chlorine & anti-bacterial solutions. Safe for drinking water post-flush.",
-  emergency: "For emergency leaks or contamination, call us directly at +91-99999-99991.",
-};
-
-function classifyMessage(input: string): string {
-  const lower = input.toLowerCase();
-  if (lower.includes("price") || lower.includes("cost") || lower.includes("rate") || lower.includes("₹")) return "price";
-  if (lower.includes("book") || lower.includes("schedule") || lower.includes("when") || lower.includes("slot") || lower.includes("time")) return "schedule";
-  if (lower.includes("chemical") || lower.includes("safe") || lower.includes("chlorine") || lower.includes("solution")) return "chemical";
-  if (lower.includes("emergency") || lower.includes("leak") || lower.includes("urgent") || lower.includes("flood")) return "emergency";
-  return "other";
+async function fetchReply(messages: { role: string; text: string }[]): Promise<string> {
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+    });
+    if (!res.ok) return "Sorry, I couldn't process that. Let me connect you with the owner.";
+    const data = await res.json();
+    return data.reply ?? "Let me connect you with the owner.";
+  } catch {
+    return "Network error. Let me connect you with the owner.";
+  }
 }
 
 export default function AquaBot() {
@@ -28,23 +27,29 @@ export default function AquaBot() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
 
-  function handleSend() {
+  const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || thinking) return;
-    setMessages((prev) => [...prev, { from: "user", text }]);
+
+    // Add user message
+    const userMsg = { from: "user" as const, text };
+    setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setThinking(true);
-    setTimeout(() => {
-      const category = classifyMessage(text);
-      const reply = FAQ_REPLIES[category] ?? "Let me connect you to a human agent. One moment please.";
-      setMessages((prev) => [...prev, { from: "bot", text: reply }]);
-      setThinking(false);
-    }, 1200 + Math.random() * 800);
-  }
+
+    // Build conversation history for API
+    const history = [...messages, userMsg].map((m) => ({
+      role: m.from === "user" ? "user" : "assistant",
+      text: m.text,
+    }));
+
+    const reply = await fetchReply(history);
+    setMessages((prev) => [...prev, { from: "bot", text: reply }]);
+    setThinking(false);
+  }, [input, thinking, messages]);
 
   return (
     <div className="card overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: "1px solid #1a1d27" }}>
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#3b82f6" }} />
@@ -60,7 +65,6 @@ export default function AquaBot() {
         <span className="font-dm-mono text-[10px] text-gray-600">AI</span>
       </div>
 
-      {/* Messages */}
       <div className="h-44 overflow-y-auto p-3 space-y-2.5" style={{ background: "rgba(0,0,0,0.25)" }}>
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.from === "user" ? "justify-end" : "justify-start"}`}>
@@ -85,7 +89,6 @@ export default function AquaBot() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div className="flex items-center gap-2 p-3" style={{ borderTop: "1px solid #1a1d27" }}>
         <input
           value={input}
