@@ -1,0 +1,12 @@
+{
+  "name": "futurefounders",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "lint": "npm run lint --workspaces"
+  }
+}
