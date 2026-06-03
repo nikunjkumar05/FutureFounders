@@ -18,6 +18,7 @@ const pool = new pg.Pool({
   user: process.env.DATABASE_URL ? undefined : (process.env.PGUSER || "postgres"),
   password: process.env.DATABASE_URL ? undefined : (process.env.PGPASSWORD || "postgres"),
   database: process.env.DATABASE_URL ? undefined : (process.env.PGDATABASE || "futurefounders"),
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : undefined,
 });
 
 // ─── Jobs ────────────────────────────────────────────
