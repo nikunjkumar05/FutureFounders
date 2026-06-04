@@ -8,10 +8,10 @@ interface Props {
 }
 
 const statusBorder: Record<string, string> = {
-  scheduled:   "border-left-cyan",
+  scheduled: "border-left-cyan",
   in_progress: "border-left-blue",
-  completed:   "border-left-cyan",
-  cancelled:   "border-left-red",
+  completed: "border-left-cyan",
+  cancelled: "border-left-red",
 };
 
 export default function JobList({ refresh, onRefresh }: Props) {
@@ -38,14 +38,18 @@ export default function JobList({ refresh, onRefresh }: Props) {
   if (loading) {
     return (
       <div className="space-y-3">
-        {[1, 2, 3].map((i) => <div key={i} className="h-[68px] card animate-pulse" />)}
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-[68px] card animate-pulse" />
+        ))}
       </div>
     );
   }
 
   return (
     <div>
-      <h2 className="font-syne text-lg tracking-wide text-white mb-4">Job Queue</h2>
+      <h2 className="font-syne text-lg tracking-wide text-white mb-4">
+        Job Queue
+      </h2>
       <div className="space-y-2.5">
         {jobs.map((job) => (
           <div
@@ -56,14 +60,49 @@ export default function JobList({ refresh, onRefresh }: Props) {
               <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-cyan" />
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-plus text-sm font-medium text-gray-100 truncate">{job.customer}</span>
+                  <span className="font-plus text-sm font-medium text-gray-100 truncate">
+                    {job.customer}
+                  </span>
                   {job.status === "completed" && (
-                    <span className="font-dm-mono text-[10px] uppercase tracking-wide text-gray-500">COMPLETED</span>
+                    <span className="font-dm-mono text-[10px] uppercase tracking-wide text-gray-500">
+                      COMPLETED
+                    </span>
                   )}
                 </div>
                 <div className="font-dm-mono text-[11px] text-gray-600 mt-0.5">
                   {job.worker ?? "Unassigned"}
-                  {job.scheduled_date && <>,&nbsp;{new Date(job.scheduled_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</>}
+                  {job.scheduled_date && (
+                    <>
+                      ,&nbsp;
+                      {new Date(job.scheduled_date).toLocaleDateString(
+                        "en-IN",
+                        { day: "numeric", month: "short" },
+                      )}
+                    </>
+                  )}
+                  {job.tanks && job.tanks.length > 0 && (
+  <div className="text-[11px] text-gray-500 mt-1 space-y-1">
+    {job.tanks.map((t, idx) => (
+      <div key={idx}>
+        <div>
+          Tanks: <span className="text-gray-300">{t.count}</span>
+        </div>
+        <div>
+          Capacity:{" "}
+          <span className="text-gray-300">
+            {t.capacity_liters.toLocaleString()}L each
+          </span>
+        </div>
+        <div>
+          Total:{" "}
+          <span className="text-cyan">
+            {(t.count * t.capacity_liters).toLocaleString()}L
+          </span>
+        </div>
+      </div>
+    ))}
+  </div>
+)}
                 </div>
               </div>
             </div>
@@ -79,17 +118,50 @@ export default function JobList({ refresh, onRefresh }: Props) {
                     color: "#14b8a6",
                     border: "1px solid rgba(20,184,166,0.2)",
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.22)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.12)"; }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(20,184,166,0.22)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(20,184,166,0.12)";
+                  }}
                 >
                   {completing === job.id ? "..." : "COMPLETE"}
                 </button>
               )}
-              {job.status === "completed" && job.completed_at && (
-                <div className="font-dm-mono text-[11px] text-gray-600 text-right leading-tight">
-                  {new Date(job.completed_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit" })}
-                </div>
-              )}
+              {job.status === "completed" && (
+  <div className="flex flex-col items-end gap-2">
+    {job.completed_at && (
+      <div className="font-dm-mono text-[11px] text-gray-600 text-right leading-tight">
+        {new Date(job.completed_at).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "2-digit",
+        })}
+      </div>
+    )}
+
+    <button
+      onClick={() => {
+        const msg = encodeURIComponent(
+          `Thank you for choosing CleanWater Solutions!\n\nWe'd love your feedback.\n\nGoogle Review:\nhttps://example.com/google-review\n\nJustDial Review:\nhttps://example.com/justdial-review`
+        );
+
+        window.open(
+          `https://wa.me/${job.customer_phone.replace("+", "")}?text=${msg}`,
+          "_blank"
+        );
+      }}
+      className="font-dm-mono text-[11px] font-medium px-3 py-1.5 rounded-md"
+      style={{
+        background: "rgba(37,211,102,0.12)",
+        color: "#25d366",
+        border: "1px solid rgba(37,211,102,0.2)",
+      }}
+    >
+      SEND FEEDBACK
+    </button>
+  </div>
+)}
             </div>
           </div>
         ))}
