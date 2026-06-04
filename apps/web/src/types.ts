@@ -20,6 +20,28 @@ export interface InventoryItem {
   low_stock: boolean;
 }
 
+export interface Reminder {
+  id: string;
+  due_date: string;
+  status: "pending" | "sent" | "converted" | "failed";
+  sent_at: string | null;
+  customer: string;
+  phone: string;
+  address: string | null;
+}
+
+export interface WorkerAttendance {
+  id: string;
+  name: string;
+  phone: string;
+  job_id: string | null;
+  job_status: string | null;
+  customer: string | null;
+  check_in_status: string | null;
+  distance_meters: string | null;
+  checked_in_at: string | null;
+}
+
 export interface Metrics {
   completed_today: number;
   low_stock_count: number;

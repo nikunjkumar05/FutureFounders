@@ -1,6 +1,8 @@
 import { useCallback, useState, useEffect } from "react";
 import MetricsBar from "./components/MetricsBar";
 import JobList from "./components/JobList";
+import ReminderQueue from "./components/ReminderQueue";
+import AttendancePanel from "./components/AttendancePanel";
 import InventoryPanel from "./components/InventoryPanel";
 import AquaBot from "./components/AquaBot";
 import { getJobs } from "./api";
@@ -72,10 +74,12 @@ export default function App() {
           {/* Jobs — 3 cols */}
           <div className="lg:col-span-3">
             <JobList refresh={refresh} onRefresh={triggerRefresh} />
+            <ReminderQueue refresh={refresh} onRefresh={triggerRefresh} />
           </div>
 
           {/* Sidebar — 2 cols */}
           <div className="lg:col-span-2 space-y-5">
+            <AttendancePanel refresh={refresh} onRefresh={triggerRefresh} />
             <InventoryPanel refresh={refresh} />
             <AquaBot />
           </div>
