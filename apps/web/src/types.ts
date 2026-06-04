@@ -6,7 +6,9 @@ export interface Job {
   site_lat: number | null;
   site_lng: number | null;
   customer: string;
+  customer_phone: string;
   worker: string | null;
+  tanks?: { capacity_liters: number; count: number }[] | null;
 }
 
 export interface InventoryItem {

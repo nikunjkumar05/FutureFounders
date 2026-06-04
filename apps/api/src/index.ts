@@ -19,7 +19,17 @@ app.get("/api/jobs", async (_req, res) => {
   const { rows } = await pool.query(`
     SELECT j.id, j.status, j.scheduled_date::text, j.completed_at::text,
            j.site_lat, j.site_lng,
-           c.name AS customer, w.name AS worker
+           c.name AS customer,c.phone AS customer_phone,w.name AS worker,
+           (
+             SELECT json_agg(json_build_object('capacity_liters', capacity_liters, 'count', cnt))
+             FROM (
+               SELECT capacity_liters, COUNT(*) AS cnt
+               FROM tanks t2
+               WHERE t2.customer_id = j.customer_id
+               GROUP BY capacity_liters
+               ORDER BY capacity_liters DESC
+             ) tgrp
+           ) AS tanks
     FROM jobs j
     LEFT JOIN customers c ON c.id = j.customer_id
     LEFT JOIN workers w ON w.id = j.worker_id
@@ -32,10 +42,12 @@ app.post("/api/jobs/:id/complete", async (req, res) => {
   const { id } = req.params;
   const { rows } = await pool.query(
     `UPDATE jobs SET status = 'completed' WHERE id = $1 AND status != 'completed' RETURNING id, status, completed_at`,
-    [id]
+    [id],
   );
   if (rows.length === 0) {
-    return res.status(404).json({ error: "Job not found or already completed" });
+    return res
+      .status(404)
+      .json({ error: "Job not found or already completed" });
   }
   res.json(rows[0]);
 });
