@@ -2,12 +2,29 @@ import type { Job, InventoryItem, Reminder, WorkerAttendance, Metrics } from "./
 
 const BASE = "/api";
 
+function getToken(): string | null {
+  try {
+    const raw = localStorage.getItem("auth");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
     ...init,
     headers: {
       ...init?.headers,
       "Content-Type": "application/json",
+      ...authHeaders(),
     },
     credentials: "same-origin",
   });

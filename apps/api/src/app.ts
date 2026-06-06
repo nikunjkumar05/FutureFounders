@@ -11,7 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 // ─── Environment Check ───────────────────────────────
-const REQUIRED_ENV = ["SUPABASE_URL", "SUPABASE_SERVICE_KEY", "NVIDIA_API_KEY", "API_SECRET"];
+const REQUIRED_ENV = ["SUPABASE_URL", "SUPABASE_SERVICE_KEY"];
 for (const k of REQUIRED_ENV) {
   if (!process.env[k]) {
     throw new Error(`Missing required environment variable: ${k}`);
@@ -81,6 +81,117 @@ function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
   }
   next();
 }
+
+function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const header = req.headers.authorization;
+  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) {
+    res.status(401).json({ error: "Missing authorization token" });
+    return;
+  }
+  supabase.auth.getUser(token).then(({ data, error }) => {
+    if (error || !data.user) {
+      res.status(401).json({ error: "Invalid or expired token" });
+      return;
+    }
+    (req as any).user = data.user;
+    next();
+  });
+}
+
+// ─── Auth Routes ─────────────────────────────────────
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const RegisterSchema = z.object({
+      email: z.string().email(),
+      password: z.string().min(6).max(100),
+      name: z.string().min(1).max(100),
+      role: z.enum(["customer", "provider"]),
+    });
+    const { email, password, name, role } = RegisterSchema.parse(req.body);
+
+    const { data: userData, error: signUpError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name, role },
+    });
+    if (signUpError) throw signUpError;
+    if (!userData.user) throw new Error("User creation failed");
+
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userData.user.id,
+      email,
+      name,
+      role,
+    });
+    if (profileError) throw profileError;
+
+    res.status(201).json({ id: userData.user.id, email, name, role });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      res.status(400).json({ error: "Invalid input", details: err.errors });
+      return;
+    }
+    if (err.message?.includes("already registered") || err.message?.includes("already exists")) {
+      res.status(409).json({ error: "Email already registered" });
+      return;
+    }
+    console.error("POST /api/auth/register error:", err.message, err.cause);
+    res.status(500).json({ error: "Registration failed", detail: err.message });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const LoginSchema = z.object({
+      email: z.string().email(),
+      password: z.string().min(1),
+    });
+    const { email, password } = LoginSchema.parse(req.body);
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, email, name, role")
+      .eq("id", data.user.id)
+      .single();
+
+    res.json({
+      token: data.session.access_token,
+      user: profile || { id: data.user.id, email, name: "", role: "customer" },
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      res.status(400).json({ error: "Invalid input", details: err.errors });
+      return;
+    }
+    if (err.message?.includes("Invalid login credentials")) {
+      res.status(401).json({ error: "Invalid email or password" });
+      return;
+    }
+    console.error("POST /api/auth/login error:", err.message);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+app.get("/api/auth/me", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("id, email, name, role")
+      .eq("id", user.id)
+      .single();
+    if (error) throw error;
+    res.json(profile);
+  } catch (err: any) {
+    console.error("GET /api/auth/me error:", err.message);
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
 
 // ─── Validation Schemas ──────────────────────────────
 const IdParamSchema = z.object({ id: z.string().uuid() });
@@ -301,29 +412,21 @@ app.post("/api/attendance/checkin", async (req, res) => {
 });
 
 // ─── AI Chat (NVIDIA API) ────────────────────────────
-const SYSTEM_PROMPT = `You are AquaBot, the AI assistant for AquaOps water tank cleaning service.
+const SYSTEM_PROMPT = `You are a helpful AI assistant for MakeWebApp, a services platform.
 
-You can ONLY answer questions about these 3 topics:
-1. **Pricing** — Standard cleaning starts at ₹999 for residential (up to 1000L). Commercial pricing varies.
-2. **Hours** — Service slots are 8 AM – 5 PM, Monday through Saturday.
-3. **Capacity** — We handle tanks from 500L to 50,000L. Larger tanks require 24hr notice.
-
-You may also answer about:
-- **Scheduling / Booking** — Customers can book via WhatsApp or phone call.
-- **Chemicals used** — NSF-certified chlorine & anti-bacterial solutions. Safe for drinking after 2hr flush.
-- **Emergency** — For leaks/contamination, call +91-99999-99991 immediately.
+You can help users with:
+1. **Services** — Information about available services, pricing, and scheduling.
+2. **Account** — Help with login, registration, and profile.
+3. **Support** — General inquiries about the platform.
 
 RULES:
-- If a question is about ANY of the topics above, answer it concisely in 1-2 sentences.
-- If a question is OFF-TOPIC (anything else), respond: "That's beyond my scope. Let me connect you with the owner."
-- Never make up pricing, hours, or capacity numbers.
+- Answer concisely in 1-2 sentences.
+- If a question is off-topic, respond: "That's beyond my scope. Let me connect you with a human."
 - Be friendly and professional.`;
 
 const FAQ: Record<string, string> = {
-  price: "Our standard water tank cleaning starts at ₹999 for residential tanks up to 1000L.",
-  schedule: "You can book via WhatsApp or call. Typical slots are 8 AM – 5 PM, Mon–Sat.",
-  chemical: "We use NSF-certified chlorine & anti-bacterial solutions. Safe for drinking water post-flush.",
-  emergency: "For emergency leaks or contamination, call us directly at +91-99999-99991.",
+  general: "I'm the MakeWebApp assistant. How can I help you today?",
+  support: "For support inquiries, please reach out through the contact form or call us directly.",
 };
 
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY;
@@ -378,15 +481,9 @@ app.post("/api/chat", chatLimiter, async (req, res) => {
     // Fallback
     const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
     const text = lastUserMsg?.text?.toLowerCase() ?? "";
-    const reply = text.includes("price") || text.includes("pricing") || text.includes("cost") || text.includes("rate") || text.includes("₹")
-      ? FAQ.price
-      : text.includes("book") || text.includes("schedule") || text.includes("when") || text.includes("slot") || text.includes("time") || text.includes("hour")
-        ? FAQ.schedule
-        : text.includes("chemical") || text.includes("safe") || text.includes("chlorine") || text.includes("solution")
-          ? FAQ.chemical
-          : text.includes("emergency") || text.includes("leak") || text.includes("urgent") || text.includes("flood")
-            ? FAQ.emergency
-            : "That's beyond my scope. Let me connect you with the owner.";
+    const reply = text.includes("help") || text.includes("support") || text.includes("contact")
+      ? FAQ.support
+      : FAQ.general;
     res.json({ reply, source: "keyword" });
   } catch (err: any) {
     if (err instanceof z.ZodError) {

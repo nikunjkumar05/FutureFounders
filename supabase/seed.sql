@@ -1,5 +1,14 @@
 -- seed.sql
--- Test data to demo the trigger
+
+-- Profiles (links auth.users to app data)
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('customer', 'provider')),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 -- Business
 INSERT INTO businesses (id, name, phone, address)

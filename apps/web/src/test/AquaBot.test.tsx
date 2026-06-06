@@ -9,28 +9,28 @@ beforeEach(() => {
 });
 
 describe("AquaBot", () => {
-  it("renders the AquaBot header", () => {
+  it("renders the AI Assistant header", () => {
     globalThis.fetch = mockFetch({ reply: "Hello!" });
     render(<AquaBot />);
-    expect(screen.getByText("AquaBot")).toBeInTheDocument();
+    expect(screen.getByText("AI Assistant")).toBeInTheDocument();
   });
 
-  it("renders the AI badge", () => {
+  it("renders the BETA badge", () => {
     globalThis.fetch = mockFetch({ reply: "Hello!" });
     render(<AquaBot />);
-    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText("BETA")).toBeInTheDocument();
   });
 
   it("shows initial greeting message", () => {
     globalThis.fetch = mockFetch({ reply: "Hello!" });
     render(<AquaBot />);
-    expect(screen.getByText(/Hi! I'm AquaBot/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hi! I'm the AI assistant/i)).toBeInTheDocument();
   });
 
   it("has an input field and send button", () => {
     globalThis.fetch = mockFetch({ reply: "Hello!" });
     render(<AquaBot />);
-    expect(screen.getByPlaceholderText("Ask AquaBot...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Ask the assistant...")).toBeInTheDocument();
     expect(screen.getByText("Send")).toBeInTheDocument();
   });
 
@@ -44,22 +44,22 @@ describe("AquaBot", () => {
   it("send button is enabled when input has text", async () => {
     globalThis.fetch = mockFetch({ reply: "Hello!" });
     render(<AquaBot />);
-    const input = screen.getByPlaceholderText("Ask AquaBot...");
-    await userEvent.type(input, "price");
+    const input = screen.getByPlaceholderText("Ask the assistant...");
+    await userEvent.type(input, "help");
     const sendBtn = screen.getByText("Send");
     expect(sendBtn).toBeEnabled();
   });
 
   it("adds user message and bot reply on send", async () => {
-    const reply = "Our standard water tank cleaning starts at ₹999.";
+    const reply = "I'm the MakeWebApp assistant. How can I help you today?";
     globalThis.fetch = mockFetch({ reply });
     render(<AquaBot />);
 
-    const input = screen.getByPlaceholderText("Ask AquaBot...");
-    await userEvent.type(input, "What is the price?");
+    const input = screen.getByPlaceholderText("Ask the assistant...");
+    await userEvent.type(input, "What services do you offer?");
     await userEvent.click(screen.getByText("Send"));
 
-    expect(await screen.findByText("What is the price?")).toBeInTheDocument();
+    expect(await screen.findByText("What services do you offer?")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(reply)).toBeInTheDocument());
   });
 
@@ -67,7 +67,7 @@ describe("AquaBot", () => {
     globalThis.fetch = mockFetch(null, false);
     render(<AquaBot />);
 
-    const input = screen.getByPlaceholderText("Ask AquaBot...");
+    const input = screen.getByPlaceholderText("Ask the assistant...");
     await userEvent.type(input, "hello");
     await userEvent.click(screen.getByText("Send"));
 

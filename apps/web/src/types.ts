@@ -1,3 +1,16 @@
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: "customer" | "provider";
+}
+
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+  loading: boolean;
+}
+
 export interface Job {
   id: string;
   status: "scheduled" | "in_progress" | "completed" | "cancelled";

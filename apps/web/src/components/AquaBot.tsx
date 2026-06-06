@@ -17,7 +17,7 @@ async function fetchReply(messages: { role: string; text: string }[]): Promise<s
 
 export default function AquaBot() {
   const [messages, setMessages] = useState<{ from: "bot" | "user"; text: string }[]>([
-    { from: "bot", text: "Hi! I'm AquaBot. Ask me about pricing, scheduling, chemicals, or emergencies." },
+    { from: "bot", text: "Hi! I'm the AI assistant. How can I help you today?" },
   ]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -51,7 +51,7 @@ export default function AquaBot() {
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-cyan shadow-[0_0_6px_rgba(20,184,166,0.5)]" />
-          <span className="font-plus text-sm font-medium text-gray-200">AquaBot</span>
+          <span className="font-plus text-sm font-medium text-gray-200">AI Assistant</span>
           {thinking && (
             <div className="flex items-center gap-1 ml-1">
               <span className="thinking-dot" />
@@ -60,7 +60,7 @@ export default function AquaBot() {
             </div>
           )}
         </div>
-        <span className="badge badge-cyan">AI</span>
+        <span className="badge badge-cyan">BETA</span>
       </div>
 
       <div className="h-48 overflow-y-auto p-3 space-y-3" style={{ background: "rgba(0,0,0,0.2)" }}>
@@ -93,7 +93,7 @@ export default function AquaBot() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Ask AquaBot..."
+          placeholder="Ask the assistant..."
           className="flex-1 font-plus text-xs rounded-lg px-3 py-2.5 text-gray-200 placeholder-gray-600 outline-none transition-all duration-200 focus:border-cyan/30"
           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
         />
