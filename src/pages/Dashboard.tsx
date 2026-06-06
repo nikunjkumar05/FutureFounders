@@ -48,7 +48,7 @@ export default function Dashboard() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    let channel;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     try {
       channel = supabase

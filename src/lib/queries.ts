@@ -4,6 +4,7 @@ import type {
   Customer,
   ServiceCardWithDetails,
   Staff,
+  Attendance,
   AttendanceWithStaff,
   Inventory,
   StockAlert,
@@ -212,12 +213,9 @@ export function useResolveTicket() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ ticketId }: { ticketId: string }) => {
-      const { data, error } = await supabase
-        .from('support_tickets')
-        .update({ status: 'resolved' })
-        .eq('id', ticketId)
-        .select()
-        .single();
+      const { data, error } = await supabase.functions.invoke('resolve-ticket', {
+        body: { ticketId },
+      });
       if (error) throw error;
       return data;
     },
@@ -305,6 +303,27 @@ export function useMonthlyAttendance(staffId: string, month: string) {
       return data;
     },
     enabled: !!staffId && !!month,
+  });
+}
+
+// Monthly attendance export (all staff)
+export function useMonthlyAttendanceExport(month: string) {
+  return useQuery({
+    queryKey: ['monthly_attendance_export', month],
+    queryFn: async () => {
+      const startDate = `${month}-01`;
+      const endDate = `${month}-31`;
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*, staff(name, daily_wage_inr)')
+        .eq('merchant_id', MERCHANT_ID)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true });
+      if (error) throw error;
+      return data as (Attendance & { staff: Pick<Staff, 'name' | 'daily_wage_inr'> })[];
+    },
+    enabled: !!month,
   });
 }
 

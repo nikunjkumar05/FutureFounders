@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Clock,
   CheckCircle,
   XCircle,
   User,
   X,
+  Download,
 } from 'lucide-react';
 import {
   useStaff,
@@ -12,6 +13,7 @@ import {
   useManualCheckIn,
   useManualCheckOut,
   useMonthlyAttendance,
+  useMonthlyAttendanceExport,
 } from '../lib/queries';
 import { format } from 'date-fns';
 import { TableSkeleton } from '../components/LoadingSkeleton';
@@ -256,6 +258,34 @@ function CheckInModal({
 
 function WageCalculator({ staff }: { staff: NonNullable<ReturnType<typeof useStaff>['data']> }) {
   const month = format(new Date(), 'yyyy-MM');
+  const { refetch: fetchExport } = useMonthlyAttendanceExport(month);
+
+  const handleExport = useCallback(async () => {
+    const { data: records } = await fetchExport();
+    if (!records || records.length === 0) return;
+
+    const rows = records.map(r => ({
+      Staff: r.staff?.name ?? '',
+      Phone: '',
+      Date: r.date,
+      'Check In': r.checkin_time ? format(new Date(r.checkin_time), 'HH:mm') : '',
+      'Check Out': r.checkout_time ? format(new Date(r.checkout_time), 'HH:mm') : '',
+      'Daily Wage': `₹${r.staff?.daily_wage_inr ?? 0}`,
+    }));
+
+    const csv = [
+      Object.keys(rows[0]).join(','),
+      ...rows.map(r => Object.values(r).map(v => `"${v}"`).join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance-${month}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [month, fetchExport]);
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -263,6 +293,13 @@ function WageCalculator({ staff }: { staff: NonNullable<ReturnType<typeof useSta
         <h2 className="text-sm font-semibold text-slate-900">
           Monthly Wage Calculator — {format(new Date(), 'MMM yyyy')}
         </h2>
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <Download size={14} />
+          Export CSV
+        </button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

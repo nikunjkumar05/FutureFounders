@@ -13,7 +13,7 @@ export default function SupportTickets() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    let channel;
+    let channel: any = null;
 
     try {
       channel = supabase
