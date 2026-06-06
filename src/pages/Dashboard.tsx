@@ -65,6 +65,11 @@ export default function Dashboard() {
         )
         .on(
           'postgres_changes',
+          { event: '*', schema: 'public', table: 'inventory' },
+          () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
+        )
+        .on(
+          'postgres_changes',
           { event: '*', schema: 'public', table: 'attendance' },
           () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
         )

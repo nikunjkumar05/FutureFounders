@@ -1,9 +1,39 @@
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useStockAlerts, useResolveAlert } from '../lib/queries';
+import { supabase } from '../lib/supabase';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 
 export function LowStockAlert() {
   const { data: alerts } = useStockAlerts();
   const resolveAlert = useResolveAlert();
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    let channel: any = null;
+
+    try {
+      channel = supabase
+        .channel('low-stock-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'stock_alerts' },
+          () => qc.invalidateQueries({ queryKey: ['stock_alerts'] })
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'inventory' },
+          () => qc.invalidateQueries({ queryKey: ['stock_alerts'] })
+        )
+        .subscribe();
+    } catch {}
+
+    return () => {
+      if (channel) {
+        try { supabase.removeChannel(channel); } catch {}
+      }
+    };
+  }, [qc]);
 
   if (!alerts || alerts.length === 0) return null;
 

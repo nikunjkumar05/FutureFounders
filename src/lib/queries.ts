@@ -165,15 +165,41 @@ export function useStockAlerts() {
   return useQuery({
     queryKey: ['stock_alerts'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get unresolved stock_alerts
+      const { data: alerts } = await supabase
         .from('stock_alerts')
         .select('*, inventory(*)')
         .eq('merchant_id', MERCHANT_ID)
         .eq('resolved', false)
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as StockAlert[];
+
+      // Also check inventory items below threshold that might not have alerts
+      const { data: inventory } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('merchant_id', MERCHANT_ID);
+
+      const alertIds = new Set((alerts ?? []).map(a => a.inventory_id));
+      const belowThreshold = (inventory ?? []).filter(
+        i => i.current_stock < i.minimum_threshold && !alertIds.has(i.id)
+      );
+
+      const combined: StockAlert[] = [
+        ...(alerts ?? []),
+        ...belowThreshold.map(i => ({
+          id: `inventory-${i.id}`,
+          inventory_id: i.id,
+          merchant_id: i.merchant_id,
+          alert_type: 'low_stock' as const,
+          resolved: false,
+          created_at: new Date().toISOString(),
+          inventory: i,
+        })),
+      ];
+
+      return combined;
     },
+    refetchInterval: 30_000,
   });
 }
 
@@ -249,7 +275,7 @@ export function useDashboardMetrics() {
       const today = new Date().toISOString().slice(0, 10);
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
-      const [reminders, stock, attendance, completed] = await Promise.all([
+      const [reminders, stockAlerts, inventory, attendance, completed] = await Promise.all([
         supabase
           .from('service_cards')
           .select('id', { count: 'exact', head: true })
@@ -261,6 +287,10 @@ export function useDashboardMetrics() {
           .select('id', { count: 'exact', head: true })
           .eq('merchant_id', MERCHANT_ID)
           .eq('resolved', false),
+        supabase
+          .from('inventory')
+          .select('id, current_stock, minimum_threshold')
+          .eq('merchant_id', MERCHANT_ID),
         supabase
           .from('attendance')
           .select('id', { count: 'exact', head: true })
@@ -275,13 +305,19 @@ export function useDashboardMetrics() {
           .gte('service_date', weekAgo),
       ]);
 
+      const unresolvedAlerts = stockAlerts.count ?? 0;
+      const belowThreshold = (inventory.data ?? []).filter(
+        (i: { current_stock: number; minimum_threshold: number }) => i.current_stock < i.minimum_threshold
+      ).length;
+
       return {
         dueReminders: reminders.count ?? 0,
-        lowStockAlerts: stock.count ?? 0,
+        lowStockAlerts: unresolvedAlerts + belowThreshold,
         staffCheckedIn: attendance.count ?? 0,
         jobsCompletedThisWeek: completed.count ?? 0,
       };
     },
+    refetchInterval: 30_000,
   });
 }
 
