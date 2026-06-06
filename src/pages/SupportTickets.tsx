@@ -13,17 +13,23 @@ export default function SupportTickets() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    const channel = supabase
-      .channel('support-tickets-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'support_tickets' },
-        () => qc.invalidateQueries({ queryKey: ['support_tickets'] })
-      )
-      .subscribe();
+    let channel;
+
+    try {
+      channel = supabase
+        .channel('support-tickets-realtime')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'support_tickets' },
+          () => qc.invalidateQueries({ queryKey: ['support_tickets'] })
+        )
+        .subscribe();
+    } catch {}
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        try { supabase.removeChannel(channel); } catch {}
+      }
     };
   }, [qc]);
 

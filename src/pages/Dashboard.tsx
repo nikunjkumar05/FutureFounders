@@ -48,27 +48,33 @@ export default function Dashboard() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    const channel = supabase
-      .channel('dashboard-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'service_cards' },
-        () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'stock_alerts' },
-        () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'attendance' },
-        () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
-      )
-      .subscribe();
+    let channel;
+
+    try {
+      channel = supabase
+        .channel('dashboard-realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'service_cards' },
+          () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'stock_alerts' },
+          () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'attendance' },
+          () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
+        )
+        .subscribe();
+    } catch {}
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        try { supabase.removeChannel(channel); } catch {}
+      }
     };
   }, [qc]);
 
