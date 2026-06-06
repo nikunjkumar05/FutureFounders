@@ -414,6 +414,62 @@ export function useAddServiceCard() {
   });
 }
 
+// Staff management
+export function useAddStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (s: { name: string; phone: string; dailyWage: number }) => {
+      const { data, error } = await supabase
+        .from('staff')
+        .insert({
+          merchant_id: MERCHANT_ID,
+          name: s.name,
+          phone: s.phone,
+          daily_wage_inr: s.dailyWage,
+          is_active: true,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
+  });
+}
+
+export function useUpdateStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (s: { id: string; name: string; phone: string; dailyWage: number; isActive: boolean }) => {
+      const { data, error } = await supabase
+        .from('staff')
+        .update({
+          name: s.name,
+          phone: s.phone,
+          daily_wage_inr: s.dailyWage,
+          is_active: s.isActive,
+        })
+        .eq('id', s.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
+  });
+}
+
+export function useDeleteStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { error } = await supabase.from('staff').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
+  });
+}
+
 // Add inventory item
 export function useAddInventory() {
   const qc = useQueryClient();
