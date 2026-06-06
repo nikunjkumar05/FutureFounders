@@ -1,7 +1,8 @@
 {
-  "name": "vite-react-typescript-starter",
+  "name": "aquatrak",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Lean SMB operations platform for water tank cleaning businesses",
   "type": "module",
   "scripts": {
     "dev": "vite",
