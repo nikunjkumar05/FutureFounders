@@ -31,22 +31,29 @@ export default function AttendancePanel({ refresh, onRefresh }: Props) {
   if (loading) {
     return (
       <div>
-        <h2 className="font-syne text-lg tracking-wide text-white mb-4">Attendance</h2>
-        {[1, 2].map((i) => <div key={i} className="h-16 card animate-pulse mb-3" />)}
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1.5 h-1.5 rounded-full bg-blue shadow-[0_0_6px_rgba(59,130,246,0.5)]" />
+          <h2 className="font-syne text-lg tracking-wide text-white">Attendance</h2>
+        </div>
+        {[1, 2].map((i) => <div key={i} className="h-16 rounded-xl skeleton mb-3" />)}
       </div>
     );
   }
 
   return (
     <div>
-      <h2 className="font-syne text-lg tracking-wide text-white mb-4">Attendance</h2>
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-1.5 h-1.5 rounded-full bg-blue shadow-[0_0_6px_rgba(59,130,246,0.5)]" />
+        <h2 className="font-syne text-lg tracking-wide text-white">Attendance</h2>
+      </div>
       <div className="space-y-2.5">
         {workers.map((w) => {
           const checkedIn = w.check_in_status === "on_time";
           return (
-            <div key={w.id} className={`card px-4 py-3 flex items-center justify-between ${checkedIn ? "border-left-cyan" : ""}`}>
+            <div key={w.id} className={`card px-4 py-3.5 flex items-center justify-between ${checkedIn ? "border-left-emerald" : ""}`}>
               <div className="flex items-center gap-3 min-w-0 flex-1">
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${checkedIn ? "bg-cyan" : "bg-gray-600"}`} />
+                <span className={`w-2 h-2 rounded-full shrink-0 ${checkedIn ? "bg-emerald" : "bg-gray-600"}`}
+                  style={checkedIn ? { boxShadow: "0 0 6px rgba(34,197,94,0.4)" } : {}} />
                 <div className="min-w-0">
                   <div className="font-plus text-sm font-medium text-gray-100 truncate">{w.name}</div>
                   <div className="font-dm-mono text-[11px] text-gray-600 mt-0.5">
@@ -66,24 +73,13 @@ export default function AttendancePanel({ refresh, onRefresh }: Props) {
                   <button
                     onClick={() => handleCheckin(w.id, w.job_id)}
                     disabled={checking === w.id}
-                    className="font-dm-mono text-[10px] font-medium px-3 py-1.5 rounded-md transition-all duration-200 disabled:opacity-40 cursor-pointer"
-                    style={{
-                      background: "rgba(20,184,166,0.12)",
-                      color: "#14b8a6",
-                      border: "1px solid rgba(20,184,166,0.2)",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.22)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.12)"; }}
+                    className="font-dm-mono text-[10px] font-medium px-3 py-1.5 rounded-md btn-cyan disabled:opacity-30 tracking-wider"
                   >
-                    {checking === w.id ? "..." : "MARK PRESENT"}
+                    {checking === w.id ? "..." : "Check In"}
                   </button>
                 )}
-                {checkedIn && (
-                  <span className="font-dm-mono text-[10px] text-gray-600 uppercase tracking-wide">Present</span>
-                )}
-                {!checkedIn && !w.job_id && (
-                  <span className="font-dm-mono text-[10px] text-gray-600 uppercase tracking-wide">Idle</span>
-                )}
+                {checkedIn && <span className="badge badge-green">Present</span>}
+                {!checkedIn && !w.job_id && <span className="badge badge-gray">Idle</span>}
               </div>
             </div>
           );

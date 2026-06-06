@@ -5,7 +5,8 @@ import dns from "dns";
 import pg from "pg";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rawUrl = process.env.DATABASE_URL || "postgresql://postgres:nikunj%231207P@db.ewiwhnojnqdqbelzxvvq.supabase.co:5432/postgres";
+const rawUrl = process.env.DATABASE_URL;
+if (!rawUrl) throw new Error("DATABASE_URL environment variable is required");
 
 // Try to resolve IPv4 address
 const hostname = "db.ewiwhnojnqdqbelzxvvq.supabase.co";

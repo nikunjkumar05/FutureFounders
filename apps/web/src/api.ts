@@ -3,8 +3,18 @@ import type { Job, InventoryItem, Reminder, WorkerAttendance, Metrics } from "./
 const BASE = "/api";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, init);
-  if (!res.ok) throw new Error(await res.text());
+  const res = await fetch(`${BASE}${url}`, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      "Content-Type": "application/json",
+    },
+    credentials: "same-origin",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
   return res.json();
 }
 
@@ -35,7 +45,6 @@ export function getAttendance(): Promise<WorkerAttendance[]> {
 export function manualCheckin(workerId: string, jobId: string | null): Promise<{ id: string; status: string }> {
   return fetchJson("/attendance/checkin", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ worker_id: workerId, job_id: jobId }),
   });
 }

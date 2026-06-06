@@ -1,9 +1,13 @@
 node_modules/
 .env
 .env.local
+.env.*.local
 dist/
 .next/
 .turbo/
 *.log
 
 .vercel
+apps/api/.env
+apps/api/.env.local
+api-error.log
