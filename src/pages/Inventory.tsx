@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Plus, Package, X, AlertTriangle } from 'lucide-react';
-import { useInventory, useAddInventory, useStockAlerts, useResolveAlert } from '../lib/queries';
+import { Plus, Package, X, AlertTriangle, Pencil, Trash2 } from 'lucide-react';
+import { useInventory, useAddInventory, useUpdateInventory, useDeleteInventory, useStockAlerts, useResolveAlert } from '../lib/queries';
 import { CardSkeleton } from '../components/LoadingSkeleton';
+import type { Inventory } from '../lib/types';
 
 export default function Inventory() {
   const { data: inventory, isLoading } = useInventory();
   const { data: alerts } = useStockAlerts();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editItem, setEditItem] = useState<Inventory | null>(null);
   const [showAlertHistory, setShowAlertHistory] = useState(false);
 
   return (
@@ -81,11 +83,21 @@ export default function Inventory() {
                       </p>
                     </div>
                   </div>
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${badgeColor}`}
-                  >
-                    {badgeLabel}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditItem(item)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      title="Edit item"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <DeleteButton itemId={item.id} itemName={item.item_name} />
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${badgeColor}`}
+                    >
+                      {badgeLabel}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="mb-3">
@@ -137,7 +149,45 @@ export default function Inventory() {
       )}
 
       {showAddModal && <AddItemModal onClose={() => setShowAddModal(false)} />}
+      {editItem && <EditItemModal item={editItem} onClose={() => setEditItem(null)} />}
     </div>
+  );
+}
+
+function DeleteButton({ itemId, itemName }: { itemId: string; itemName: string }) {
+  const [confirming, setConfirming] = useState(false);
+  const del = useDeleteInventory();
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => {
+            del.mutate({ id: itemId });
+            setConfirming(false);
+          }}
+          className="text-[10px] font-medium text-red-700 bg-red-50 hover:bg-red-100 px-1.5 py-0.5 rounded transition-colors"
+        >
+          Sure?
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="text-[10px] text-slate-400 hover:text-slate-600"
+        >
+          <X size={12} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+      title={`Delete ${itemName}`}
+    >
+      <Trash2 size={14} />
+    </button>
   );
 }
 
@@ -288,6 +338,102 @@ function AddItemModal({ onClose }: { onClose: () => void }) {
             className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             {addInventory.isPending ? 'Adding...' : 'Add Item'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditItemModal({ item, onClose }: { item: Inventory; onClose: () => void }) {
+  const [itemName, setItemName] = useState(item.item_name);
+  const [unit, setUnit] = useState(item.unit);
+  const [stock, setStock] = useState(String(item.current_stock));
+  const [threshold, setThreshold] = useState(String(item.minimum_threshold));
+  const updateInventory = useUpdateInventory();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateInventory.mutate(
+      {
+        id: item.id,
+        itemName,
+        unit,
+        currentStock: parseFloat(stock),
+        minimumThreshold: parseFloat(threshold),
+      },
+      { onSuccess: onClose }
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Edit Inventory Item
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Item Name *
+            </label>
+            <input
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Unit
+              </label>
+              <select
+                value={unit}
+                onChange={(e) => setUnit(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="g">grams</option>
+                <option value="kg">kg</option>
+                <option value="L">liters</option>
+                <option value="mL">mL</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Current Stock
+              </label>
+              <input
+                type="number"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Minimum Threshold
+            </label>
+            <input
+              type="number"
+              value={threshold}
+              onChange={(e) => setThreshold(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={updateInventory.isPending}
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {updateInventory.isPending ? 'Saving...' : 'Save Changes'}
           </button>
         </form>
       </div>

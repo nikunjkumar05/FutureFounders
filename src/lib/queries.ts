@@ -441,3 +441,45 @@ export function useAddInventory() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory'] }),
   });
 }
+
+export function useUpdateInventory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (item: {
+      id: string;
+      itemName: string;
+      unit: string;
+      currentStock: number;
+      minimumThreshold: number;
+    }) => {
+      const { data, error } = await supabase
+        .from('inventory')
+        .update({
+          item_name: item.itemName,
+          unit: item.unit,
+          current_stock: item.currentStock,
+          minimum_threshold: item.minimumThreshold,
+        })
+        .eq('id', item.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory'] }),
+  });
+}
+
+export function useDeleteInventory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { error } = await supabase
+        .from('inventory')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory'] }),
+  });
+}
