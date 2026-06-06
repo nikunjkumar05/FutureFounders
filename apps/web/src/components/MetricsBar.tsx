@@ -58,7 +58,7 @@ export default function MetricsBar() {
   const [m, setM] = useState<Metrics | null>(null);
 
   useEffect(() => {
-    getMetrics().then(setM);
+    getMetrics().then(setM).catch(() => setM(null));
   }, []);
 
   if (!m) {
