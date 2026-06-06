@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "description": "Lean SMB operations platform for water tank cleaning businesses",
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
