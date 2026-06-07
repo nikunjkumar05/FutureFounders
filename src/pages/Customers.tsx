@@ -15,7 +15,6 @@ import {
   useServiceCards,
   useMarkReminderSent,
   useAddCustomer,
-  useAddServiceCard,
 } from '../lib/queries';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import type { ServiceCardWithDetails, ServiceType } from '../lib/types';
@@ -295,23 +294,14 @@ function EmptyState() {
   );
 }
 
-const serviceTypeOptions: { value: ServiceType; label: string }[] = [
-  { value: 'standard_cleaning', label: 'Tank Cleaning' },
-  { value: 'sofa_cleaning', label: 'Sofa Cleaning' },
-  { value: 'seats_cleaning', label: 'Seats Cleaning' },
-];
-
 function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [serviceType, setServiceType] = useState<ServiceType>('standard_cleaning');
   const [tankCapacity, setTankCapacity] = useState('1000');
-  const [quantity, setQuantity] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const addCustomer = useAddCustomer();
-  const addServiceCard = useAddServiceCard();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -320,22 +310,13 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
     setSubmitting(true);
 
     try {
-      const result = await addCustomer.mutateAsync({
+      await addCustomer.mutateAsync({
         name,
         phone,
         address: address || null,
         latitude: null,
         longitude: null,
         tank_capacity_liters: parseInt(tankCapacity) || 1000,
-      });
-
-      const today = new Date().toISOString().slice(0, 10);
-      await addServiceCard.mutateAsync({
-        customerId: result.id,
-        serviceDate: today,
-        serviceType,
-        quantity: quantity ? parseInt(quantity) : undefined,
-        notes: 'Initial service record',
       });
 
       onClose();
@@ -396,44 +377,15 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              Service Type
+              Tank Capacity (Liters)
             </label>
-            <select
-              value={serviceType}
-              onChange={(e) => setServiceType(e.target.value as ServiceType)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {serviceTypeOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            <input
+              type="number"
+              value={tankCapacity}
+              onChange={(e) => setTankCapacity(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
-          {serviceType === 'standard_cleaning' ? (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Tank Capacity (Liters)
-              </label>
-              <input
-                type="number"
-                value={tankCapacity}
-                onChange={(e) => setTankCapacity(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                {serviceType === 'sofa_cleaning' ? 'Number of Sofas' : 'Number of Seats'}
-              </label>
-              <input
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                placeholder={serviceType === 'sofa_cleaning' ? 'e.g. 3' : 'e.g. 5'}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          )}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">
               {error}
