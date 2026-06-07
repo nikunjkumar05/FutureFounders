@@ -7,6 +7,7 @@ import {
   CircleDot,
   Kanban,
   Droplets,
+  IndianRupee,
 } from 'lucide-react';
 import { useDashboardMetrics } from '../lib/queries';
 import { CardSkeleton } from '../components/LoadingSkeleton';
@@ -16,29 +17,16 @@ import { useQueryClient } from '@tanstack/react-query';
 
 const metrics = [
   {
-    key: 'pendingJobs' as const,
-    label: 'Pending Jobs',
-    icon: CircleDot,
-    color: 'bg-amber-50 text-amber-600 border-amber-200',
-    iconBg: 'bg-amber-100',
-  },
-  {
-    key: 'inProgressJobs' as const,
-    label: 'In Progress',
-    icon: Kanban,
-    color: 'bg-blue-50 text-blue-600 border-blue-200',
-    iconBg: 'bg-blue-100',
-  },
-  {
-    key: 'jobsCompletedThisWeek' as const,
-    label: 'Completed This Week',
-    icon: CheckCircle2,
-    color: 'bg-green-50 text-green-600 border-green-200',
+    key: 'revenueRecoveredInr' as const,
+    label: 'Revenue Recovered (₹)',
+    icon: IndianRupee,
+    color: 'bg-green-50 text-green-700 border-green-200',
     iconBg: 'bg-green-100',
+    isCurrency: true,
   },
   {
     key: 'dueReminders' as const,
-    label: 'Due Reminders',
+    label: 'Due Reminders Today',
     icon: Bell,
     color: 'bg-amber-50 text-amber-600 border-amber-200',
     iconBg: 'bg-amber-100',
@@ -54,6 +42,20 @@ const metrics = [
     key: 'staffCheckedIn' as const,
     label: 'Staff Checked In Today',
     icon: Clock,
+    color: 'bg-blue-50 text-blue-600 border-blue-200',
+    iconBg: 'bg-blue-100',
+  },
+  {
+    key: 'pendingJobs' as const,
+    label: 'Pending Jobs',
+    icon: CircleDot,
+    color: 'bg-amber-50 text-amber-600 border-amber-200',
+    iconBg: 'bg-amber-100',
+  },
+  {
+    key: 'inProgressJobs' as const,
+    label: 'In Progress',
+    icon: Kanban,
     color: 'bg-blue-50 text-blue-600 border-blue-200',
     iconBg: 'bg-blue-100',
   },
@@ -124,8 +126,10 @@ export default function Dashboard() {
                     <p className="text-xs font-medium opacity-80 uppercase tracking-wide">
                       {label}
                     </p>
-                    <p className="text-3xl font-bold mt-2">
-                      {data?.[key] ?? 0}
+                    <p className={`mt-2 font-bold ${key === 'revenueRecoveredInr' ? 'text-4xl text-green-700' : 'text-3xl'}`}>
+                      {metrics.find(m => m.key === key)?.isCurrency 
+                        ? `₹${(data?.[key] ?? 0).toLocaleString('en-IN')}`
+                        : data?.[key] ?? 0}
                     </p>
                   </div>
                   <div className={`p-2.5 rounded-lg ${iconBg}`}>

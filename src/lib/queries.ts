@@ -324,7 +324,7 @@ export function useDashboardMetrics() {
       const today = new Date().toISOString().slice(0, 10);
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
-      const [pending, inProgress, completed, reminders, stockAlerts, inventory, attendance] = await Promise.all([
+      const [pending, inProgress, completedWithReminder, reminders, stockAlerts, inventory, attendance] = await Promise.all([
         supabase
           .from('service_cards')
           .select('id', { count: 'exact', head: true })
@@ -335,12 +335,14 @@ export function useDashboardMetrics() {
           .select('id', { count: 'exact', head: true })
           .eq('merchant_id', MERCHANT_ID)
           .eq('job_status', 'in_progress'),
+        // Jobs completed this week where reminder_sent_at IS NOT NULL (recovered revenue)
         supabase
           .from('service_cards')
           .select('id', { count: 'exact', head: true })
           .eq('merchant_id', MERCHANT_ID)
           .eq('job_status', 'completed')
-          .gte('service_date', weekAgo),
+          .gte('service_date', weekAgo)
+          .not('reminder_sent_at', 'is', null),
         supabase
           .from('service_cards')
           .select('id', { count: 'exact', head: true })
@@ -369,10 +371,14 @@ export function useDashboardMetrics() {
         (i: { current_stock: number; minimum_threshold: number }) => i.current_stock < i.minimum_threshold
       ).length;
 
+      // Revenue Recovered = Jobs completed this week (where reminder was sent) * Average Ticket Size (₹1000)
+      const recoveredJobsCount = completedWithReminder.count ?? 0;
+      const revenueRecoveredInr = recoveredJobsCount * 1000;
+
       return {
+        revenueRecoveredInr,
         pendingJobs: pending.count ?? 0,
         inProgressJobs: inProgress.count ?? 0,
-        jobsCompletedThisWeek: completed.count ?? 0,
         dueReminders: reminders.count ?? 0,
         lowStockAlerts: unresolvedAlerts + belowThreshold,
         staffCheckedIn: attendance.count ?? 0,
