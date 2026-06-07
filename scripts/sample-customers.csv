@@ -1,6 +1,6 @@
-name,phone,address,last_service_date,tank_capacity_liters
-Ravi Kumar,9876543216,23 Lake View Colony,2026-01-15,1000
-Sita Devi,9876543217,56 Gandhi Nagar,2026-02-20,1500
-Arun Mehta,9876543218,89 Patel Street,2026-03-10,2000
-Pooja Sharma,9876543219,12 Green Park,2026-04-05,500
-Vikram Singh,8765432109,45 River Side,2026-05-01,1000
+name,phone,address,notes,last_service_date
+Ravi Kumar,9876543216,23 Lake View Colony,Prefers morning visits,2026-01-15
+Sita Devi,9876543217,56 Gandhi Nagar,,2026-02-20
+Arun Mehta,9876543218,89 Patel Street,,2026-03-10
+Pooja Sharma,9876543219,12 Green Park,Has dog - call before arrival,2026-04-05
+Vikram Singh,8765432109,45 River Side,,2026-05-01

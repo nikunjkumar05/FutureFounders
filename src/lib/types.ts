@@ -1,5 +1,52 @@
 export type JobStatus = 'pending' | 'in_progress' | 'completed';
 
+export type ServiceType =
+  | 'standard_cleaning'
+  | 'sofa_cleaning'
+  | 'seats_cleaning'
+  | 'carpet_cleaning'
+  | 'custom_service';
+
+export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  standard_cleaning: 'Tank Cleaning',
+  sofa_cleaning: 'Sofa Cleaning',
+  seats_cleaning: 'Seats Cleaning',
+  carpet_cleaning: 'Carpet Cleaning',
+  custom_service: 'Custom Service',
+};
+
+export interface TankCleaningDetails {
+  tankCount: number;
+  tankCapacity: number;
+  totalCapacity: number;
+}
+
+export interface SofaCleaningDetails {
+  sofaCount: number;
+  sofaType: string;
+}
+
+export interface SeatsCleaningDetails {
+  seatCount: number;
+}
+
+export interface CarpetCleaningDetails {
+  carpetArea: number;
+  notes?: string;
+}
+
+export interface CustomServiceDetails {
+  serviceName: string;
+  notes?: string;
+}
+
+export type ServiceDetails =
+  | TankCleaningDetails
+  | SofaCleaningDetails
+  | SeatsCleaningDetails
+  | CarpetCleaningDetails
+  | CustomServiceDetails;
+
 export interface Merchant {
   id: string;
   business_name: string;
@@ -15,37 +62,25 @@ export interface Customer {
   name: string;
   phone: string;
   address: string | null;
+  notes: string | null;
   latitude: number | null;
   longitude: number | null;
-  tank_capacity_liters: number;
   created_at: string;
 }
-
-export type ServiceType = 'standard_cleaning' | 'sofa_cleaning' | 'seats_cleaning';
-
-export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
-  standard_cleaning: 'Tank Cleaning',
-  sofa_cleaning: 'Sofa Cleaning',
-  seats_cleaning: 'Seats Cleaning',
-};
-
-export const SERVICE_TYPE_ICONS: Record<ServiceType, string> = {
-  standard_cleaning: '💧',
-  sofa_cleaning: '🛋️',
-  seats_cleaning: '💺',
-};
 
 export interface ServiceCard {
   id: string;
   customer_id: string;
   merchant_id: string;
   service_type: ServiceType;
-  quantity: number | null;
+  service_details: ServiceDetails;
   service_date: string;
   next_service_date: string | null;
   job_status: JobStatus;
   technician_id: string | null;
   notes: string | null;
+  feedback_sent: boolean;
+  feedback_rating: string | null;
   reminder_sent_at: string | null;
   created_at: string;
   customers?: Customer;

@@ -14,10 +14,10 @@ import { useState } from 'react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/jobs', icon: Kanban, label: 'Jobs' },
   { to: '/customers', icon: Users, label: 'Customers' },
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/attendance', icon: Clock, label: 'Attendance' },
-  { to: '/jobs', icon: Kanban, label: 'Jobs' },
   { to: '/tickets', icon: Headphones, label: 'Support' },
 ];
 
@@ -54,7 +54,7 @@ export default function Sidebar() {
             </div>
             <div>
               <h1 className="text-lg font-bold tracking-tight">AquaTrak</h1>
-              <p className="text-xs text-slate-400">Tank Cleaning Ops</p>
+              <p className="text-xs text-slate-400">Cleaning Service Ops</p>
             </div>
           </div>
         </div>

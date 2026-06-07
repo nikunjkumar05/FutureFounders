@@ -10,6 +10,8 @@ import type {
   StockAlert,
   SupportTicket,
   JobStatus,
+  ServiceType,
+  ServiceDetails,
 } from './types';
 
 const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
@@ -52,16 +54,65 @@ export function useUpdateJobStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: JobStatus }) => {
+      const updates: Record<string, unknown> = { job_status: status };
+      if (status === 'completed') {
+        const nextDate = new Date(
+          Date.now() + 180 * 86400000
+        ).toISOString().slice(0, 10);
+        updates.next_service_date = nextDate;
+      }
       const { data, error } = await supabase
         .from('service_cards')
-        .update({ job_status: status })
+        .update(updates)
         .eq('id', id)
         .select()
         .single();
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['service_cards'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service_cards'] });
+      qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+    },
+  });
+}
+
+// Create job
+export function useCreateJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (job: {
+      customerId: string;
+      serviceType: ServiceType;
+      serviceDetails: ServiceDetails;
+      serviceDate: string;
+      technicianId?: string;
+      notes?: string;
+    }) => {
+      const nextDate = new Date(
+        new Date(job.serviceDate).getTime() + 180 * 86400000
+      ).toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('service_cards')
+        .insert({
+          customer_id: job.customerId,
+          merchant_id: MERCHANT_ID,
+          service_type: job.serviceType,
+          service_details: job.serviceDetails,
+          service_date: job.serviceDate,
+          next_service_date: nextDate,
+          technician_id: job.technicianId ?? null,
+          notes: job.notes ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service_cards'] });
+      qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+    },
   });
 }
 
@@ -165,7 +216,6 @@ export function useStockAlerts() {
   return useQuery({
     queryKey: ['stock_alerts'],
     queryFn: async () => {
-      // Get unresolved stock_alerts
       const { data: alerts } = await supabase
         .from('stock_alerts')
         .select('*, inventory(*)')
@@ -173,7 +223,6 @@ export function useStockAlerts() {
         .eq('resolved', false)
         .order('created_at', { ascending: false });
 
-      // Also check inventory items below threshold that might not have alerts
       const { data: inventory } = await supabase
         .from('inventory')
         .select('*')
@@ -275,7 +324,23 @@ export function useDashboardMetrics() {
       const today = new Date().toISOString().slice(0, 10);
       const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
 
-      const [reminders, stockAlerts, inventory, attendance, completed] = await Promise.all([
+      const [pending, inProgress, completed, reminders, stockAlerts, inventory, attendance] = await Promise.all([
+        supabase
+          .from('service_cards')
+          .select('id', { count: 'exact', head: true })
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('job_status', 'pending'),
+        supabase
+          .from('service_cards')
+          .select('id', { count: 'exact', head: true })
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('job_status', 'in_progress'),
+        supabase
+          .from('service_cards')
+          .select('id', { count: 'exact', head: true })
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('job_status', 'completed')
+          .gte('service_date', weekAgo),
         supabase
           .from('service_cards')
           .select('id', { count: 'exact', head: true })
@@ -297,12 +362,6 @@ export function useDashboardMetrics() {
           .eq('merchant_id', MERCHANT_ID)
           .eq('date', today)
           .not('checkin_time', 'is', null),
-        supabase
-          .from('service_cards')
-          .select('id', { count: 'exact', head: true })
-          .eq('merchant_id', MERCHANT_ID)
-          .eq('job_status', 'completed')
-          .gte('service_date', weekAgo),
       ]);
 
       const unresolvedAlerts = stockAlerts.count ?? 0;
@@ -311,10 +370,12 @@ export function useDashboardMetrics() {
       ).length;
 
       return {
+        pendingJobs: pending.count ?? 0,
+        inProgressJobs: inProgress.count ?? 0,
+        jobsCompletedThisWeek: completed.count ?? 0,
         dueReminders: reminders.count ?? 0,
         lowStockAlerts: unresolvedAlerts + belowThreshold,
         staffCheckedIn: attendance.count ?? 0,
-        jobsCompletedThisWeek: completed.count ?? 0,
       };
     },
     refetchInterval: 30_000,
@@ -367,55 +428,31 @@ export function useMonthlyAttendanceExport(month: string) {
 export function useAddCustomer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (customer: Omit<Customer, 'id' | 'merchant_id' | 'created_at'>) => {
+    mutationFn: async (customer: {
+      name: string;
+      phone: string;
+      address?: string | null;
+      notes?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+    }) => {
       const { data, error } = await supabase
         .from('customers')
-        .insert({ ...customer, merchant_id: MERCHANT_ID })
+        .insert({
+          merchant_id: MERCHANT_ID,
+          name: customer.name,
+          phone: customer.phone,
+          address: customer.address ?? null,
+          notes: customer.notes ?? null,
+          latitude: customer.latitude ?? null,
+          longitude: customer.longitude ?? null,
+        })
         .select()
         .single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
-  });
-}
-
-// Add service card
-export function useAddServiceCard() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (card: {
-      customerId: string;
-      serviceDate: string;
-      serviceType?: string;
-      quantity?: number;
-      technicianId?: string;
-      notes?: string;
-    }) => {
-      const nextDate = new Date(
-        new Date(card.serviceDate).getTime() + 180 * 86400000
-      )
-        .toISOString()
-        .slice(0, 10);
-      const payload: Record<string, unknown> = {
-        customer_id: card.customerId,
-        merchant_id: MERCHANT_ID,
-        service_date: card.serviceDate,
-        next_service_date: nextDate,
-        technician_id: card.technicianId ?? null,
-        notes: card.notes ?? null,
-      };
-      if (card.serviceType && card.serviceType !== 'standard_cleaning') payload.service_type = card.serviceType;
-      if (card.quantity != null) payload.quantity = card.quantity;
-      const { data, error } = await supabase
-        .from('service_cards')
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['service_cards'] }),
   });
 }
 
@@ -542,5 +579,34 @@ export function useDeleteInventory() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory'] }),
+  });
+}
+
+// Feedback
+export function useSendFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ cardId, rating }: { cardId: string; rating: string }) => {
+      const customer = await supabase
+        .from('service_cards')
+        .select('customers(phone, name)')
+        .eq('id', cardId)
+        .single();
+      const phone = (customer.data as any)?.customers?.phone;
+      const name = (customer.data as any)?.customers?.name;
+      if (phone) {
+        const message = `Thank you for choosing AquaClean Services, ${name ?? 'Valued Customer'}!\n\nPlease rate our service:\n⭐ Google Review: https://g.page/r/review\n⭐ JustDial Review: https://justdial.com/review`;
+        window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(message)}`);
+      }
+      const { data, error } = await supabase
+        .from('service_cards')
+        .update({ feedback_sent: true, feedback_rating: rating })
+        .eq('id', cardId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['service_cards'] }),
   });
 }
