@@ -4,32 +4,28 @@ import {
   Plus,
   Phone,
   MapPin,
-  Droplets,
   Bell,
   Check,
   X,
   Users,
+  FileText,
 } from 'lucide-react';
 import {
   useCustomers,
   useServiceCards,
   useMarkReminderSent,
   useAddCustomer,
-  useAddServiceCard,
 } from '../lib/queries';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import type { ServiceCardWithDetails, ServiceType } from '../lib/types';
 import { SERVICE_TYPE_LABELS } from '../lib/types';
 import { format, differenceInDays } from 'date-fns';
 
-type FilterMode = 'all_due' | 'overdue' | 'due_this_week';
-
 export default function Customers() {
   const { data: customers, isLoading } = useCustomers();
   const { data: serviceCards } = useServiceCards();
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [filter, setFilter] = useState<FilterMode>('all_due');
 
   const filtered = customers?.filter((c) => {
     const q = search.toLowerCase();
@@ -42,7 +38,7 @@ export default function Customers() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Customers</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Manage your customer base and send reminders
+            Manage your customer base
           </p>
         </div>
         <button
@@ -68,31 +64,10 @@ export default function Customers() {
             className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           />
         </div>
-        <div className="flex gap-2">
-          {(
-            [
-              { key: 'all_due', label: 'Show All Due' },
-              { key: 'overdue', label: 'Overdue' },
-              { key: 'due_this_week', label: 'Due This Week' },
-            ] as const
-          ).map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={`text-xs font-medium px-3 py-2 rounded-lg border transition-colors ${
-                filter === key
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {isLoading ? (
-        <TableSkeleton rows={5} cols={6} />
+        <TableSkeleton rows={5} cols={4} />
       ) : !filtered?.length ? (
         <EmptyState />
       ) : (
@@ -108,13 +83,7 @@ export default function Customers() {
                     Phone
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Last Service
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Next Service
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Service
+                    Recent Service
                   </th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Action
@@ -132,7 +101,6 @@ export default function Customers() {
                       key={customer.id}
                       customer={customer}
                       serviceCard={latestCard ?? null}
-                      filter={filter}
                     />
                   );
                 })}
@@ -152,53 +120,41 @@ export default function Customers() {
 function CustomerRow({
   customer,
   serviceCard,
-  filter,
 }: {
   customer: NonNullable<ReturnType<typeof useCustomers>['data']>[0];
   serviceCard: ServiceCardWithDetails | null;
-  filter: FilterMode;
 }) {
   const markReminder = useMarkReminderSent();
   const today = new Date();
   const nextDate = serviceCard?.next_service_date
     ? new Date(serviceCard.next_service_date)
     : null;
-  const daysOverdue = nextDate ? differenceInDays(today, nextDate) : null;
-
-  const isOverdue = daysOverdue !== null && daysOverdue > 0;
-  const isDueThisWeek =
-    nextDate &&
-    !isOverdue &&
-    differenceInDays(nextDate, today) <= 7 &&
-    differenceInDays(nextDate, today) >= 0;
-  const isAllDue = isOverdue || isDueThisWeek;
-
-  if (filter === 'overdue' && !isOverdue) return null;
-  if (filter === 'due_this_week' && !isDueThisWeek) return null;
-  if (filter === 'all_due' && !isAllDue) return null;
+  const daysDue = nextDate ? differenceInDays(today, nextDate) : null;
+  const isOverdue = daysDue !== null && daysDue > 0;
+  const isDueSoon = daysDue !== null && daysDue >= -7 && daysDue <= 0;
+  const reminderSent = !!serviceCard?.reminder_sent_at;
 
   const statusColor = isOverdue
     ? 'bg-red-100 text-red-700'
-    : isDueThisWeek
+    : isDueSoon
     ? 'bg-amber-100 text-amber-700'
     : 'bg-green-100 text-green-700';
 
   const statusLabel = isOverdue
-    ? `${daysOverdue}d overdue`
-    : isDueThisWeek
+    ? `${daysDue}d overdue`
+    : isDueSoon
     ? 'Due soon'
     : 'On track';
-
-  const reminderSent = !!serviceCard?.reminder_sent_at;
 
   const handleSendReminder = () => {
     if (!serviceCard || reminderSent) return;
     const type = serviceCard.service_type as ServiceType;
-    const label = SERVICE_TYPE_LABELS[type] ?? 'cleaning';
     const messages: Record<string, string> = {
       standard_cleaning: `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
       sofa_cleaning: `Hi ${customer.name}! It's time for your sofa cleaning service. Keep your furniture fresh and hygienic! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
       seats_cleaning: `Hi ${customer.name}! It's time for your seats cleaning service. Enjoy a fresh and clean ride! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+      carpet_cleaning: `Hi ${customer.name}! It's time for your carpet cleaning service. Keep your carpets fresh and hygienic! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+      custom_service: `Hi ${customer.name}! It's time for your service with AquaClean Services. Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
     };
     const template = messages[type] ?? messages.standard_cleaning;
     window.open(
@@ -222,6 +178,12 @@ function CustomerRow({
                 {customer.address}
               </p>
             )}
+            {customer.notes && (
+              <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                <FileText size={10} />
+                {customer.notes}
+              </p>
+            )}
           </div>
         </div>
       </td>
@@ -231,39 +193,32 @@ function CustomerRow({
           {customer.phone}
         </span>
       </td>
-      <td className="px-4 py-3 text-slate-600">
-        {serviceCard?.service_date
-          ? format(new Date(serviceCard.service_date), 'dd MMM yyyy')
-          : '—'}
-      </td>
       <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="text-slate-600">
-            {nextDate ? format(nextDate, 'dd MMM yyyy') : '—'}
-          </span>
-          <span
-            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusColor}`}
-          >
-            {statusLabel}
-          </span>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <span className="flex items-center gap-1 text-slate-600">
-          <Droplets size={12} />
-          {serviceCard
-            ? `${SERVICE_TYPE_LABELS[serviceCard.service_type as ServiceType] ?? serviceCard.service_type}${serviceCard.quantity ? ` (${serviceCard.quantity}${serviceCard.service_type === 'standard_cleaning' ? 'L' : 'pc'})` : ` ${customer.tank_capacity_liters}L`}`
-            : `${customer.tank_capacity_liters}L`}
-        </span>
+        {serviceCard ? (
+          <div className="flex items-center gap-2">
+            <span className="text-slate-600 text-xs">
+              {SERVICE_TYPE_LABELS[serviceCard.service_type as ServiceType] ?? serviceCard.service_type}
+            </span>
+            {nextDate && (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${statusColor}`}>
+                {statusLabel}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-400 text-xs">No service yet</span>
+        )}
       </td>
       <td className="px-4 py-3 text-right">
         <button
           onClick={handleSendReminder}
-          disabled={reminderSent}
+          disabled={reminderSent || !serviceCard}
           className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
             reminderSent
               ? 'bg-green-100 text-green-700 cursor-default'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
+              : serviceCard
+              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
           }`}
         >
           {reminderSent ? (
@@ -272,7 +227,7 @@ function CustomerRow({
             </>
           ) : (
             <>
-              <Bell size={12} /> Send Reminder
+              <Bell size={12} /> Remind
             </>
           )}
         </button>
@@ -289,51 +244,40 @@ function EmptyState() {
         No customers yet
       </h3>
       <p className="text-sm text-slate-500">
-        Add your first customer to start managing service reminders.
+        Add your first customer to get started.
       </p>
     </div>
   );
 }
 
-const serviceTypeOptions: { value: ServiceType; label: string }[] = [
-  { value: 'standard_cleaning', label: 'Tank Cleaning' },
-  { value: 'sofa_cleaning', label: 'Sofa Cleaning' },
-  { value: 'seats_cleaning', label: 'Seats Cleaning' },
-];
-
 function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [serviceType, setServiceType] = useState<ServiceType>('standard_cleaning');
-  const [tankCapacity, setTankCapacity] = useState('1000');
-  const [quantity, setQuantity] = useState('');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const addCustomer = useAddCustomer();
-  const addServiceCard = useAddServiceCard();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone) return;
+    setError('');
+    setSubmitting(true);
 
-    const result = await addCustomer.mutateAsync({
-      name,
-      phone,
-      address: address || null,
-      latitude: null,
-      longitude: null,
-      tank_capacity_liters: parseInt(tankCapacity) || 1000,
-    });
-
-    const today = new Date().toISOString().slice(0, 10);
-    await addServiceCard.mutateAsync({
-      customerId: result.id,
-      serviceDate: today,
-      serviceType,
-      quantity: quantity ? parseInt(quantity) : undefined,
-      notes: 'Initial service record',
-    });
-
-    onClose();
+    try {
+      await addCustomer.mutateAsync({
+        name,
+        phone,
+        address: address || null,
+        notes: notes || null,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add customer');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -386,50 +330,27 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              Service Type
+              Notes
             </label>
-            <select
-              value={serviceType}
-              onChange={(e) => setServiceType(e.target.value as ServiceType)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              {serviceTypeOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              placeholder="Optional notes about this customer"
+            />
           </div>
-          {serviceType === 'standard_cleaning' ? (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Tank Capacity (Liters)
-              </label>
-              <input
-                type="number"
-                value={tankCapacity}
-                onChange={(e) => setTankCapacity(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                {serviceType === 'sofa_cleaning' ? 'Number of Sofas' : 'Number of Seats'}
-              </label>
-              <input
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                placeholder={serviceType === 'sofa_cleaning' ? 'e.g. 3' : 'e.g. 5'}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">
+              {error}
             </div>
           )}
           <button
             type="submit"
-            disabled={addCustomer.isPending}
+            disabled={submitting}
             className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {addCustomer.isPending ? 'Adding...' : 'Add Customer'}
+            {submitting ? 'Adding...' : 'Add Customer'}
           </button>
         </form>
       </div>

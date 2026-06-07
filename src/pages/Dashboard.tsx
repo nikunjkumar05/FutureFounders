@@ -4,6 +4,8 @@ import {
   Clock,
   CheckCircle2,
   TrendingUp,
+  CircleDot,
+  Kanban,
   Droplets,
 } from 'lucide-react';
 import { useDashboardMetrics } from '../lib/queries';
@@ -14,8 +16,29 @@ import { useQueryClient } from '@tanstack/react-query';
 
 const metrics = [
   {
+    key: 'pendingJobs' as const,
+    label: 'Pending Jobs',
+    icon: CircleDot,
+    color: 'bg-amber-50 text-amber-600 border-amber-200',
+    iconBg: 'bg-amber-100',
+  },
+  {
+    key: 'inProgressJobs' as const,
+    label: 'In Progress',
+    icon: Kanban,
+    color: 'bg-blue-50 text-blue-600 border-blue-200',
+    iconBg: 'bg-blue-100',
+  },
+  {
+    key: 'jobsCompletedThisWeek' as const,
+    label: 'Completed This Week',
+    icon: CheckCircle2,
+    color: 'bg-green-50 text-green-600 border-green-200',
+    iconBg: 'bg-green-100',
+  },
+  {
     key: 'dueReminders' as const,
-    label: 'Due Reminders Today',
+    label: 'Due Reminders',
     icon: Bell,
     color: 'bg-amber-50 text-amber-600 border-amber-200',
     iconBg: 'bg-amber-100',
@@ -33,13 +56,6 @@ const metrics = [
     icon: Clock,
     color: 'bg-blue-50 text-blue-600 border-blue-200',
     iconBg: 'bg-blue-100',
-  },
-  {
-    key: 'jobsCompletedThisWeek' as const,
-    label: 'Jobs Completed This Week',
-    icon: CheckCircle2,
-    color: 'bg-green-50 text-green-600 border-green-200',
-    iconBg: 'bg-green-100',
   },
 ];
 
@@ -95,9 +111,9 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)
+          ? Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)
           : metrics.map(({ key, label, icon: Icon, color, iconBg }) => (
               <div
                 key={key}
@@ -140,9 +156,9 @@ function QuickActions() {
       </h2>
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Send Reminders', to: '/customers', color: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200' },
+          { label: 'Create Job', to: '/jobs', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200' },
           { label: 'Check Inventory', to: '/inventory', color: 'bg-green-50 text-green-700 hover:bg-green-100 border-green-200' },
-          { label: 'Manage Jobs', to: '/jobs', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200' },
+          { label: 'Send Reminders', to: '/customers', color: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200' },
           { label: 'Staff Attendance', to: '/attendance', color: 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200' },
         ].map(({ label, to, color }) => (
           <a

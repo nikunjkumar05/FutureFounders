@@ -33,8 +33,8 @@ async function upsertCustomer(row) {
   const name = (row.name || '').trim();
   if (!name) return { skipped: true, reason: 'Missing name' };
 
-  const tankCapacity = parseInt(row.tank_capacity_liters) || 1000;
   const address = (row.address || '').trim() || null;
+  const notes = (row.notes || '').trim() || null;
   const lastServiceDate = row.last_service_date || new Date().toISOString().slice(0, 10);
   const nextServiceDate = new Date(new Date(lastServiceDate).getTime() + 180 * 86400000)
     .toISOString()
@@ -52,7 +52,7 @@ async function upsertCustomer(row) {
     customerId = existing.id;
     await supabase
       .from('customers')
-      .update({ name, address, tank_capacity_liters: tankCapacity })
+      .update({ name, address, notes })
       .eq('id', customerId);
   } else {
     const { data: newCust } = await supabase
@@ -62,7 +62,7 @@ async function upsertCustomer(row) {
         name,
         phone,
         address,
-        tank_capacity_liters: tankCapacity,
+        notes,
       })
       .select('id')
       .single();
@@ -73,6 +73,8 @@ async function upsertCustomer(row) {
   await supabase.from('service_cards').insert({
     customer_id: customerId,
     merchant_id: MERCHANT_ID,
+    service_type: 'standard_cleaning',
+    service_details: { tankCount: 1, tankCapacity: 1000, totalCapacity: 1000 },
     service_date: lastServiceDate,
     next_service_date: nextServiceDate,
     notes: 'Imported via migration',
