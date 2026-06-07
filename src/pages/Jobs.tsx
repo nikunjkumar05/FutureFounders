@@ -177,17 +177,6 @@ function ServiceDetailsDisplay({ card }: { card: ServiceCardWithDetails }) {
 function JobCard({ card }: { card: ServiceCardWithDetails }) {
   const updateStatus = useUpdateJobStatus();
   const sendFeedback = useSendFeedback();
-  const nextStatus: Record<JobStatus, JobStatus | null> = {
-    pending: 'in_progress',
-    in_progress: 'completed',
-    completed: null,
-  };
-  const next = nextStatus[card.job_status];
-  const nextLabel: Record<JobStatus, string> = {
-    pending: 'Start Job',
-    in_progress: 'Mark Complete',
-    completed: '',
-  };
 
   const handleComplete = () => {
     if (card.job_status === 'in_progress') {
