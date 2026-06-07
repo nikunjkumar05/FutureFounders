@@ -7,7 +7,8 @@ import {
   ChevronRight,
   Droplets,
 } from 'lucide-react';
-import type { JobStatus, ServiceCardWithDetails } from '../lib/types';
+import type { JobStatus, ServiceCardWithDetails, ServiceType } from '../lib/types';
+import { SERVICE_TYPE_LABELS } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
 const columns: { status: JobStatus; label: string; icon: typeof CircleDot; color: string; bgColor: string }[] = [
@@ -112,7 +113,8 @@ function JobCard({ card }: { card: ServiceCardWithDetails }) {
           </h3>
           <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
             <Droplets size={10} />
-            {card.customers?.tank_capacity_liters}L
+            {SERVICE_TYPE_LABELS[card.service_type as ServiceType] ?? card.service_type}
+            {card.quantity ? ` - ${card.quantity}${card.service_type === 'standard_cleaning' ? 'L' : 'pc'}` : ''}
           </p>
         </div>
         <span

@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS service_cards (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_id uuid NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   merchant_id uuid NOT NULL REFERENCES merchants(id) ON DELETE CASCADE,
+  service_type text NOT NULL DEFAULT 'standard_cleaning',
+  quantity integer,
   service_date date NOT NULL DEFAULT current_date,
   next_service_date date,
   job_status job_status NOT NULL DEFAULT 'pending',
@@ -218,7 +220,7 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_tank_capacity integer;
+  v_qty integer;
   v_qty_per_1000L numeric;
   v_item_name text;
   v_inv_id uuid;
@@ -228,14 +230,20 @@ DECLARE
   v_deduct_qty numeric;
 BEGIN
   IF NEW.job_status = 'completed' AND (OLD.job_status IS NULL OR OLD.job_status != 'completed') THEN
-    SELECT c.tank_capacity_liters, c.merchant_id
-      INTO v_tank_capacity, v_merchant_id
+    IF NEW.quantity IS NOT NULL THEN
+      v_qty := NEW.quantity;
+    ELSE
+      SELECT c.tank_capacity_liters INTO v_qty
+        FROM customers c WHERE c.id = NEW.customer_id;
+    END IF;
+
+    SELECT c.merchant_id INTO v_merchant_id
       FROM customers c WHERE c.id = NEW.customer_id;
 
     FOR v_item_name, v_qty_per_1000L IN
       SELECT sir.item_name, sir.quantity_per_1000L
         FROM service_inventory_requirements sir
-        WHERE sir.service_type = 'standard_cleaning'
+        WHERE sir.service_type = NEW.service_type
     LOOP
       SELECT i.id, i.current_stock, i.minimum_threshold
         INTO v_inv_id, v_new_stock, v_min_threshold
@@ -244,7 +252,7 @@ BEGIN
         LIMIT 1;
 
       IF v_inv_id IS NOT NULL THEN
-        v_deduct_qty := (v_tank_capacity::numeric / 1000.0) * v_qty_per_1000L;
+        v_deduct_qty := (v_qty::numeric / 1000.0) * v_qty_per_1000L;
         v_new_stock := v_new_stock - v_deduct_qty;
 
         UPDATE inventory
@@ -297,21 +305,31 @@ VALUES
   ('c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Neha Singh', '9876543215', '78 Civil Lines', 28.6865, 77.2215, 500)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO service_cards (id, customer_id, merchant_id, service_date, next_service_date, job_status, technician_id, notes)
+INSERT INTO service_cards (id, customer_id, merchant_id, service_type, service_date, next_service_date, job_status, technician_id, notes)
 VALUES
-  ('d1eebc99-9c0b-4ef8-bb6d-6bb9bd380a41', 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a31', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', current_date - 180, current_date, 'pending', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a21', '6-month cleaning due'),
-  ('d1eebc99-9c0b-4ef8-bb6d-6bb9bd380a42', 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a32', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', current_date - 5, current_date + 175, 'in_progress', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'Large tank - extra chemicals needed'),
-  ('d1eebc99-9c0b-4ef8-bb6d-6bb9bd380a43', 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', current_date - 10, current_date + 170, 'completed', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a21', 'Small tank, routine cleaning')
+  ('d1eebc99-9c0b-4ef8-bb6d-6bb9bd380a41', 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a31', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'standard_cleaning', current_date - 180, current_date, 'pending', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a21', '6-month cleaning due'),
+  ('d1eebc99-9c0b-4ef8-bb6d-6bb9bd380a42', 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a32', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'standard_cleaning', current_date - 5, current_date + 175, 'in_progress', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'Large tank - extra chemicals needed'),
+  ('d1eebc99-9c0b-4ef8-bb6d-6bb9bd380a43', 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'standard_cleaning', current_date - 10, current_date + 170, 'completed', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a21', 'Small tank, routine cleaning'),
+  ('d1eebc99-9c0b-4ef8-bb6d-6bb9bd380a44', 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a31', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'sofa_cleaning', current_date - 3, current_date + 177, 'completed', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a21', '3-seater sofa set'),
+  ('d1eebc99-9c0b-4ef8-bb6d-6bb9bd380a45', 'c1eebc99-9c0b-4ef8-bb6d-6bb9bd380a32', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'seats_cleaning', current_date - 1, current_date + 179, 'pending', NULL, 'Car interior - 5 seats')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO inventory (id, merchant_id, item_name, unit, current_stock, minimum_threshold)
 VALUES
   ('e1eebc99-9c0b-4ef8-bb6d-6bb9bd380a51', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Chlorine', 'g', 500.00, 50.00),
-  ('e1eebc99-9c0b-4ef8-bb6d-6bb9bd380a52', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Bleaching Powder', 'g', 2000.00, 200.00)
+  ('e1eebc99-9c0b-4ef8-bb6d-6bb9bd380a52', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Bleaching Powder', 'g', 2000.00, 200.00),
+  ('e1eebc99-9c0b-4ef8-bb6d-6bb9bd380a53', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Fabric Cleaner', 'ml', 5000.00, 500.00),
+  ('e1eebc99-9c0b-4ef8-bb6d-6bb9bd380a54', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Stain Remover', 'ml', 3000.00, 300.00),
+  ('e1eebc99-9c0b-4ef8-bb6d-6bb9bd380a55', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Upholstery Cleaner', 'ml', 4000.00, 400.00),
+  ('e1eebc99-9c0b-4ef8-bb6d-6bb9bd380a56', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Disinfectant Spray', 'ml', 2000.00, 200.00)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO service_inventory_requirements (service_type, item_name, quantity_per_1000L)
 VALUES
   ('standard_cleaning', 'Chlorine', 30.00),
-  ('standard_cleaning', 'Bleaching Powder', 100.00)
+  ('standard_cleaning', 'Bleaching Powder', 100.00),
+  ('sofa_cleaning', 'Fabric Cleaner', 250.00),
+  ('sofa_cleaning', 'Stain Remover', 100.00),
+  ('seats_cleaning', 'Upholstery Cleaner', 200.00),
+  ('seats_cleaning', 'Disinfectant Spray', 50.00)
 ON CONFLICT DO NOTHING;

@@ -21,10 +21,26 @@ export interface Customer {
   created_at: string;
 }
 
+export type ServiceType = 'standard_cleaning' | 'sofa_cleaning' | 'seats_cleaning';
+
+export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  standard_cleaning: 'Tank Cleaning',
+  sofa_cleaning: 'Sofa Cleaning',
+  seats_cleaning: 'Seats Cleaning',
+};
+
+export const SERVICE_TYPE_ICONS: Record<ServiceType, string> = {
+  standard_cleaning: '💧',
+  sofa_cleaning: '🛋️',
+  seats_cleaning: '💺',
+};
+
 export interface ServiceCard {
   id: string;
   customer_id: string;
   merchant_id: string;
+  service_type: ServiceType;
+  quantity: number | null;
   service_date: string;
   next_service_date: string | null;
   job_status: JobStatus;
