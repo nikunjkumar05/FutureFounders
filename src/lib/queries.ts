@@ -405,7 +405,7 @@ export function useAddServiceCard() {
         technician_id: card.technicianId ?? null,
         notes: card.notes ?? null,
       };
-      if (card.serviceType) payload.service_type = card.serviceType;
+      if (card.serviceType && card.serviceType !== 'standard_cleaning') payload.service_type = card.serviceType;
       if (card.quantity != null) payload.quantity = card.quantity;
       const { data, error } = await supabase
         .from('service_cards')
