@@ -231,13 +231,13 @@ DECLARE
   v_details jsonb;
 BEGIN
   IF NEW.job_status = 'completed' AND (OLD.job_status IS NULL OR OLD.job_status != 'completed') THEN
-    v_details := NEW.service_details;
+    v_details := COALESCE(NEW.service_details, '{}'::jsonb);
 
     v_qty := CASE NEW.service_type
-      WHEN 'standard_cleaning' THEN (v_details->>'tankCount')::int * (v_details->>'tankCapacity')::int
-      WHEN 'sofa_cleaning'     THEN (v_details->>'sofaCount')::int * 1000
-      WHEN 'seats_cleaning'    THEN (v_details->>'seatCount')::int * 500
-      WHEN 'carpet_cleaning'   THEN (v_details->>'carpetArea')::int * 200
+      WHEN 'standard_cleaning' THEN COALESCE(NULLIF(v_details->>'tankCount', '')::int, 1) * COALESCE(NULLIF(v_details->>'tankCapacity', '')::int, 1000)
+      WHEN 'sofa_cleaning'     THEN COALESCE(NULLIF(v_details->>'sofaCount', '')::int, 1) * 1000
+      WHEN 'seats_cleaning'    THEN COALESCE(NULLIF(v_details->>'seatCount', '')::int, 1) * 500
+      WHEN 'carpet_cleaning'   THEN COALESCE(NULLIF(v_details->>'carpetArea', '')::int, 100) * 200
       ELSE 1000
     END;
 
