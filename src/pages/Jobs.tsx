@@ -645,8 +645,6 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         const customerName = showNewCustomer ? newCustomerName : selectedCustomer?.name;
         const workerName = staff?.find(s => s.id === technicianId)?.name ?? 'Unassigned';
         const details = getServiceDetails();
-        const detailsStr = JSON.stringify(details);
-
         return (
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-slate-900">Review & Create</h3>
