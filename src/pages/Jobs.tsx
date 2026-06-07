@@ -630,7 +630,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
           </div>
         );
 
-      case 'review':
+      case 'review': {
         const customerName = showNewCustomer ? newCustomerName : selectedCustomer?.name;
         const workerName = staff?.find(s => s.id === technicianId)?.name ?? 'Unassigned';
         const details = getServiceDetails();
@@ -680,6 +680,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         );
+      }
     }
   };
 
