@@ -12,7 +12,6 @@ import {
   User,
   Calendar,
   FileText,
-  Droplets,
   Star,
 } from 'lucide-react';
 import type { JobStatus, ServiceCardWithDetails, ServiceType } from '../lib/types';
