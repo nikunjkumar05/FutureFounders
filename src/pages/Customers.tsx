@@ -131,7 +131,7 @@ function CustomerRow({
     : null;
   const daysDue = nextDate ? differenceInDays(today, nextDate) : null;
   const isOverdue = daysDue !== null && daysDue > 0;
-  const isDueSoon = daysDue !== null && daysDue <= 7 && daysDue >= 0;
+  const isDueSoon = daysDue !== null && daysDue >= -7 && daysDue <= 0;
   const reminderSent = !!serviceCard?.reminder_sent_at;
 
   const statusColor = isOverdue
