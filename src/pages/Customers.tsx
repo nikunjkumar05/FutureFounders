@@ -18,7 +18,8 @@ import {
   useAddServiceCard,
 } from '../lib/queries';
 import { TableSkeleton } from '../components/LoadingSkeleton';
-import type { ServiceCardWithDetails } from '../lib/types';
+import type { ServiceCardWithDetails, ServiceType } from '../lib/types';
+import { SERVICE_TYPE_LABELS } from '../lib/types';
 import { format, differenceInDays } from 'date-fns';
 
 type FilterMode = 'all_due' | 'overdue' | 'due_this_week';
@@ -113,7 +114,7 @@ export default function Customers() {
                     Next Service
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Tank Size
+                    Service
                   </th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Action
@@ -192,7 +193,14 @@ function CustomerRow({
 
   const handleSendReminder = () => {
     if (!serviceCard || reminderSent) return;
-    const template = `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`;
+    const type = serviceCard.service_type as ServiceType;
+    const label = SERVICE_TYPE_LABELS[type] ?? 'cleaning';
+    const messages: Record<string, string> = {
+      standard_cleaning: `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+      sofa_cleaning: `Hi ${customer.name}! It's time for your sofa cleaning service. Keep your furniture fresh and hygienic! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+      seats_cleaning: `Hi ${customer.name}! It's time for your seats cleaning service. Enjoy a fresh and clean ride! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+    };
+    const template = messages[type] ?? messages.standard_cleaning;
     window.open(
       `https://wa.me/91${customer.phone}?text=${encodeURIComponent(template)}`
     );
@@ -243,7 +251,9 @@ function CustomerRow({
       <td className="px-4 py-3">
         <span className="flex items-center gap-1 text-slate-600">
           <Droplets size={12} />
-          {customer.tank_capacity_liters}L
+          {serviceCard
+            ? `${SERVICE_TYPE_LABELS[serviceCard.service_type as ServiceType] ?? serviceCard.service_type}${serviceCard.quantity ? ` (${serviceCard.quantity}${serviceCard.service_type === 'standard_cleaning' ? 'L' : 'pc'})` : ` ${customer.tank_capacity_liters}L`}`
+            : `${customer.tank_capacity_liters}L`}
         </span>
       </td>
       <td className="px-4 py-3 text-right">
@@ -285,11 +295,19 @@ function EmptyState() {
   );
 }
 
+const serviceTypeOptions: { value: ServiceType; label: string }[] = [
+  { value: 'standard_cleaning', label: 'Tank Cleaning' },
+  { value: 'sofa_cleaning', label: 'Sofa Cleaning' },
+  { value: 'seats_cleaning', label: 'Seats Cleaning' },
+];
+
 function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [serviceType, setServiceType] = useState<ServiceType>('standard_cleaning');
   const [tankCapacity, setTankCapacity] = useState('1000');
+  const [quantity, setQuantity] = useState('');
   const addCustomer = useAddCustomer();
   const addServiceCard = useAddServiceCard();
 
@@ -310,6 +328,8 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
     await addServiceCard.mutateAsync({
       customerId: result.id,
       serviceDate: today,
+      serviceType,
+      quantity: quantity ? parseInt(quantity) : undefined,
       notes: 'Initial service record',
     });
 
@@ -366,15 +386,44 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              Tank Capacity (Liters)
+              Service Type
             </label>
-            <input
-              type="number"
-              value={tankCapacity}
-              onChange={(e) => setTankCapacity(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <select
+              value={serviceType}
+              onChange={(e) => setServiceType(e.target.value as ServiceType)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              {serviceTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
+          {serviceType === 'standard_cleaning' ? (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Tank Capacity (Liters)
+              </label>
+              <input
+                type="number"
+                value={tankCapacity}
+                onChange={(e) => setTankCapacity(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {serviceType === 'sofa_cleaning' ? 'Number of Sofas' : 'Number of Seats'}
+              </label>
+              <input
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                placeholder={serviceType === 'sofa_cleaning' ? 'e.g. 3' : 'e.g. 5'}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
           <button
             type="submit"
             disabled={addCustomer.isPending}

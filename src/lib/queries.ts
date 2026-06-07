@@ -387,6 +387,8 @@ export function useAddServiceCard() {
     mutationFn: async (card: {
       customerId: string;
       serviceDate: string;
+      serviceType?: string;
+      quantity?: number;
       technicianId?: string;
       notes?: string;
     }) => {
@@ -400,6 +402,8 @@ export function useAddServiceCard() {
         .insert({
           customer_id: card.customerId,
           merchant_id: MERCHANT_ID,
+          service_type: card.serviceType ?? 'standard_cleaning',
+          quantity: card.quantity ?? null,
           service_date: card.serviceDate,
           next_service_date: nextDate,
           technician_id: card.technicianId ?? null,
