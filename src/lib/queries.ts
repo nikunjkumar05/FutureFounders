@@ -587,13 +587,14 @@ export function useSendFeedback() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ cardId, rating }: { cardId: string; rating: string }) => {
-      const customer = await supabase
+      const { data: card, error: cardErr } = await supabase
         .from('service_cards')
         .select('customers(phone, name)')
         .eq('id', cardId)
         .single();
-      const phone = (customer.data as any)?.customers?.phone;
-      const name = (customer.data as any)?.customers?.name;
+      if (cardErr) throw cardErr;
+      const phone = (card as any)?.customers?.phone;
+      const name = (card as any)?.customers?.name;
       if (phone) {
         const message = `Thank you for choosing AquaClean Services, ${name ?? 'Valued Customer'}!\n\nPlease rate our service:\n⭐ Google Review: https://g.page/r/review\n⭐ JustDial Review: https://justdial.com/review`;
         window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(message)}`);
