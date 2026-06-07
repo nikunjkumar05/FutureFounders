@@ -97,6 +97,23 @@ CREATE TABLE IF NOT EXISTS service_cards (
   created_at timestamptz DEFAULT now()
 );
 
+ALTER TABLE customers
+  ADD COLUMN IF NOT EXISTS notes text;
+
+ALTER TABLE service_cards
+  ADD COLUMN IF NOT EXISTS service_details jsonb DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS notes text,
+  ADD COLUMN IF NOT EXISTS feedback_sent boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS feedback_rating text,
+  ADD COLUMN IF NOT EXISTS reminder_sent_at timestamptz;
+
+ALTER TABLE service_cards
+  ALTER COLUMN service_details SET DEFAULT '{}'::jsonb;
+
+ALTER TABLE service_cards
+  DROP COLUMN IF EXISTS tank_capacity_liters,
+  DROP COLUMN IF EXISTS quantity;
+
 CREATE TABLE IF NOT EXISTS attendance (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   staff_id uuid NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
