@@ -397,18 +397,19 @@ export function useAddServiceCard() {
       )
         .toISOString()
         .slice(0, 10);
+      const payload: Record<string, unknown> = {
+        customer_id: card.customerId,
+        merchant_id: MERCHANT_ID,
+        service_date: card.serviceDate,
+        next_service_date: nextDate,
+        technician_id: card.technicianId ?? null,
+        notes: card.notes ?? null,
+      };
+      if (card.serviceType) payload.service_type = card.serviceType;
+      if (card.quantity != null) payload.quantity = card.quantity;
       const { data, error } = await supabase
         .from('service_cards')
-        .insert({
-          customer_id: card.customerId,
-          merchant_id: MERCHANT_ID,
-          service_type: card.serviceType ?? 'standard_cleaning',
-          quantity: card.quantity ?? null,
-          service_date: card.serviceDate,
-          next_service_date: nextDate,
-          technician_id: card.technicianId ?? null,
-          notes: card.notes ?? null,
-        })
+        .insert(payload)
         .select()
         .single();
       if (error) throw error;

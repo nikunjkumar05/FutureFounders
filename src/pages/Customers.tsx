@@ -308,32 +308,42 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [serviceType, setServiceType] = useState<ServiceType>('standard_cleaning');
   const [tankCapacity, setTankCapacity] = useState('1000');
   const [quantity, setQuantity] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const addCustomer = useAddCustomer();
   const addServiceCard = useAddServiceCard();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone) return;
+    setError('');
+    setSubmitting(true);
 
-    const result = await addCustomer.mutateAsync({
-      name,
-      phone,
-      address: address || null,
-      latitude: null,
-      longitude: null,
-      tank_capacity_liters: parseInt(tankCapacity) || 1000,
-    });
+    try {
+      const result = await addCustomer.mutateAsync({
+        name,
+        phone,
+        address: address || null,
+        latitude: null,
+        longitude: null,
+        tank_capacity_liters: parseInt(tankCapacity) || 1000,
+      });
 
-    const today = new Date().toISOString().slice(0, 10);
-    await addServiceCard.mutateAsync({
-      customerId: result.id,
-      serviceDate: today,
-      serviceType,
-      quantity: quantity ? parseInt(quantity) : undefined,
-      notes: 'Initial service record',
-    });
+      const today = new Date().toISOString().slice(0, 10);
+      await addServiceCard.mutateAsync({
+        customerId: result.id,
+        serviceDate: today,
+        serviceType,
+        quantity: quantity ? parseInt(quantity) : undefined,
+        notes: 'Initial service record',
+      });
 
-    onClose();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add customer');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -424,12 +434,17 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
               />
             </div>
           )}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">
+              {error}
+            </div>
+          )}
           <button
             type="submit"
-            disabled={addCustomer.isPending}
+            disabled={submitting}
             className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {addCustomer.isPending ? 'Adding...' : 'Add Customer'}
+            {submitting ? 'Adding...' : 'Add Customer'}
           </button>
         </form>
       </div>
