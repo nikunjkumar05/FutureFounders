@@ -92,18 +92,17 @@ export function useCreateJob() {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
       ).toISOString().slice(0, 10);
+      const payload: Record<string, unknown> = {
+        customer_id: job.customerId,
+        merchant_id: MERCHANT_ID,
+        service_date: job.serviceDate,
+        next_service_date: nextDate,
+        technician_id: job.technicianId ?? null,
+        notes: job.notes ?? null,
+      };
       const { data, error } = await supabase
         .from('service_cards')
-        .insert({
-          customer_id: job.customerId,
-          merchant_id: MERCHANT_ID,
-          service_type: job.serviceType,
-          service_details: job.serviceDetails,
-          service_date: job.serviceDate,
-          next_service_date: nextDate,
-          technician_id: job.technicianId ?? null,
-          notes: job.notes ?? null,
-        })
+        .insert(payload)
         .select()
         .single();
       if (error) throw error;
