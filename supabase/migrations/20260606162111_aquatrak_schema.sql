@@ -77,7 +77,8 @@ CREATE TABLE IF NOT EXISTS customers (
   notes text,
   latitude numeric(10,7),
   longitude numeric(10,7),
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  UNIQUE (merchant_id, phone)
 );
 
 CREATE TABLE IF NOT EXISTS service_cards (

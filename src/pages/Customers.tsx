@@ -8,7 +8,6 @@ import {
   Check,
   X,
   Users,
-  FileText,
 } from 'lucide-react';
 import {
   useCustomers,
@@ -19,7 +18,7 @@ import {
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import type { ServiceCardWithDetails, ServiceType } from '../lib/types';
 import { SERVICE_TYPE_LABELS } from '../lib/types';
-import { format, differenceInDays } from 'date-fns';
+import { differenceInDays } from 'date-fns';
 
 export default function Customers() {
   const { data: customers, isLoading } = useCustomers();
@@ -81,6 +80,9 @@ export default function Customers() {
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Phone
+                  </th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Tank (L)
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                     Recent Service
@@ -151,6 +153,7 @@ function CustomerRow({
     const type = serviceCard.service_type as ServiceType;
     const messages: Record<string, string> = {
       standard_cleaning: `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+      deep_cleaning: `Hi ${customer.name}! It's time for your deep cleaning service. Our intensive cleaning removes all buildup and bacteria. Book now! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
       sofa_cleaning: `Hi ${customer.name}! It's time for your sofa cleaning service. Keep your furniture fresh and hygienic! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
       seats_cleaning: `Hi ${customer.name}! It's time for your seats cleaning service. Enjoy a fresh and clean ride! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
       carpet_cleaning: `Hi ${customer.name}! It's time for your carpet cleaning service. Keep your carpets fresh and hygienic! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
@@ -178,12 +181,6 @@ function CustomerRow({
                 {customer.address}
               </p>
             )}
-            {customer.notes && (
-              <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                <FileText size={10} />
-                {customer.notes}
-              </p>
-            )}
           </div>
         </div>
       </td>
@@ -191,6 +188,11 @@ function CustomerRow({
         <span className="text-slate-600 flex items-center gap-1">
           <Phone size={12} />
           {customer.phone}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <span className="text-slate-600 text-xs font-medium">
+          {customer.tank_capacity_liters}L
         </span>
       </td>
       <td className="px-4 py-3">
@@ -254,7 +256,7 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
+  const [tankCapacityLiters, setTankCapacityLiters] = useState('1000');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const addCustomer = useAddCustomer();
@@ -270,11 +272,12 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
         name,
         phone,
         address: address || null,
-        notes: notes || null,
+        tankCapacityLiters: parseInt(tankCapacityLiters, 10) || 1000,
       });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add customer');
+      console.error('Add customer error:', err);
+      setError(err instanceof Error ? err.message : JSON.stringify(err));
     } finally {
       setSubmitting(false);
     }
@@ -330,14 +333,15 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              Notes
+              Tank Capacity (liters)
             </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Optional notes about this customer"
+            <input
+              type="number"
+              value={tankCapacityLiters}
+              onChange={(e) => setTankCapacityLiters(e.target.value)}
+              min={100}
+              step={100}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           {error && (

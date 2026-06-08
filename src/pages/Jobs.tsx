@@ -124,7 +124,8 @@ function ServiceDetailsDisplay({ card }: { card: ServiceCardWithDetails }) {
   const details = card.service_details as Record<string, unknown>;
 
   switch (card.service_type) {
-    case 'standard_cleaning': {
+    case 'standard_cleaning':
+    case 'deep_cleaning': {
       const d = details as unknown as TankCleaningDetails;
       return (
         <div className="text-xs text-slate-500 space-y-0.5">
@@ -276,6 +277,7 @@ function JobCard({ card }: { card: ServiceCardWithDetails }) {
 
 const serviceOptions: { value: ServiceType; label: string }[] = [
   { value: 'standard_cleaning', label: 'Water Tank Cleaning' },
+  { value: 'deep_cleaning', label: 'Deep Cleaning' },
   { value: 'sofa_cleaning', label: 'Sofa Cleaning' },
   { value: 'seats_cleaning', label: 'Seats Cleaning' },
   { value: 'carpet_cleaning', label: 'Carpet Cleaning' },
@@ -325,7 +327,8 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
 
   const getServiceDetails = (): ServiceDetails => {
     switch (serviceType) {
-      case 'standard_cleaning': {
+      case 'standard_cleaning':
+      case 'deep_cleaning': {
         const tCount = parseInt(tankCount) || 1;
         const tCap = parseInt(tankCapacity) || 1000;
         return { tankCount: tCount, tankCapacity: tCap, totalCapacity: tCount * tCap };
@@ -486,7 +489,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
               {SERVICE_TYPE_LABELS[serviceType]} Details
             </h3>
 
-            {serviceType === 'standard_cleaning' && (
+            {(serviceType === 'standard_cleaning' || serviceType === 'deep_cleaning') && (
               <>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Tank Count</label>
@@ -649,7 +652,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
               <div className="flex justify-between">
                 <span className="text-slate-500">Details</span>
                 <span className="font-medium text-xs">
-                  {serviceType === 'standard_cleaning' && `${(details as TankCleaningDetails).totalCapacity}L`}
+                  {(serviceType === 'standard_cleaning' || serviceType === 'deep_cleaning') && `${(details as TankCleaningDetails).totalCapacity}L`}
                   {serviceType === 'sofa_cleaning' && `${(details as SofaCleaningDetails).sofaCount} sofa(s)`}
                   {serviceType === 'seats_cleaning' && `${(details as SeatsCleaningDetails).seatCount} seat(s)`}
                   {serviceType === 'carpet_cleaning' && `${(details as CarpetCleaningDetails).carpetArea} sq ft`}

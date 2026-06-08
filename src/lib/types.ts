@@ -2,6 +2,7 @@ export type JobStatus = 'pending' | 'in_progress' | 'completed';
 
 export type ServiceType =
   | 'standard_cleaning'
+  | 'deep_cleaning'
   | 'sofa_cleaning'
   | 'seats_cleaning'
   | 'carpet_cleaning'
@@ -9,6 +10,7 @@ export type ServiceType =
 
 export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   standard_cleaning: 'Tank Cleaning',
+  deep_cleaning: 'Deep Cleaning',
   sofa_cleaning: 'Sofa Cleaning',
   seats_cleaning: 'Seats Cleaning',
   carpet_cleaning: 'Carpet Cleaning',
@@ -16,6 +18,12 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
 };
 
 export interface TankCleaningDetails {
+  tankCount: number;
+  tankCapacity: number;
+  totalCapacity: number;
+}
+
+export interface DeepCleaningDetails {
   tankCount: number;
   tankCapacity: number;
   totalCapacity: number;
@@ -42,6 +50,7 @@ export interface CustomServiceDetails {
 
 export type ServiceDetails =
   | TankCleaningDetails
+  | DeepCleaningDetails
   | SofaCleaningDetails
   | SeatsCleaningDetails
   | CarpetCleaningDetails
@@ -62,9 +71,9 @@ export interface Customer {
   name: string;
   phone: string;
   address: string | null;
-  notes: string | null;
   latitude: number | null;
   longitude: number | null;
+  tank_capacity_liters: number;
   created_at: string;
 }
 

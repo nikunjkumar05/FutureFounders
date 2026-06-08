@@ -431,10 +431,19 @@ export function useAddCustomer() {
       name: string;
       phone: string;
       address?: string | null;
-      notes?: string | null;
+      tankCapacityLiters?: number | null;
       latitude?: number | null;
       longitude?: number | null;
     }) => {
+      const { data: existing } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('merchant_id', MERCHANT_ID)
+        .eq('phone', customer.phone)
+        .maybeSingle();
+      if (existing) {
+        throw new Error('A customer with this phone number already exists');
+      }
       const { data, error } = await supabase
         .from('customers')
         .insert({
@@ -442,7 +451,7 @@ export function useAddCustomer() {
           name: customer.name,
           phone: customer.phone,
           address: customer.address ?? null,
-          notes: customer.notes ?? null,
+          tank_capacity_liters: customer.tankCapacityLiters ?? 1000,
           latitude: customer.latitude ?? null,
           longitude: customer.longitude ?? null,
         })
