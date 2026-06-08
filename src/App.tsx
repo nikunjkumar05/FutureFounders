@@ -10,7 +10,7 @@ import Attendance from './pages/Attendance';
 import Jobs from './pages/Jobs';
 import SupportTickets from './pages/SupportTickets';
 import Login from './pages/Login';
-import Signup from './pages/Signup';
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,7 +28,6 @@ function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
