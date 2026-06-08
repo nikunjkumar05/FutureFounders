@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useServiceCards, useUpdateJobStatus, useCreateJob, useStaff, useCustomers, useSendFeedback } from '../lib/queries';
+import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback } from '../lib/queries';
 import { format } from 'date-fns';
 import {
   Clock,
@@ -13,6 +13,8 @@ import {
   Calendar,
   FileText,
   Star,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import type { JobStatus, ServiceCardWithDetails, ServiceType } from '../lib/types';
 import {
@@ -52,6 +54,8 @@ const columns: { status: JobStatus; label: string; icon: typeof CircleDot; color
 export default function Jobs() {
   const { data: allCards, isLoading } = useServiceCards();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingJob, setEditingJob] = useState<ServiceCardWithDetails | null>(null);
+  const [deletingJob, setDeletingJob] = useState<ServiceCardWithDetails | null>(null);
 
   if (isLoading) return <TableSkeleton rows={5} cols={4} />;
 
@@ -102,7 +106,12 @@ export default function Jobs() {
                   </div>
                 ) : (
                   cards.map((card) => (
-                    <JobCard key={card.id} card={card} />
+                    <JobCard
+                      key={card.id}
+                      card={card}
+                      onEdit={() => setEditingJob(card)}
+                      onDelete={() => setDeletingJob(card)}
+                    />
                   ))
                 )}
               </div>
@@ -113,6 +122,18 @@ export default function Jobs() {
 
       {showCreateModal && (
         <CreateJobModal onClose={() => setShowCreateModal(false)} />
+      )}
+      {editingJob && (
+        <EditJobModal
+          card={editingJob}
+          onClose={() => setEditingJob(null)}
+        />
+      )}
+      {deletingJob && (
+        <DeleteJobConfirmModal
+          card={deletingJob}
+          onClose={() => setDeletingJob(null)}
+        />
       )}
     </div>
   );
@@ -175,18 +196,26 @@ function ServiceDetailsDisplay({ card }: { card: ServiceCardWithDetails }) {
   }
 }
 
-function JobCard({ card }: { card: ServiceCardWithDetails }) {
+function JobCard({
+  card,
+  onEdit,
+  onDelete,
+}: {
+  card: ServiceCardWithDetails;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const updateStatus = useUpdateJobStatus();
   const sendFeedback = useSendFeedback();
 
-  const handleComplete = () => {
-    if (card.job_status === 'in_progress') {
-      updateStatus.mutate({ id: card.id, status: 'completed' });
-    }
-  };
+  const statusOptions: { value: JobStatus; label: string }[] = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'completed', label: 'Completed' },
+  ];
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow relative">
       <div className="flex items-start justify-between mb-3">
         <div>
           <h3 className="font-semibold text-slate-900 text-sm">
@@ -196,17 +225,33 @@ function JobCard({ card }: { card: ServiceCardWithDetails }) {
             {SERVICE_TYPE_LABELS[card.service_type as ServiceType] ?? card.service_type}
           </p>
         </div>
-        <span
-          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-            card.job_status === 'pending'
-              ? 'bg-amber-100 text-amber-700'
-              : card.job_status === 'in_progress'
-              ? 'bg-blue-100 text-blue-700'
-              : 'bg-green-100 text-green-700'
-          }`}
-        >
-          {card.job_status.replace('_', ' ')}
-        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onEdit}
+            className="text-slate-400 hover:text-blue-600 transition-colors"
+            title="Edit"
+          >
+            <Edit2 size={14} />
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-slate-400 hover:text-red-600 transition-colors"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+          <span
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ml-1 ${
+              card.job_status === 'pending'
+                ? 'bg-amber-100 text-amber-700'
+                : card.job_status === 'in_progress'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-green-100 text-green-700'
+            }`}
+          >
+            {card.job_status.replace('_', ' ')}
+          </span>
+        </div>
       </div>
 
       <ServiceDetailsDisplay card={card} />
@@ -230,27 +275,31 @@ function JobCard({ card }: { card: ServiceCardWithDetails }) {
         )}
       </div>
 
-      {card.job_status === 'in_progress' && (
-        <button
-          onClick={handleComplete}
+      <div className="flex gap-2">
+        <select
+          value={card.job_status}
+          onChange={(e) => {
+            const newStatus = e.target.value as JobStatus;
+            if (newStatus !== card.job_status) {
+              updateStatus.mutate({ id: card.id, status: newStatus });
+            }
+          }}
           disabled={updateStatus.isPending}
-          className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 py-2 rounded-lg transition-colors disabled:opacity-50"
+          className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg border transition-colors disabled:opacity-50 ${
+            card.job_status === 'pending'
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : card.job_status === 'in_progress'
+              ? 'bg-blue-50 text-blue-700 border-blue-200'
+              : 'bg-green-50 text-green-700 border-green-200'
+          }`}
         >
-          Mark Complete
-          <ChevronRight size={12} />
-        </button>
-      )}
-
-      {card.job_status === 'pending' && (
-        <button
-          onClick={() => updateStatus.mutate({ id: card.id, status: 'in_progress' })}
-          disabled={updateStatus.isPending}
-          className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 py-2 rounded-lg transition-colors disabled:opacity-50"
-        >
-          Start Job
-          <ChevronRight size={12} />
-        </button>
-      )}
+          {statusOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {card.job_status === 'completed' && !card.feedback_sent && (
         <button
@@ -703,6 +752,171 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="p-5">
           {renderStep()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Job Modal ──────────────────────────────────────────────
+
+function EditJobModal({
+  card,
+  onClose,
+}: {
+  card: ServiceCardWithDetails;
+  onClose: () => void;
+}) {
+  const { data: customers } = useCustomers();
+  const { data: staff } = useStaff();
+  const updateJob = useUpdateJob();
+
+  const [customerId, setCustomerId] = useState(card.customer_id);
+  const [serviceType, setServiceType] = useState<ServiceType>(card.service_type as ServiceType);
+  const [serviceDate, setServiceDate] = useState(card.service_date);
+  const [technicianId, setTechnicianId] = useState(card.technician_id ?? '');
+  const [notes, setNotes] = useState(card.notes ?? '');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerId) {
+      setError('Please select a customer');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+
+    try {
+      await updateJob.mutateAsync({
+        id: card.id,
+        customerId,
+        serviceType,
+        serviceDetails: card.service_details,
+        serviceDate,
+        technicianId: technicianId || undefined,
+        notes: notes || undefined,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update job');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900">Edit Job</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Customer</label>
+            <select value={customerId} onChange={e => setCustomerId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" required>
+              <option value="">Select customer</option>
+              {customers?.map(c => (
+                <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Service Type</label>
+            <select value={serviceType} onChange={e => setServiceType(e.target.value as ServiceType)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              {serviceOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Service Date</label>
+            <input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Worker</label>
+            <select value={technicianId} onChange={e => setTechnicianId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              <option value="">Unassigned</option>
+              {staff?.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+          </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
+          )}
+          <button type="submit" disabled={submitting}
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+            {submitting ? 'Saving...' : 'Save Changes'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Delete Job Confirmation ─────────────────────────────────────
+
+function DeleteJobConfirmModal({
+  card,
+  onClose,
+}: {
+  card: ServiceCardWithDetails;
+  onClose: () => void;
+}) {
+  const [error, setError] = useState('');
+  const deleteJob = useDeleteJob();
+
+  const handleDelete = async () => {
+    setError('');
+    try {
+      await deleteJob.mutateAsync({ id: card.id });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete job');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl w-full max-w-sm shadow-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">Delete Job</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+        <p className="text-sm text-slate-600 mb-2">
+          Are you sure you want to delete the job for <strong>{card.customers?.name}</strong>?
+        </p>
+        <p className="text-xs text-slate-400 mb-4">
+          This action cannot be undone. Inventory transactions linked to this job will also be removed.
+        </p>
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2 mb-4">{error}</div>
+        )}
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleDelete}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors">
+            Delete
+          </button>
         </div>
       </div>
     </div>
