@@ -507,6 +507,60 @@ export function useDeleteCustomer() {
   });
 }
 
+export function useUpdateJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (job: {
+      id: string;
+      customerId: string;
+      serviceType: ServiceType;
+      serviceDetails: ServiceDetails;
+      serviceDate: string;
+      technicianId?: string;
+      notes?: string;
+    }) => {
+      const nextDate = new Date(
+        new Date(job.serviceDate).getTime() + 180 * 86400000
+      ).toISOString().slice(0, 10);
+      const payload: Record<string, unknown> = {
+        customer_id: job.customerId,
+        service_type: job.serviceType,
+        service_details: job.serviceDetails,
+        service_date: job.serviceDate,
+        next_service_date: nextDate,
+        technician_id: job.technicianId ?? null,
+        notes: job.notes ?? null,
+      };
+      const { data, error } = await supabase
+        .from('service_cards')
+        .update(payload)
+        .eq('id', job.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service_cards'] });
+      qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+    },
+  });
+}
+
+export function useDeleteJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { error } = await supabase.from('service_cards').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service_cards'] });
+      qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+    },
+  });
+}
+
 // Staff management
 export function useAddStaff() {
   const qc = useQueryClient();
