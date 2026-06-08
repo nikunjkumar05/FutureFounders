@@ -8,7 +8,6 @@ import {
   Headphones,
   Menu,
   X,
-  Droplets,
   LogOut,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -56,17 +55,15 @@ export default function Sidebar() {
         className={`fixed top-0 left-0 h-full w-64 bg-slate-900 text-white z-40 transform transition-transform duration-200 ease-in-out
           ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
       >
-        <div className="p-6 border-b border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-500 p-2 rounded-lg">
-              <Droplets size={24} />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight">AquaTrak</h1>
-              <p className="text-xs text-slate-400">Cleaning Service Ops</p>
-            </div>
-          </div>
-        </div>
+<div className="p-6 border-b border-slate-700">
+  <div className="flex items-center gap-3">
+    <img src="/logo.png" alt="AquaTrak" className="w-10 h-10 rounded-lg object-cover" />
+    <div>
+      <h1 className="text-lg font-bold tracking-tight">AquaTrak</h1>
+      <p className="text-xs text-slate-400">Operation Workflow</p>
+    </div>
+  </div>
+</div>
 
         <nav className="p-4 space-y-1">
           {navItems.map(({ to, icon: Icon, label }) => (

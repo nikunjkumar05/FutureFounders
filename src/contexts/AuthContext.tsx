@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState } from 'react';
+import { signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { auth, googleProvider } from '../lib/firebase';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<string | null>;
-  signUp: (email: string, password: string) => Promise<string | null>;
+  signInWithGoogle: () => Promise<string | null>;
   signOut: () => Promise<void>;
 }
 
@@ -29,22 +30,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => listener?.subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error?.message ?? null;
-  };
+  const signInWithGoogle = async (): Promise<string | null> => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const idToken = await result.user.getIdToken();
 
-  const signUp = async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signUp({ email, password });
-    return error?.message ?? null;
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'firebase',
+        token: idToken,
+      });
+
+      if (error) return error.message;
+      return null;
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        if ((err as any).code === 'auth/popup-closed-by-user') return null;
+        return err.message;
+      }
+      return 'Failed to sign in';
+    }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await Promise.all([supabase.auth.signOut(), firebaseSignOut(auth)]);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );
