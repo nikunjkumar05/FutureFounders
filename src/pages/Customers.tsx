@@ -8,15 +8,19 @@ import {
   Check,
   X,
   Users,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import {
   useCustomers,
   useServiceCards,
   useMarkReminderSent,
   useAddCustomer,
+  useUpdateCustomer,
+  useDeleteCustomer,
 } from '../lib/queries';
 import { TableSkeleton } from '../components/LoadingSkeleton';
-import type { ServiceCardWithDetails, ServiceType } from '../lib/types';
+import type { Customer, ServiceCardWithDetails, ServiceType } from '../lib/types';
 import { SERVICE_TYPE_LABELS } from '../lib/types';
 import { differenceInDays } from 'date-fns';
 
@@ -25,6 +29,8 @@ export default function Customers() {
   const { data: serviceCards } = useServiceCards();
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
 
   const filtered = customers?.filter((c) => {
     const q = search.toLowerCase();
@@ -103,6 +109,8 @@ export default function Customers() {
                       key={customer.id}
                       customer={customer}
                       serviceCard={latestCard ?? null}
+                      onEdit={() => setEditingCustomer(customer)}
+                      onDelete={() => setDeletingCustomer(customer)}
                     />
                   );
                 })}
@@ -115,6 +123,18 @@ export default function Customers() {
       {showAddModal && (
         <AddCustomerModal onClose={() => setShowAddModal(false)} />
       )}
+      {editingCustomer && (
+        <EditCustomerModal
+          customer={editingCustomer}
+          onClose={() => setEditingCustomer(null)}
+        />
+      )}
+      {deletingCustomer && (
+        <DeleteConfirmModal
+          customer={deletingCustomer}
+          onClose={() => setDeletingCustomer(null)}
+        />
+      )}
     </div>
   );
 }
@@ -122,9 +142,13 @@ export default function Customers() {
 function CustomerRow({
   customer,
   serviceCard,
+  onEdit,
+  onDelete,
 }: {
   customer: NonNullable<ReturnType<typeof useCustomers>['data']>[0];
   serviceCard: ServiceCardWithDetails | null;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const markReminder = useMarkReminderSent();
   const today = new Date();
@@ -211,28 +235,44 @@ function CustomerRow({
           <span className="text-slate-400 text-xs">No service yet</span>
         )}
       </td>
-      <td className="px-4 py-3 text-right">
-        <button
-          onClick={handleSendReminder}
-          disabled={reminderSent || !serviceCard}
-          className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
-            reminderSent
-              ? 'bg-green-100 text-green-700 cursor-default'
-              : serviceCard
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-          }`}
-        >
-          {reminderSent ? (
-            <>
-              <Check size={12} /> Sent
-            </>
-          ) : (
-            <>
-              <Bell size={12} /> Remind
-            </>
-          )}
-        </button>
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1 justify-end">
+          <button
+            onClick={onEdit}
+            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            title="Edit"
+          >
+            <Edit2 size={12} />
+          </button>
+          <button
+            onClick={onDelete}
+            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors"
+            title="Delete"
+          >
+            <Trash2 size={12} />
+          </button>
+          <button
+            onClick={handleSendReminder}
+            disabled={reminderSent || !serviceCard}
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+              reminderSent
+                ? 'bg-green-100 text-green-700 cursor-default'
+                : serviceCard
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            {reminderSent ? (
+              <>
+                <Check size={12} /> Sent
+              </>
+            ) : (
+              <>
+                <Bell size={12} /> Remind
+              </>
+            )}
+          </button>
+        </div>
       </td>
     </tr>
   );
@@ -248,6 +288,140 @@ function EmptyState() {
       <p className="text-sm text-slate-500">
         Add your first customer to get started.
       </p>
+    </div>
+  );
+}
+
+function EditCustomerModal({
+  customer,
+  onClose,
+}: {
+  customer: Customer;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(customer.name);
+  const [phone, setPhone] = useState(customer.phone);
+  const [address, setAddress] = useState(customer.address ?? '');
+  const [tankCapacityLiters, setTankCapacityLiters] = useState(String(customer.tank_capacity_liters));
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const updateCustomer = useUpdateCustomer();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !phone) return;
+    setError('');
+    setSubmitting(true);
+
+    try {
+      await updateCustomer.mutateAsync({
+        id: customer.id,
+        name,
+        phone,
+        address: address || null,
+        tankCapacityLiters: parseInt(tankCapacityLiters, 10) || 1000,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update customer');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900">Edit Customer</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Name *</label>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Phone *</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number"
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Address</label>
+            <input value={address} onChange={(e) => setAddress(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Tank Capacity (liters)</label>
+            <input type="number" value={tankCapacityLiters} onChange={(e) => setTankCapacityLiters(e.target.value)}
+              min={100} step={100}
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
+          )}
+          <button type="submit" disabled={submitting}
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+            {submitting ? 'Saving...' : 'Save Changes'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function DeleteConfirmModal({
+  customer,
+  onClose,
+}: {
+  customer: Customer;
+  onClose: () => void;
+}) {
+  const [error, setError] = useState('');
+  const deleteCustomer = useDeleteCustomer();
+
+  const handleDelete = async () => {
+    setError('');
+    try {
+      await deleteCustomer.mutateAsync({ id: customer.id });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete customer');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl w-full max-w-sm shadow-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-900">Delete Customer</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={20} />
+          </button>
+        </div>
+        <p className="text-sm text-slate-600 mb-2">
+          Are you sure you want to delete <strong>{customer.name}</strong>?
+        </p>
+        <p className="text-xs text-slate-400 mb-4">
+          This action cannot be undone. Their service history will also be removed.
+        </p>
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2 mb-4">{error}</div>
+        )}
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleDelete}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors">
+            Delete
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

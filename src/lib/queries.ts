@@ -464,6 +464,49 @@ export function useAddCustomer() {
   });
 }
 
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (customer: {
+      id: string;
+      name: string;
+      phone: string;
+      address?: string | null;
+      tankCapacityLiters?: number | null;
+      latitude?: number | null;
+      longitude?: number | null;
+    }) => {
+      const { data, error } = await supabase
+        .from('customers')
+        .update({
+          name: customer.name,
+          phone: customer.phone,
+          address: customer.address ?? null,
+          tank_capacity_liters: customer.tankCapacityLiters ?? 1000,
+          latitude: customer.latitude ?? null,
+          longitude: customer.longitude ?? null,
+        })
+        .eq('id', customer.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+  });
+}
+
+export function useDeleteCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { error } = await supabase.from('customers').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+  });
+}
+
 // Staff management
 export function useAddStaff() {
   const qc = useQueryClient();
