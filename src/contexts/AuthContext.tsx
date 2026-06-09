@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut, User } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
-import { supabase } from '../lib/supabase';
-import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
@@ -18,29 +16,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
       setLoading(false);
     });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => listener?.subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
   const signInWithGoogle = async (): Promise<string | null> => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const idToken = await result.user.getIdToken();
-
-      const { error } = await supabase.auth.signInWithIdToken({
-        provider: 'firebase',
-        token: idToken,
-      });
-
-      if (error) return error.message;
+      await signInWithPopup(auth, googleProvider);
       return null;
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -52,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await Promise.all([supabase.auth.signOut(), firebaseSignOut(auth)]);
+    await firebaseSignOut(auth);
   };
 
   return (
