@@ -233,9 +233,9 @@ async function handleFAQ(
   supabaseUrl: string,
   headers: Record<string, string>
 ) {
-  const geminiApiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
+  const aiApiKey = Deno.env.get("OPENROUTER_API_KEY") ?? "";
 
-  if (!geminiApiKey) {
+  if (!aiApiKey) {
     await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
@@ -253,29 +253,29 @@ async function handleFAQ(
   const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
 
   try {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `You are a customer support assistant for AquaClean Services. We offer water tank cleaning, sofa cleaning, and car seats cleaning. You can ONLY answer questions about: 1) Tank cleaning pricing (500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800), 2) Sofa cleaning pricing (per seat: Rs.500, full sofa set: Rs.1500), 3) Car seats cleaning pricing (per seat: Rs.300, full car interior: Rs.2000), 4) Working hours (Mon-Sat, 8AM-6PM), 5) Tank capacity calculation (approximate: length x width x height in meters x 1000 = liters). For ANY other question, respond with exactly: ESCALATE. Do not add any other text if escalating. Keep answers under 50 words. Be friendly and professional.\n\nCustomer question: ${sanitized}`,
-                },
-              ],
-            },
-          ],
-        }),
-      }
-    );
+    const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${aiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a customer support assistant for AquaClean Services. We offer water tank cleaning, sofa cleaning, and car seats cleaning. You can ONLY answer questions about: 1) Tank cleaning pricing (500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800), 2) Sofa cleaning pricing (per seat: Rs.500, full sofa set: Rs.1500), 3) Car seats cleaning pricing (per seat: Rs.300, full car interior: Rs.2000), 4) Working hours (Mon-Sat, 8AM-6PM), 5) Tank capacity calculation (approximate: length x width x height in meters x 1000 = liters). For ANY other question, respond with exactly: ESCALATE. Do not add any other text if escalating. Keep answers under 50 words. Be friendly and professional.",
+          },
+          { role: "user", content: sanitized },
+        ],
+        max_tokens: 150,
+      }),
+    });
 
-    const geminiData = await geminiRes.json();
-    const aiResponse = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "ESCALATE";
+    const orData = await orRes.json();
+    const aiResponse = orData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
 
-    if (aiResponse === "ESCALATE") {
+    if (aiResponse.startsWith("ESCALATE")) {
       await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
       await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
         method: "POST",
