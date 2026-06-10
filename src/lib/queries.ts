@@ -37,15 +37,35 @@ export function useServiceCards(status?: JobStatus) {
   return useQuery({
     queryKey: ['service_cards', status],
     queryFn: async () => {
-      let q = supabase
-        .from('service_cards')
-        .select('*, customers(*), staff(*)')
-        .eq('merchant_id', MERCHANT_ID)
-        .order('service_date', { ascending: false });
-      if (status) q = q.eq('job_status', status);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data as ServiceCardWithDetails[];
+      const baseQuery = () => {
+        let q = supabase
+          .from('service_cards')
+          .select('*, customers(*), staff(*)')
+          .eq('merchant_id', MERCHANT_ID)
+          .order('service_date', { ascending: false });
+        if (status) q = q.eq('job_status', status);
+        return q;
+      };
+
+      try {
+        let q = supabase
+          .from('service_cards')
+          .select('*, customers(*), staff(*), job_services(*), job_workers(*, staff(*))')
+          .eq('merchant_id', MERCHANT_ID)
+          .order('service_date', { ascending: false });
+        if (status) q = q.eq('job_status', status);
+        const { data, error } = await q;
+        if (error) throw error;
+        return data as ServiceCardWithDetails[];
+      } catch {
+        const { data, error } = await baseQuery();
+        if (error) throw error;
+        return (data || []).map((card: Record<string, unknown>) => ({
+          ...card,
+          job_services: [],
+          job_workers: [],
+        } as unknown as ServiceCardWithDetails)) as ServiceCardWithDetails[];
+      }
     },
   });
 }
@@ -83,30 +103,66 @@ export function useCreateJob() {
   return useMutation({
     mutationFn: async (job: {
       customerId: string;
-      serviceType: ServiceType;
-      serviceDetails: ServiceDetails;
+      services: { serviceType: ServiceType; serviceDetails: ServiceDetails; notes?: string }[];
+      workerIds: string[];
       serviceDate: string;
-      technicianId?: string;
       notes?: string;
     }) => {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
       ).toISOString().slice(0, 10);
+
       const payload: Record<string, unknown> = {
         customer_id: job.customerId,
         merchant_id: MERCHANT_ID,
         service_date: job.serviceDate,
         next_service_date: nextDate,
-        technician_id: job.technicianId ?? null,
         notes: job.notes ?? null,
       };
-      const { data, error } = await supabase
+
+      if (job.services.length > 0) {
+        payload.service_type = job.services[0].serviceType;
+        payload.service_details = job.services[0].serviceDetails;
+      }
+
+      if (job.workerIds.length > 0) {
+        payload.technician_id = job.workerIds[0];
+      }
+
+      const { data: card, error: cardErr } = await supabase
         .from('service_cards')
         .insert(payload)
         .select()
         .single();
-      if (error) throw error;
-      return data;
+      if (cardErr) throw cardErr;
+
+      const cardId = (card as any).id;
+
+      try {
+        if (job.services.length > 0) {
+          await supabase.from('job_services').insert(
+            job.services.map(s => ({
+              service_card_id: cardId,
+              service_type: s.serviceType,
+              service_details: s.serviceDetails,
+              notes: s.notes ?? null,
+            }))
+          );
+        }
+      } catch {}
+
+      try {
+        if (job.workerIds.length > 0) {
+          await supabase.from('job_workers').insert(
+            job.workerIds.map(w => ({
+              service_card_id: cardId,
+              staff_id: w,
+            }))
+          );
+        }
+      } catch {}
+
+      return card;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
@@ -513,32 +569,64 @@ export function useUpdateJob() {
     mutationFn: async (job: {
       id: string;
       customerId: string;
-      serviceType: ServiceType;
-      serviceDetails: ServiceDetails;
+      services: { serviceType: ServiceType; serviceDetails: ServiceDetails; notes?: string }[];
+      workerIds: string[];
       serviceDate: string;
-      technicianId?: string;
       notes?: string;
     }) => {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
       ).toISOString().slice(0, 10);
+
       const payload: Record<string, unknown> = {
         customer_id: job.customerId,
-        service_type: job.serviceType,
-        service_details: job.serviceDetails,
         service_date: job.serviceDate,
         next_service_date: nextDate,
-        technician_id: job.technicianId ?? null,
         notes: job.notes ?? null,
       };
-      const { data, error } = await supabase
+
+      if (job.services.length > 0) {
+        payload.service_type = job.services[0].serviceType;
+        payload.service_details = job.services[0].serviceDetails;
+      }
+
+      if (job.workerIds.length > 0) {
+        payload.technician_id = job.workerIds[0];
+      } else {
+        payload.technician_id = null;
+      }
+
+      const { error: cardErr } = await supabase
         .from('service_cards')
         .update(payload)
-        .eq('id', job.id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+        .eq('id', job.id);
+      if (cardErr) throw cardErr;
+
+      try {
+        await supabase.from('job_services').delete().eq('service_card_id', job.id);
+        if (job.services.length > 0) {
+          await supabase.from('job_services').insert(
+            job.services.map(s => ({
+              service_card_id: job.id,
+              service_type: s.serviceType,
+              service_details: s.serviceDetails,
+              notes: s.notes ?? null,
+            }))
+          );
+        }
+      } catch {}
+
+      try {
+        await supabase.from('job_workers').delete().eq('service_card_id', job.id);
+        if (job.workerIds.length > 0) {
+          await supabase.from('job_workers').insert(
+            job.workerIds.map(w => ({
+              service_card_id: job.id,
+              staff_id: w,
+            }))
+          );
+        }
+      } catch {}
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['service_cards'] });

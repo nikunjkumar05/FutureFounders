@@ -15,6 +15,7 @@ import {
   Star,
   Edit2,
   Trash2,
+  PlusCircle,
 } from 'lucide-react';
 import type { JobStatus, ServiceCardWithDetails, ServiceType } from '../lib/types';
 import {
@@ -139,9 +140,83 @@ export default function Jobs() {
   );
 }
 
-// ─── Job Card ───────────────────────────────────────────────────
+// ─── Service Details Display ────────────────────────────────────
+
+function ServiceItemDetails({ service }: { service: { service_type: string; service_details: unknown } }) {
+  const d = service.service_details as Record<string, unknown>;
+
+  const n = (v: unknown) => String(v ?? '');
+  const num = (v: unknown, fallback: number) => {
+    const parsed = typeof v === 'number' ? v : Number(v);
+    return isNaN(parsed) ? fallback : parsed;
+  };
+
+  switch (service.service_type) {
+    case 'standard_cleaning':
+    case 'deep_cleaning': {
+      const tankCount = num(d.tankCount, 1);
+      const tankCapacity = num(d.tankCapacity, 1000);
+      return (
+        <div className="text-xs text-slate-500 space-y-0.5">
+          <p>{tankCount} Tank{tankCount !== 1 ? 's' : ''} of {tankCapacity}L</p>
+        </div>
+      );
+    }
+    case 'sofa_cleaning': {
+      const sofaCount = num(d.sofaCount, 1);
+      return (
+        <div className="text-xs text-slate-500 space-y-0.5">
+          <p>{sofaCount} Sofa{sofaCount !== 1 ? 's' : ''}</p>
+          <p>Type: {n(d.sofaType)}</p>
+        </div>
+      );
+    }
+    case 'seats_cleaning': {
+      const seatCount = num(d.seatCount, 1);
+      return (
+        <div className="text-xs text-slate-500 space-y-0.5">
+          <p>{seatCount} Seat{seatCount !== 1 ? 's' : ''}</p>
+        </div>
+      );
+    }
+    case 'carpet_cleaning': {
+      return (
+        <div className="text-xs text-slate-500 space-y-0.5">
+          <p>Area: {n(d.carpetArea)} sq ft</p>
+          {d.notes ? <p className="italic">{n(d.notes)}</p> : null}
+        </div>
+      );
+    }
+    case 'custom_service': {
+      return (
+        <div className="text-xs text-slate-500 space-y-0.5">
+          <p className="font-medium">{n(d.serviceName)}</p>
+          {d.notes ? <p className="italic">{n(d.notes)}</p> : null}
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
+}
 
 function ServiceDetailsDisplay({ card }: { card: ServiceCardWithDetails }) {
+  if (card.job_services && card.job_services.length > 0) {
+    return (
+      <div className="space-y-1.5">
+        {card.job_services.map((js) => (
+          <div key={js.id} className="border-l-2 border-blue-200 pl-2">
+            <p className="text-[10px] font-semibold text-blue-600 mb-0.5">
+              {SERVICE_TYPE_LABELS[js.service_type as ServiceType] ?? js.service_type}
+            </p>
+            <ServiceItemDetails service={js} />
+            {js.notes && <p className="text-xs text-slate-400 italic mt-0.5">{js.notes}</p>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const details = card.service_details as Record<string, unknown>;
 
   switch (card.service_type) {
@@ -150,9 +225,7 @@ function ServiceDetailsDisplay({ card }: { card: ServiceCardWithDetails }) {
       const d = details as unknown as TankCleaningDetails;
       return (
         <div className="text-xs text-slate-500 space-y-0.5">
-          <p>{d.tankCount} Tank{d.tankCount !== 1 ? 's' : ''}</p>
-          <p>{d.tankCapacity}L Each</p>
-          <p className="font-medium text-slate-700">Total: {d.totalCapacity}L</p>
+          <p>{d.tankCount} Tank{d.tankCount !== 1 ? 's' : ''} of {d.tankCapacity}L</p>
         </div>
       );
     }
@@ -196,6 +269,8 @@ function ServiceDetailsDisplay({ card }: { card: ServiceCardWithDetails }) {
   }
 }
 
+// ─── Job Card ───────────────────────────────────────────────────
+
 function JobCard({
   card,
   onEdit,
@@ -214,6 +289,20 @@ function JobCard({
     { value: 'completed', label: 'Completed' },
   ];
 
+  const serviceLabel =
+    card.job_services && card.job_services.length > 0
+      ? card.job_services
+          .map((js) => SERVICE_TYPE_LABELS[js.service_type as ServiceType] ?? js.service_type)
+          .join(', ')
+      : SERVICE_TYPE_LABELS[card.service_type as ServiceType] ?? card.service_type;
+
+  const workers =
+    card.job_workers && card.job_workers.length > 0
+      ? card.job_workers.map((jw) => jw.staff.name)
+      : card.staff
+        ? [card.staff.name]
+        : [];
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow relative">
       <div className="flex items-start justify-between mb-3">
@@ -222,7 +311,7 @@ function JobCard({
             {card.customers?.name}
           </h3>
           <p className="text-[10px] font-medium text-blue-600 mt-0.5">
-            {SERVICE_TYPE_LABELS[card.service_type as ServiceType] ?? card.service_type}
+            {serviceLabel}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -261,10 +350,10 @@ function JobCard({
           <Calendar size={10} />
           {format(new Date(card.service_date), 'dd MMM yyyy')}
         </p>
-        {card.staff && (
+        {workers.length > 0 && (
           <p className="text-xs text-slate-400 flex items-center gap-1">
             <User size={10} />
-            {card.staff.name}
+            {workers.join(', ')}
           </p>
         )}
         {card.notes && (
@@ -322,7 +411,74 @@ function JobCard({
   );
 }
 
-// ─── Create Job Modal ────────────────────────────────────────────
+// ─── Multi-service helpers ──────────────────────────────────────
+
+let svcKeyCounter = 0;
+function nextSvcKey(): string {
+  return `svc_${++svcKeyCounter}`;
+}
+
+interface ServiceEntry {
+  key: string;
+  serviceType: ServiceType;
+  tankCount: string;
+  tankCapacity: string;
+  sofaCount: string;
+  sofaType: string;
+  seatCount: string;
+  carpetArea: string;
+  carpetNotes: string;
+  customName: string;
+  customNotes: string;
+  notes: string;
+}
+
+function createServiceEntry(type: ServiceType): ServiceEntry {
+  return {
+    key: nextSvcKey(),
+    serviceType: type,
+    tankCount: '1',
+    tankCapacity: '1000',
+    sofaCount: '1',
+    sofaType: 'Standard',
+    seatCount: '1',
+    carpetArea: '100',
+    carpetNotes: '',
+    customName: '',
+    customNotes: '',
+    notes: '',
+  };
+}
+
+function serviceEntryToPayload(entry: ServiceEntry): {
+  serviceType: ServiceType;
+  serviceDetails: ServiceDetails;
+  notes?: string;
+} {
+  let details: ServiceDetails;
+  switch (entry.serviceType) {
+    case 'standard_cleaning':
+    case 'deep_cleaning': {
+      const tc = parseInt(entry.tankCount) || 1;
+      const tcap = parseInt(entry.tankCapacity) || 1000;
+      details = { tankCount: tc, tankCapacity: tcap, totalCapacity: tc * tcap };
+      break;
+    }
+    case 'sofa_cleaning':
+      details = { sofaCount: parseInt(entry.sofaCount) || 1, sofaType: entry.sofaType };
+      break;
+    case 'seats_cleaning':
+      details = { seatCount: parseInt(entry.seatCount) || 1 };
+      break;
+    case 'carpet_cleaning':
+      details = { carpetArea: parseInt(entry.carpetArea) || 100, notes: entry.carpetNotes || undefined };
+      break;
+    case 'custom_service':
+      details = { serviceName: entry.customName, notes: entry.customNotes || undefined };
+      break;
+  }
+  return { serviceType: entry.serviceType, serviceDetails: details, notes: entry.notes || undefined };
+}
 
 const serviceOptions: { value: ServiceType; label: string }[] = [
   { value: 'standard_cleaning', label: 'Water Tank Cleaning' },
@@ -333,7 +489,11 @@ const serviceOptions: { value: ServiceType; label: string }[] = [
   { value: 'custom_service', label: 'Custom Service' },
 ];
 
-type CreateStep = 'select_customer' | 'select_service' | 'service_details' | 'assign_worker' | 'schedule' | 'review';
+// ─── Create Job Modal ────────────────────────────────────────────
+
+type CreateStep = 'select_customer' | 'add_services' | 'assign_workers' | 'schedule' | 'review';
+
+const CREATE_STEPS: CreateStep[] = ['select_customer', 'add_services', 'assign_workers', 'schedule', 'review'];
 
 function CreateJobModal({ onClose }: { onClose: () => void }) {
   const { data: customers } = useCustomers();
@@ -344,53 +504,41 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Step 1: Customer
+  // Customer
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [newCustomerAddress, setNewCustomerAddress] = useState('');
   const [showNewCustomer, setShowNewCustomer] = useState(false);
 
-  // Step 2: Service type
-  const [serviceType, setServiceType] = useState<ServiceType>('standard_cleaning');
+  // Services
+  const [services, setServices] = useState<ServiceEntry[]>([createServiceEntry('standard_cleaning')]);
 
-  // Step 3: Dynamic fields
-  const [tankCount, setTankCount] = useState('1');
-  const [tankCapacity, setTankCapacity] = useState('1000');
-  const [sofaCount, setSofaCount] = useState('1');
-  const [sofaType, setSofaType] = useState('Standard');
-  const [seatCount, setSeatCount] = useState('1');
-  const [carpetArea, setCarpetArea] = useState('100');
-  const [carpetNotes, setCarpetNotes] = useState('');
-  const [customName, setCustomName] = useState('');
-  const [customNotes, setCustomNotes] = useState('');
+  // Workers
+  const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
 
-  // Step 4: Worker
-  const [technicianId, setTechnicianId] = useState('');
-
-  // Step 5: Schedule
+  // Schedule
   const [serviceDate, setServiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [jobNotes, setJobNotes] = useState('');
 
   const selectedCustomer = customers?.find(c => c.id === selectedCustomerId);
 
-  const getServiceDetails = (): ServiceDetails => {
-    switch (serviceType) {
-      case 'standard_cleaning':
-      case 'deep_cleaning': {
-        const tCount = parseInt(tankCount) || 1;
-        const tCap = parseInt(tankCapacity) || 1000;
-        return { tankCount: tCount, tankCapacity: tCap, totalCapacity: tCount * tCap };
-      }
-      case 'sofa_cleaning':
-        return { sofaCount: parseInt(sofaCount) || 1, sofaType };
-      case 'seats_cleaning':
-        return { seatCount: parseInt(seatCount) || 1 };
-      case 'carpet_cleaning':
-        return { carpetArea: parseInt(carpetArea) || 100, notes: carpetNotes || undefined };
-      case 'custom_service':
-        return { serviceName: customName, notes: customNotes || undefined };
-    }
+  const updateService = (key: string, patch: Partial<ServiceEntry>) => {
+    setServices(prev => prev.map(s => s.key === key ? { ...s, ...patch } : s));
+  };
+
+  const removeService = (key: string) => {
+    setServices(prev => prev.filter(s => s.key !== key));
+  };
+
+  const addService = (type: ServiceType) => {
+    setServices(prev => [...prev, createServiceEntry(type)]);
+  };
+
+  const toggleWorker = (id: string) => {
+    setSelectedWorkerIds(prev =>
+      prev.includes(id) ? prev.filter(w => w !== id) : [...prev, id]
+    );
   };
 
   const handleCreate = async () => {
@@ -426,12 +574,13 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         return;
       }
 
+      const servicesPayload = services.map(serviceEntryToPayload);
+
       await createJob.mutateAsync({
         customerId,
-        serviceType,
-        serviceDetails: getServiceDetails(),
+        services: servicesPayload,
+        workerIds: selectedWorkerIds,
         serviceDate,
-        technicianId: technicianId || undefined,
         notes: jobNotes || undefined,
       });
 
@@ -501,160 +650,187 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
               </div>
             )}
             <div className="flex justify-end pt-2">
-              <NextBtn disabled={!selectedCustomerId && !(showNewCustomer && newCustomerName && newCustomerPhone)} onClick={() => setStep('select_service')} />
+              <NextBtn
+                disabled={!selectedCustomerId && !(showNewCustomer && newCustomerName && newCustomerPhone)}
+                onClick={() => setStep('add_services')}
+              />
             </div>
           </div>
         );
 
-      case 'select_service':
+      case 'add_services':
         return (
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">Select Service Type</h3>
-            <div className="grid grid-cols-1 gap-2">
-              {serviceOptions.map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => { setServiceType(opt.value); setStep('service_details'); }}
-                  className={`w-full text-left px-4 py-3 rounded-lg text-sm transition-colors border ${
-                    serviceType === opt.value
-                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                      : 'hover:bg-slate-50 border-slate-200'
-                  }`}
-                >
-                  {opt.label}
-                </button>
+            <h3 className="text-sm font-semibold text-slate-900">Services</h3>
+            <div className="space-y-4">
+              {services.map((svc, idx) => (
+                <div key={svc.key} className="border border-slate-200 rounded-lg p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500">Service {idx + 1}</span>
+                    {services.length > 1 && (
+                      <button
+                        onClick={() => removeService(svc.key)}
+                        className="text-red-400 hover:text-red-600 transition-colors"
+                        title="Remove service"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Type</label>
+                    <select
+                      value={svc.serviceType}
+                      onChange={e => updateService(svc.key, { serviceType: e.target.value as ServiceType })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      {serviceOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {(svc.serviceType === 'standard_cleaning' || svc.serviceType === 'deep_cleaning') && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Number of Tanks</label>
+                        <input type="number" value={svc.tankCount}
+                          onChange={e => updateService(svc.key, { tankCount: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Capacity Per Tank (Liters)</label>
+                        <input type="number" value={svc.tankCapacity}
+                          onChange={e => updateService(svc.key, { tankCapacity: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </>
+                  )}
+
+                  {svc.serviceType === 'sofa_cleaning' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Sofa Count</label>
+                        <input type="number" value={svc.sofaCount}
+                          onChange={e => updateService(svc.key, { sofaCount: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Sofa Type</label>
+                        <select value={svc.sofaType}
+                          onChange={e => updateService(svc.key, { sofaType: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                          <option value="Standard">Standard</option>
+                          <option value="L-Shape">L-Shape</option>
+                          <option value="Sectional">Sectional</option>
+                          <option value="Recliner">Recliner</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {svc.serviceType === 'seats_cleaning' && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Seat Count</label>
+                      <input type="number" value={svc.seatCount}
+                        onChange={e => updateService(svc.key, { seatCount: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  )}
+
+                  {svc.serviceType === 'carpet_cleaning' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Area (sq ft)</label>
+                        <input type="number" value={svc.carpetArea}
+                          onChange={e => updateService(svc.key, { carpetArea: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+                        <textarea value={svc.carpetNotes}
+                          onChange={e => updateService(svc.key, { carpetNotes: e.target.value })} rows={2}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                      </div>
+                    </>
+                  )}
+
+                  {svc.serviceType === 'custom_service' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Service Name *</label>
+                        <input value={svc.customName}
+                          onChange={e => updateService(svc.key, { customName: e.target.value })}
+                          placeholder="e.g. Deep Cleaning"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+                        <textarea value={svc.customNotes}
+                          onChange={e => updateService(svc.key, { customNotes: e.target.value })} rows={2}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Service Notes</label>
+                    <input value={svc.notes}
+                      onChange={e => updateService(svc.key, { notes: e.target.value })}
+                      placeholder="Optional per-service notes"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
               ))}
             </div>
+            <button
+              onClick={() => addService('standard_cleaning')}
+              className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              <PlusCircle size={14} />
+              Add Another Service
+            </button>
             <div className="flex justify-between pt-2">
               <BackBtn onClick={() => setStep('select_customer')} />
+              <NextBtn onClick={() => setStep('assign_workers')} />
             </div>
           </div>
         );
 
-      case 'service_details':
+      case 'assign_workers':
         return (
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">
-              {SERVICE_TYPE_LABELS[serviceType]} Details
-            </h3>
-
-            {(serviceType === 'standard_cleaning' || serviceType === 'deep_cleaning') && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Tank Count</label>
-                  <input type="number" value={tankCount} onChange={e => setTankCount(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Tank Capacity (Liters)</label>
-                  <input type="number" value={tankCapacity} onChange={e => setTankCapacity(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="bg-slate-50 rounded-lg px-3 py-2 text-sm">
-                  <span className="text-slate-500">Total Capacity: </span>
-                  <span className="font-semibold text-slate-900">
-                    {(parseInt(tankCount) || 1) * (parseInt(tankCapacity) || 1000)}L
-                  </span>
-                </div>
-              </>
-            )}
-
-            {serviceType === 'sofa_cleaning' && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Sofa Count</label>
-                  <input type="number" value={sofaCount} onChange={e => setSofaCount(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Sofa Type</label>
-                  <select value={sofaType} onChange={e => setSofaType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                    <option value="Standard">Standard</option>
-                    <option value="L-Shape">L-Shape</option>
-                    <option value="Sectional">Sectional</option>
-                    <option value="Recliner">Recliner</option>
-                  </select>
-                </div>
-              </>
-            )}
-
-            {serviceType === 'seats_cleaning' && (
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Seat Count</label>
-                <input type="number" value={seatCount} onChange={e => setSeatCount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            )}
-
-            {serviceType === 'carpet_cleaning' && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Carpet Area (sq ft)</label>
-                  <input type="number" value={carpetArea} onChange={e => setCarpetArea(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
-                  <textarea value={carpetNotes} onChange={e => setCarpetNotes(e.target.value)} rows={2}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-                </div>
-              </>
-            )}
-
-            {serviceType === 'custom_service' && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Service Name *</label>
-                  <input value={customName} onChange={e => setCustomName(e.target.value)}
-                    placeholder="e.g. Deep Cleaning"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
-                  <textarea value={customNotes} onChange={e => setCustomNotes(e.target.value)} rows={2}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-                </div>
-              </>
-            )}
-
-            <div className="flex justify-between pt-2">
-              <BackBtn onClick={() => setStep('select_service')} />
-              <NextBtn onClick={() => setStep('assign_worker')} />
-            </div>
-          </div>
-        );
-
-      case 'assign_worker':
-        return (
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">Assign Worker</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Assign Workers</h3>
+            <p className="text-xs text-slate-400">Select one or more workers for this job</p>
             <div className="space-y-1">
-              <button
-                onClick={() => setTechnicianId('')}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                  !technicianId ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'
-                }`}
-              >
-                <span className="font-medium">Unassigned</span>
-              </button>
-              {staff?.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setTechnicianId(s.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    technicianId === s.id
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'hover:bg-slate-50 border border-transparent'
-                  }`}
-                >
-                  <span className="font-medium">{s.name}</span>
-                  <span className="text-slate-400 ml-2">₹{s.daily_wage_inr}/day</span>
-                </button>
-              ))}
+              {staff?.map((s) => {
+                const checked = selectedWorkerIds.includes(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer ${
+                      checked
+                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                        : 'hover:bg-slate-50 border border-transparent'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleWorker(s.id)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-slate-400 ml-auto">₹{s.daily_wage_inr}/day</span>
+                  </label>
+                );
+              })}
             </div>
+            {selectedWorkerIds.length === 0 && (
+              <p className="text-xs text-amber-600">No workers selected — job will be unassigned</p>
+            )}
             <div className="flex justify-between pt-2">
-              <BackBtn onClick={() => setStep('service_details')} />
+              <BackBtn onClick={() => setStep('add_services')} />
               <NextBtn onClick={() => setStep('schedule')} />
             </div>
           </div>
@@ -670,13 +846,13 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Job Notes</label>
               <textarea value={jobNotes} onChange={e => setJobNotes(e.target.value)} rows={2}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                placeholder="Optional job notes" />
+                placeholder="Optional job-level notes" />
             </div>
             <div className="flex justify-between pt-2">
-              <BackBtn onClick={() => setStep('assign_worker')} />
+              <BackBtn onClick={() => setStep('assign_workers')} />
               <NextBtn onClick={() => setStep('review')} />
             </div>
           </div>
@@ -684,33 +860,46 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
 
       case 'review': {
         const customerName = showNewCustomer ? newCustomerName : selectedCustomer?.name;
-        const workerName = staff?.find(s => s.id === technicianId)?.name ?? 'Unassigned';
-        const details = getServiceDetails();
         return (
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-slate-900">Review & Create</h3>
-            <div className="bg-slate-50 rounded-lg p-4 space-y-2 text-sm">
+            <div className="bg-slate-50 rounded-lg p-4 space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-500">Customer</span>
                 <span className="font-medium">{customerName}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Service</span>
-                <span className="font-medium">{SERVICE_TYPE_LABELS[serviceType]}</span>
+              <div>
+                <span className="text-slate-500 block mb-1">Services ({services.length})</span>
+                <div className="space-y-1.5">
+                  {services.map((svc) => {
+                    const payload = serviceEntryToPayload(svc);
+                    return (
+                      <div key={svc.key} className="bg-white rounded px-2.5 py-1.5 text-xs">
+                        <span className="font-medium text-blue-600">{SERVICE_TYPE_LABELS[svc.serviceType]}</span>
+                        <span className="text-slate-400 ml-2">
+                          {svc.serviceType === 'standard_cleaning' || svc.serviceType === 'deep_cleaning'
+                            ? `${(payload.serviceDetails as TankCleaningDetails).totalCapacity}L`
+                            : svc.serviceType === 'sofa_cleaning'
+                            ? `${(payload.serviceDetails as SofaCleaningDetails).sofaCount} sofa(s)`
+                            : svc.serviceType === 'seats_cleaning'
+                            ? `${(payload.serviceDetails as SeatsCleaningDetails).seatCount} seat(s)`
+                            : svc.serviceType === 'carpet_cleaning'
+                            ? `${(payload.serviceDetails as CarpetCleaningDetails).carpetArea} sq ft`
+                            : (payload.serviceDetails as CustomServiceDetails).serviceName}
+                        </span>
+                        {svc.notes && <p className="text-slate-400 italic mt-0.5">{svc.notes}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Details</span>
-                <span className="font-medium text-xs">
-                  {(serviceType === 'standard_cleaning' || serviceType === 'deep_cleaning') && `${(details as TankCleaningDetails).totalCapacity}L`}
-                  {serviceType === 'sofa_cleaning' && `${(details as SofaCleaningDetails).sofaCount} sofa(s)`}
-                  {serviceType === 'seats_cleaning' && `${(details as SeatsCleaningDetails).seatCount} seat(s)`}
-                  {serviceType === 'carpet_cleaning' && `${(details as CarpetCleaningDetails).carpetArea} sq ft`}
-                  {serviceType === 'custom_service' && (details as CustomServiceDetails).serviceName}
+                <span className="text-slate-500">Workers</span>
+                <span className="font-medium">
+                  {selectedWorkerIds.length > 0
+                    ? selectedWorkerIds.map(id => staff?.find(s => s.id === id)?.name).join(', ')
+                    : 'Unassigned'}
                 </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Worker</span>
-                <span className="font-medium">{workerName}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Date</span>
@@ -743,7 +932,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Create Job</h2>
             <p className="text-xs text-slate-400">
-              Step {['select_customer', 'select_service', 'service_details', 'assign_worker', 'schedule', 'review'].indexOf(step) + 1} of 6
+              Step {CREATE_STEPS.indexOf(step) + 1} of {CREATE_STEPS.length}
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -772,12 +961,63 @@ function EditJobModal({
   const updateJob = useUpdateJob();
 
   const [customerId, setCustomerId] = useState(card.customer_id);
-  const [serviceType, setServiceType] = useState<ServiceType>(card.service_type as ServiceType);
   const [serviceDate, setServiceDate] = useState(card.service_date);
-  const [technicianId, setTechnicianId] = useState(card.technician_id ?? '');
   const [notes, setNotes] = useState(card.notes ?? '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const [services, setServices] = useState<ServiceEntry[]>(() => {
+    if (card.job_services && card.job_services.length > 0) {
+      return card.job_services.map(js => {
+        const d = js.service_details as unknown as Record<string, unknown>;
+        const entry = createServiceEntry(js.service_type as ServiceType);
+        if (js.service_type === 'standard_cleaning' || js.service_type === 'deep_cleaning') {
+          entry.tankCount = String(d.tankCount ?? 1);
+          entry.tankCapacity = String(d.tankCapacity ?? 1000);
+        } else if (js.service_type === 'sofa_cleaning') {
+          entry.sofaCount = String(d.sofaCount ?? 1);
+          entry.sofaType = (d.sofaType as string) ?? 'Standard';
+        } else if (js.service_type === 'seats_cleaning') {
+          entry.seatCount = String(d.seatCount ?? 1);
+        } else if (js.service_type === 'carpet_cleaning') {
+          entry.carpetArea = String(d.carpetArea ?? 100);
+          entry.carpetNotes = (d.notes as string) ?? '';
+        } else if (js.service_type === 'custom_service') {
+          entry.customName = (d.serviceName as string) ?? '';
+          entry.customNotes = (d.notes as string) ?? '';
+        }
+        entry.notes = js.notes ?? '';
+        return entry;
+      });
+    }
+    return [createServiceEntry((card.service_type as ServiceType) || 'standard_cleaning')];
+  });
+
+  const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>(() => {
+    if (card.job_workers && card.job_workers.length > 0) {
+      return card.job_workers.map(jw => jw.staff_id);
+    }
+    if (card.technician_id) return [card.technician_id];
+    return [];
+  });
+
+  const updateService = (key: string, patch: Partial<ServiceEntry>) => {
+    setServices(prev => prev.map(s => s.key === key ? { ...s, ...patch } : s));
+  };
+
+  const removeService = (key: string) => {
+    setServices(prev => prev.filter(s => s.key !== key));
+  };
+
+  const addService = (type: ServiceType) => {
+    setServices(prev => [...prev, createServiceEntry(type)]);
+  };
+
+  const toggleWorker = (id: string) => {
+    setSelectedWorkerIds(prev =>
+      prev.includes(id) ? prev.filter(w => w !== id) : [...prev, id]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -792,10 +1032,9 @@ function EditJobModal({
       await updateJob.mutateAsync({
         id: card.id,
         customerId,
-        serviceType,
-        serviceDetails: card.service_details,
+        services: services.map(serviceEntryToPayload),
+        workerIds: selectedWorkerIds,
         serviceDate,
-        technicianId: technicianId || undefined,
         notes: notes || undefined,
       });
       onClose();
@@ -826,38 +1065,160 @@ function EditJobModal({
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Service Type</label>
-            <select value={serviceType} onChange={e => setServiceType(e.target.value as ServiceType)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              {serviceOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-600">Services</label>
+              <button type="button" onClick={() => addService('standard_cleaning')}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+                <PlusCircle size={12} /> Add
+              </button>
+            </div>
+            {services.map((svc, idx) => (
+              <div key={svc.key} className="border border-slate-200 rounded-lg p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold text-slate-500">Service {idx + 1}</span>
+                  {services.length > 1 && (
+                    <button type="button" onClick={() => removeService(svc.key)}
+                      className="text-red-400 hover:text-red-600" title="Remove">
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                <select value={svc.serviceType}
+                  onChange={e => updateService(svc.key, { serviceType: e.target.value as ServiceType })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white">
+                  {serviceOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+
+                {(svc.serviceType === 'standard_cleaning' || svc.serviceType === 'deep_cleaning') && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Tank Count</label>
+                      <input type="number" value={svc.tankCount}
+                        onChange={e => updateService(svc.key, { tankCount: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Capacity (L)</label>
+                      <input type="number" value={svc.tankCapacity}
+                        onChange={e => updateService(svc.key, { tankCapacity: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                    </div>
+                  </>
+                )}
+
+                {svc.serviceType === 'sofa_cleaning' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Sofa Count</label>
+                      <input type="number" value={svc.sofaCount}
+                        onChange={e => updateService(svc.key, { sofaCount: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                    </div>
+                    <select value={svc.sofaType}
+                      onChange={e => updateService(svc.key, { sofaType: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white">
+                      <option value="Standard">Standard</option>
+                      <option value="L-Shape">L-Shape</option>
+                      <option value="Sectional">Sectional</option>
+                      <option value="Recliner">Recliner</option>
+                    </select>
+                  </>
+                )}
+
+                {svc.serviceType === 'seats_cleaning' && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Seat Count</label>
+                    <input type="number" value={svc.seatCount}
+                      onChange={e => updateService(svc.key, { seatCount: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                  </div>
+                )}
+
+                {svc.serviceType === 'carpet_cleaning' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Area (sq ft)</label>
+                      <input type="number" value={svc.carpetArea}
+                        onChange={e => updateService(svc.key, { carpetArea: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+                      <textarea value={svc.carpetNotes}
+                        onChange={e => updateService(svc.key, { carpetNotes: e.target.value })} rows={1}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-none" />
+                    </div>
+                  </>
+                )}
+
+                {svc.serviceType === 'custom_service' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Service Name</label>
+                      <input value={svc.customName}
+                        onChange={e => updateService(svc.key, { customName: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+                      <textarea value={svc.customNotes}
+                        onChange={e => updateService(svc.key, { customNotes: e.target.value })} rows={1}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-none" />
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Service Notes</label>
+                  <input value={svc.notes}
+                    onChange={e => updateService(svc.key, { notes: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
+                </div>
+              </div>
+            ))}
           </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Workers</label>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {staff?.map((s) => {
+                const checked = selectedWorkerIds.includes(s.id);
+                return (
+                  <label key={s.id}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer ${
+                      checked ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <input type="checkbox" checked={checked}
+                      onChange={() => toggleWorker(s.id)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                    <span>{s.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Service Date</label>
             <input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm" />
           </div>
+
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Worker</label>
-            <select value={technicianId} onChange={e => setTechnicianId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-              <option value="">Unassigned</option>
-              {staff?.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Job Notes</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-none" />
           </div>
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
           )}
+
           <button type="submit" disabled={submitting}
             className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
             {submitting ? 'Saving...' : 'Save Changes'}

@@ -56,6 +56,27 @@ export type ServiceDetails =
   | CarpetCleaningDetails
   | CustomServiceDetails;
 
+// ─── Job Services (multiple services per job) ───────────────────
+
+export interface JobService {
+  id: string;
+  service_card_id: string;
+  service_type: ServiceType;
+  service_details: ServiceDetails;
+  notes: string | null;
+  created_at: string;
+}
+
+// ─── Job Workers (multiple workers per job) ─────────────────────
+
+export interface JobWorker {
+  id: string;
+  service_card_id: string;
+  staff_id: string;
+  created_at: string;
+  staff?: Staff;
+}
+
 export interface Merchant {
   id: string;
   business_name: string;
@@ -71,9 +92,9 @@ export interface Customer {
   name: string;
   phone: string;
   address: string | null;
+  notes: string | null;
   latitude: number | null;
   longitude: number | null;
-  tank_capacity_liters: number;
   created_at: string;
 }
 
@@ -81,8 +102,8 @@ export interface ServiceCard {
   id: string;
   customer_id: string;
   merchant_id: string;
-  service_type: ServiceType;
-  service_details: ServiceDetails;
+  service_type: string;
+  service_details: unknown;
   service_date: string;
   next_service_date: string | null;
   job_status: JobStatus;
@@ -94,6 +115,8 @@ export interface ServiceCard {
   created_at: string;
   customers?: Customer;
   staff?: Staff;
+  job_services?: JobService[];
+  job_workers?: JobWorker[];
 }
 
 export interface Staff {
@@ -175,6 +198,8 @@ export interface SupportTicket {
 export interface ServiceCardWithDetails extends Omit<ServiceCard, 'staff'> {
   customers: Customer;
   staff: Staff | null;
+  job_services: JobService[];
+  job_workers: (JobWorker & { staff: Staff })[];
 }
 
 export interface AttendanceWithStaff extends Attendance {
