@@ -228,12 +228,17 @@ export function useStockAlerts() {
         .eq('resolved', false)
         .order('created_at', { ascending: false });
 
+      const { data: allAlerts } = await supabase
+        .from('stock_alerts')
+        .select('inventory_id')
+        .eq('merchant_id', MERCHANT_ID);
+
       const { data: inventory } = await supabase
         .from('inventory')
         .select('*')
         .eq('merchant_id', MERCHANT_ID);
 
-      const alertIds = new Set((alerts ?? []).map(a => a.inventory_id));
+      const alertIds = new Set((allAlerts ?? []).map(a => a.inventory_id));
       const belowThreshold = (inventory ?? []).filter(
         i => i.current_stock < i.minimum_threshold && !alertIds.has(i.id)
       );
@@ -282,7 +287,25 @@ export function useResolveAlert() {
         return data;
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['stock_alerts'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stock_alerts'] });
+      qc.invalidateQueries({ queryKey: ['stock_alerts', 'resolved'] });
+    },
+  });
+}
+
+export function useResolvedAlerts() {
+  return useQuery({
+    queryKey: ['stock_alerts', 'resolved'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('stock_alerts')
+        .select('inventory_id')
+        .eq('merchant_id', MERCHANT_ID)
+        .eq('resolved', true);
+      if (error) throw error;
+      return new Set((data ?? []).map(a => a.inventory_id));
+    },
   });
 }
 

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Plus, Package, X, AlertTriangle, Pencil, Trash2 } from 'lucide-react';
-import { useInventory, useAddInventory, useUpdateInventory, useDeleteInventory, useStockAlerts, useResolveAlert } from '../lib/queries';
+import { useInventory, useAddInventory, useUpdateInventory, useDeleteInventory, useStockAlerts, useResolveAlert, useResolvedAlerts } from '../lib/queries';
 import { CardSkeleton } from '../components/LoadingSkeleton';
 import type { Inventory } from '../lib/types';
 
 export default function Inventory() {
   const { data: inventory, isLoading } = useInventory();
   const { data: alerts } = useStockAlerts();
+  const { data: reorderedIds } = useResolvedAlerts();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editItem, setEditItem] = useState<Inventory | null>(null);
   const [showAlertHistory, setShowAlertHistory] = useState(false);
@@ -41,7 +42,7 @@ export default function Inventory() {
             const ratio = item.current_stock / (item.minimum_threshold * 3);
             const status =
               item.current_stock < item.minimum_threshold
-                ? 'critical'
+                ? (reorderedIds?.has(item.id) ? 'reordered' : 'critical')
                 : item.current_stock < item.minimum_threshold * 2
                 ? 'low'
                 : 'ok';
@@ -50,18 +51,24 @@ export default function Inventory() {
                 ? 'bg-red-500'
                 : status === 'low'
                 ? 'bg-amber-500'
+                : status === 'reordered'
+                ? 'bg-blue-500'
                 : 'bg-green-500';
             const badgeColor =
               status === 'critical'
                 ? 'bg-red-100 text-red-700'
                 : status === 'low'
                 ? 'bg-amber-100 text-amber-700'
+                : status === 'reordered'
+                ? 'bg-blue-100 text-blue-700'
                 : 'bg-green-100 text-green-700';
             const badgeLabel =
               status === 'critical'
                 ? 'Critical'
                 : status === 'low'
                 ? 'Low'
+                : status === 'reordered'
+                ? 'Reordered'
                 : 'OK';
 
             return (
