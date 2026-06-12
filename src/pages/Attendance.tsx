@@ -326,7 +326,7 @@ function CheckInModal({
           <button
             onClick={() => {
               checkIn.mutate(
-                { staffId, notes: notes || undefined },
+                { staffId, notes: notes || undefined, date },
                 { onSuccess: onClose }
               );
             }}

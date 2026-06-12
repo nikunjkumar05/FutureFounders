@@ -161,9 +161,11 @@ export function useManualCheckIn() {
     mutationFn: async ({
       staffId,
       notes,
+      date,
     }: {
       staffId: string;
       notes?: string;
+      date: string;
     }) => {
       const { data, error } = await supabase
         .from('attendance')
@@ -172,7 +174,7 @@ export function useManualCheckIn() {
           merchant_id: MERCHANT_ID,
           checkin_time: new Date().toISOString(),
           verified_location: false,
-          date: new Date().toISOString().slice(0, 10),
+          date,
           notes: notes ?? 'Manual check-in',
         })
         .select()
