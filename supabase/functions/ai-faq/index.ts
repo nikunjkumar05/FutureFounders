@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const apiKey = Deno.env.get("OPENROUTER_API_KEY") ?? "";
+    const apiKey = Deno.env.get("NORTH_MINI_API_KEY") ?? "";
     const dbHeaders = {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`,
@@ -57,24 +57,25 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const northMiniRes = await fetch("https://api.northmini.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
+        model: "north-mini",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: sanitized },
         ],
         max_tokens: 150,
+        temperature: 0.7,
       }),
     });
 
-    const orData = await orRes.json();
-    const aiResponse = orData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
+    const northMiniData = await northMiniRes.json();
+    const aiResponse = northMiniData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
 
     if (aiResponse.startsWith("ESCALATE")) {
       await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
