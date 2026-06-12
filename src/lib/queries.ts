@@ -260,15 +260,27 @@ export function useStockAlerts() {
 export function useResolveAlert() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ alertId }: { alertId: string }) => {
-      const { data, error } = await supabase
-        .from('stock_alerts')
-        .update({ resolved: true })
-        .eq('id', alertId)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+    mutationFn: async ({ alertId, inventoryId, merchantId }: { alertId: string; inventoryId?: string; merchantId?: string }) => {
+      if (alertId.startsWith('inventory-')) {
+        const { error } = await supabase
+          .from('stock_alerts')
+          .insert({
+            inventory_id: inventoryId,
+            merchant_id: merchantId,
+            alert_type: 'low_stock',
+            resolved: true,
+          });
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('stock_alerts')
+          .update({ resolved: true })
+          .eq('id', alertId)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock_alerts'] }),
   });

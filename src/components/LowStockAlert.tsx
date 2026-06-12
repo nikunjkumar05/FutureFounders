@@ -55,7 +55,7 @@ export function LowStockAlert() {
             </span>
           </div>
           <button
-            onClick={() => resolveAlert.mutate({ alertId: alert.id })}
+            onClick={() => resolveAlert.mutate({ alertId: alert.id, inventoryId: alert.inventory_id, merchantId: alert.merchant_id })}
             className="flex items-center gap-1.5 text-xs font-medium text-red-700 hover:text-red-900 bg-red-100 hover:bg-red-200 px-3 py-1 rounded-md transition-colors"
           >
             <CheckCircle size={14} />

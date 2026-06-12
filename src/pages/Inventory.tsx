@@ -236,7 +236,7 @@ function AlertHistoryTable() {
               </td>
               <td className="px-4 py-2.5 text-right">
                 <button
-                  onClick={() => resolveAlert.mutate({ alertId: alert.id })}
+                  onClick={() => resolveAlert.mutate({ alertId: alert.id, inventoryId: alert.inventory_id, merchantId: alert.merchant_id })}
                   className="text-xs font-medium text-green-700 hover:text-green-900 bg-green-50 hover:bg-green-100 px-3 py-1 rounded-md transition-colors"
                 >
                   Mark Reordered
