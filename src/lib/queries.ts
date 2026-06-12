@@ -180,7 +180,10 @@ export function useManualCheckIn() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['attendance'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] });
+      qc.invalidateQueries({ queryKey: ['monthly_attendance'] });
+    },
   });
 }
 
@@ -197,7 +200,10 @@ export function useManualCheckOut() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['attendance'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] });
+      qc.invalidateQueries({ queryKey: ['monthly_attendance'] });
+    },
   });
 }
 
