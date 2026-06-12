@@ -1,5 +1,5 @@
 -- ============================================================
--- AquaTrak Complete Schema
+-- Operation Overflow App Complete Schema
 -- Water tank cleaning operations platform
 -- Apply via Bolt Database apply_migration tool
 -- ============================================================

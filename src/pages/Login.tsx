@@ -63,7 +63,7 @@ export default function Login() {
           <div className="bg-blue-500 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3">
             <span className="text-white text-xl font-bold">A</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">AquaTrak</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Operation Overflow App</h1>
           <p className="text-sm text-slate-500 mt-1">
             {mode === 'signin' ? 'Sign in to your account' : 'Create a new account'}
           </p>

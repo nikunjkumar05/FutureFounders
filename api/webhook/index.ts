@@ -1,18 +1,18 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-Deno.serve(async (req: Request) => {
+export default async function handler(req: any, res: any) {
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    res.writeHead(200, corsHeaders);
+    res.end();
+    return;
   }
 
-  const url = new URL(req.url);
-  const verifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "operation_overflow_app_verify";
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN ?? "operation_overflow_app_verify";
 
   // GET: Webhook verification
   if (req.method === "GET") {
@@ -21,37 +21,44 @@ Deno.serve(async (req: Request) => {
     const challenge = url.searchParams.get("hub.challenge");
 
     if (mode === "subscribe" && token === verifyToken) {
-      return new Response(challenge, { status: 200, headers: corsHeaders });
+      res.writeHead(200, { "Content-Type": "text/plain", ...corsHeaders });
+      res.end(challenge);
+      return;
     }
-    return new Response("Forbidden", { status: 403, headers: corsHeaders });
+    res.writeHead(403, corsHeaders);
+    res.end("Forbidden");
+    return;
   }
 
   // POST: Incoming message handler
   if (req.method === "POST") {
     try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const whatsappToken = Deno.env.get("WHATSAPP_TOKEN") ?? "";
-      const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
+      const supabaseUrl = process.env.SUPABASE_URL!;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+      const whatsappToken = process.env.WHATSAPP_TOKEN ?? "";
+      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID ?? "";
       const headers = {
         apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
         "Content-Type": "application/json",
       };
 
-      const body = await req.json();
+      let body = "";
+      for await (const chunk of req) {
+        body += chunk;
+      }
+      const parsed = JSON.parse(body);
 
       // Extract message data from WhatsApp webhook payload
-      const entry = body.entry?.[0];
+      const entry = parsed.entry?.[0];
       const change = entry?.changes?.[0];
       const message = change?.value?.messages?.[0];
       const fromPhone = message?.from;
 
       if (!message || !fromPhone) {
-        return new Response(
-          JSON.stringify({ status: "no_message" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
+        res.end(JSON.stringify({ status: "no_message" }));
+        return;
       }
 
       // Look up staff by phone
@@ -63,10 +70,9 @@ Deno.serve(async (req: Request) => {
 
       if (!Array.isArray(staff) || staff.length === 0) {
         await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "You are not registered as staff. Contact your manager.");
-        return new Response(
-          JSON.stringify({ status: "not_staff" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
+        res.end(JSON.stringify({ status: "not_staff" }));
+        return;
       }
 
       const staffMember = staff[0];
@@ -76,7 +82,6 @@ Deno.serve(async (req: Request) => {
         const lat = message.location.latitude;
         const lng = message.location.longitude;
 
-        // Get today's job site
         const today = new Date().toISOString().slice(0, 10);
         const jobRes = await fetch(
           `${supabaseUrl}/rest/v1/service_cards?technician_id=eq.${staffMember.id}&service_date=eq.${today}&select=*,customers(latitude,longitude,address)`,
@@ -86,10 +91,9 @@ Deno.serve(async (req: Request) => {
 
         if (!Array.isArray(jobs) || jobs.length === 0) {
           await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "No job assigned for today. Contact your manager.");
-          return new Response(
-            JSON.stringify({ status: "no_job" }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
+          res.end(JSON.stringify({ status: "no_job" }));
+          return;
         }
 
         const job = jobs[0];
@@ -125,7 +129,6 @@ Deno.serve(async (req: Request) => {
             );
           }
         } else {
-          // No coordinates on customer, allow check-in without verification
           await fetch(`${supabaseUrl}/rest/v1/attendance`, {
             method: "POST",
             headers,
@@ -154,40 +157,34 @@ Deno.serve(async (req: Request) => {
           const att = await attRes.json();
 
           if (Array.isArray(att) && att.length > 0) {
-            await fetch(
-              `${supabaseUrl}/rest/v1/attendance?id=eq.${att[0].id}`,
-              {
-                method: "PATCH",
-                headers,
-                body: JSON.stringify({ checkout_time: new Date().toISOString() }),
-              }
-            );
+            await fetch(`${supabaseUrl}/rest/v1/attendance?id=eq.${att[0].id}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({ checkout_time: new Date().toISOString() }),
+            });
             await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "Checked out. Good work today!");
           } else {
             await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "No active check-in found for today.");
           }
         } else {
-          // Forward non-checkout text to AI FAQ handler
           await handleFAQ(phoneNumberId, whatsappToken, fromPhone, message.text?.body ?? "", supabaseUrl, headers);
         }
       }
 
-      return new Response(
-        JSON.stringify({ status: "processed" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    } catch (err) {
-      return new Response(
-        JSON.stringify({ error: err.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
+      res.end(JSON.stringify({ status: "processed" }));
+      return;
+    } catch (err: any) {
+      res.writeHead(500, { "Content-Type": "application/json", ...corsHeaders });
+      res.end(JSON.stringify({ error: err.message }));
+      return;
     }
   }
 
-  return new Response("Method not allowed", { status: 405, headers: corsHeaders });
-});
+  res.writeHead(405, corsHeaders);
+  res.end("Method not allowed");
+}
 
-// Haversine distance formula
 function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -201,7 +198,6 @@ function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return Math.round(R * c);
 }
 
-// Send WhatsApp text reply
 async function sendWhatsAppReply(
   phoneNumberId: string,
   token: string,
@@ -224,7 +220,6 @@ async function sendWhatsAppReply(
   });
 }
 
-// Handle FAQ via North Mini
 async function handleFAQ(
   phoneNumberId: string,
   whatsappToken: string,
@@ -253,7 +248,7 @@ async function handleFAQ(
   const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
 
   try {
-    const northMiniRes = await fetch("https://api.northmini.com/v1/chat/completions", {
+    const aiRes = await fetch("https://api.northmini.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${aiApiKey}`,
@@ -273,8 +268,8 @@ async function handleFAQ(
       }),
     });
 
-    const northMiniData = await northMiniRes.json();
-    const aiResponse = northMiniData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
+    const aiData = await aiRes.json();
+    const aiResponse = aiData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
 
     if (aiResponse.startsWith("ESCALATE")) {
       await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
