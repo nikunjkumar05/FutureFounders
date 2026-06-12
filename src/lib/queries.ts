@@ -11,6 +11,7 @@ import type {
   SupportTicket,
   JobStatus,
   ServiceType,
+  ServiceDetails,
 } from './types';
 
 const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
@@ -83,7 +84,7 @@ export function useCreateJob() {
     mutationFn: async (job: {
       customerId: string;
       serviceType: ServiceType;
-      serviceDetails: Record<string, unknown>;
+      serviceDetails: ServiceDetails;
       serviceDate: string;
       technicianId?: string;
       notes?: string;
@@ -91,27 +92,20 @@ export function useCreateJob() {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
       ).toISOString().slice(0, 10);
-
       const payload: Record<string, unknown> = {
         customer_id: job.customerId,
         merchant_id: MERCHANT_ID,
-        service_type: job.serviceType,
-        service_details: job.serviceDetails,
         service_date: job.serviceDate,
         next_service_date: nextDate,
         technician_id: job.technicianId ?? null,
         notes: job.notes ?? null,
       };
-
       const { data, error } = await supabase
         .from('service_cards')
         .insert(payload)
         .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
-      if (error) {
-        console.error('Create job error:', error);
-        throw new Error(error.message || 'Failed to create job in database');
-      }
+      if (error) throw error;
       return data;
     },
     onSuccess: () => {
@@ -520,7 +514,7 @@ export function useUpdateJob() {
       id: string;
       customerId: string;
       serviceType: ServiceType;
-      serviceDetails: Record<string, unknown>;
+      serviceDetails: ServiceDetails;
       serviceDate: string;
       technicianId?: string;
       notes?: string;
@@ -528,7 +522,6 @@ export function useUpdateJob() {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
       ).toISOString().slice(0, 10);
-
       const payload: Record<string, unknown> = {
         customer_id: job.customerId,
         service_type: job.serviceType,
@@ -538,17 +531,13 @@ export function useUpdateJob() {
         technician_id: job.technicianId ?? null,
         notes: job.notes ?? null,
       };
-
       const { data, error } = await supabase
         .from('service_cards')
         .update(payload)
         .eq('id', job.id)
         .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
-      if (error) {
-        console.error('Update job error:', error);
-        throw new Error(error.message || 'Failed to update job');
-      }
+      if (error) throw error;
       return data;
     },
     onSuccess: () => {
@@ -709,9 +698,8 @@ export function useSendFeedback() {
         .eq('id', cardId)
         .single();
       if (cardErr) throw cardErr;
-      const c = card as unknown as { customers?: { phone?: string; name?: string } };
-      const phone = c.customers?.phone ?? null;
-      const name = c.customers?.name ?? null;
+      const phone = (card as any)?.customers?.phone;
+      const name = (card as any)?.customers?.name;
       if (phone) {
         const message = `Thank you for choosing AquaClean Services, ${name ?? 'Valued Customer'}!\n\nPlease rate our service:\n⭐ Google Review: https://g.page/r/review\n⭐ JustDial Review: https://justdial.com/review`;
         window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(message)}`);

@@ -17,8 +17,6 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   custom_service: 'Custom Service',
 };
 
-// ─── Single-item detail types (backward compat) ──────────────────
-
 export interface TankCleaningDetails {
   tankCount: number;
   tankCapacity: number;
@@ -58,39 +56,6 @@ export type ServiceDetails =
   | CarpetCleaningDetails
   | CustomServiceDetails;
 
-// ─── Multi-item types ────────────────────────────────────────────
-
-export interface ServiceItem {
-  id: string;
-  quantity: number;
-  price: number;
-  capacity?: number;
-  sofaType?: string;
-  carpetArea?: number;
-  serviceName?: string;
-  notes?: string;
-}
-
-export interface ServiceGroup {
-  serviceType: ServiceType;
-  items: ServiceItem[];
-  totalPrice: number;
-}
-
-export interface ServiceDetailsData {
-  services: ServiceGroup[];
-  totalCharge: number;
-  tankCount?: number;
-  tankCapacity?: number;
-  totalCapacity?: number;
-  sofaCount?: number;
-  sofaType?: string;
-  seatCount?: number;
-  carpetArea?: number;
-}
-
-// ─── DB Models ───────────────────────────────────────────────────
-
 export interface Merchant {
   id: string;
   business_name: string;
@@ -117,7 +82,7 @@ export interface ServiceCard {
   customer_id: string;
   merchant_id: string;
   service_type: ServiceType;
-  service_details: Record<string, unknown>;
+  service_details: ServiceDetails;
   service_date: string;
   next_service_date: string | null;
   job_status: JobStatus;
@@ -214,41 +179,4 @@ export interface ServiceCardWithDetails extends Omit<ServiceCard, 'staff'> {
 
 export interface AttendanceWithStaff extends Attendance {
   staff: Staff;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────
-
-let _itemIdCounter = 0;
-export function generateItemId(): string {
-  return `item-${Date.now()}-${++_itemIdCounter}`;
-}
-
-export function isServiceDetailsData(details: Record<string, unknown>): boolean {
-  return Array.isArray(details.services);
-}
-
-export function getServicesFromDetails(details: Record<string, unknown>): ServiceGroup[] {
-  if (isServiceDetailsData(details)) {
-    return details.services as ServiceGroup[];
-  }
-  const st = details.serviceType as ServiceType;
-  if (!st) return [];
-  const items: ServiceItem[] = [{
-    id: generateItemId(),
-    quantity: 1,
-    price: 0,
-    ...(details as Record<string, unknown>),
-  }];
-  return [{
-    serviceType: st,
-    items,
-    totalPrice: 0,
-  }];
-}
-
-export function getTotalCharge(details: Record<string, unknown>): number {
-  if (isServiceDetailsData(details)) {
-    return details.totalCharge as number;
-  }
-  return 0;
 }
