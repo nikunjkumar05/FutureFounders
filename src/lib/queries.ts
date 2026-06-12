@@ -312,7 +312,7 @@ export function useMarkReminderSent() {
         .from('service_cards')
         .update({ reminder_sent_at: new Date().toISOString() })
         .eq('id', cardId)
-        .select()
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
       if (error) throw error;
       return data;
