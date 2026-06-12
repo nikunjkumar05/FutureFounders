@@ -1,8 +1,8 @@
 /*
-# Operation Overflow App — Complete Database Schema
+# AquaTrak — Complete Database Schema
 
 ## Overview
-Full schema for Operation Overflow App, a lean SMB operations platform for cleaning services.
+Full schema for AquaTrak, a lean SMB operations platform for cleaning services.
 Single-tenant design: one merchant operates the system. All data is accessible to the
 anon-key client (no auth UI in scope).
 

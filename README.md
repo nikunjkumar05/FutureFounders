@@ -1,4 +1,4 @@
-# Operation Overflow App — Water Tank Cleaning Operations Platform
+# AquaTrak — Water Tank Cleaning Operations Platform
 ### App Link : https://futurefounders-ruddy.vercel.app/
 Lean SMB operations platform for water tank cleaning businesses. Built for the OKCredit Future Founder Hackathon.
 
@@ -15,20 +15,19 @@ Lean SMB operations platform for water tank cleaning businesses. Built for the O
                     │   PostgreSQL + RLS   │
                     └──┬───────┬───────┬───┘
                        │       │       │
-             ┌──────────┘       │       └──────────┐
-             ▼                  ▼                  ▼
-     ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-     │ Serverless    │  │ Serverless    │  │ Serverless   │
-     │ Function     │  │ Function     │  │ Function    │
-     │ send-reminder│  │   webhook    │  │   ai-faq    │
-     │ (Cron/180d)  │  │ (WhatsApp)   │  │ (North Mini)│
-     └──────────────┘  └──────────────┘  └──────────────┘
-             │                  │                  │
-             ▼                  ▼                  ▼
-     ┌──────────────────────────────────────────────────┐
-     │           WhatsApp Cloud API (Meta)              │
-     │            North Mini API                        │
-     └──────────────────────────────────────────────────┘
+            ┌──────────┘       │       └──────────┐
+            ▼                  ▼                  ▼
+    ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+    │ Edge Function│  │ Edge Function│  │ Edge Function│
+    │ send-reminder│  │   webhook    │  │   ai-faq     │
+    │ (Cron/180d)  │  │ (WhatsApp)   │  │ (Gemini FAQ) │
+    └──────────────┘  └──────────────┘  └──────────────┘
+            │                  │                  │
+            ▼                  ▼                  ▼
+    ┌──────────────────────────────────────────────────┐
+    │           WhatsApp Cloud API (Meta)              │
+    │            Gemini 1.5 Flash API                 │
+    └──────────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
@@ -38,10 +37,10 @@ Lean SMB operations platform for water tank cleaning businesses. Built for the O
 | Frontend | React 18 + Vite + Tailwind CSS + TypeScript |
 | Data Fetching | TanStack Query (React Query) |
 | Database | Supabase (PostgreSQL) |
-| Serverless Functions | Vercel (frontend + API) |
-| AI FAQ | North Mini |
+| Edge Functions | Supabase Edge Functions (Deno) |
+| AI FAQ | Gemini 1.5 Flash |
 | Messaging | WhatsApp Cloud API (Meta) |
-| Deployment | Vercel (frontend + API) |
+| Deployment | Vercel (frontend) + Supabase (backend) |
 
 ## Setup
 
@@ -68,7 +67,7 @@ Fill in your Supabase project URL and anon key (these are safe for client-side u
 Open your Supabase dashboard → SQL Editor and paste the contents of:
 
 ```
-supabase/migrations/20260606162111_operation-overflow-app_schema.sql
+supabase/migrations/20260606162111_aquatrak_schema.sql
 ```
 
 This creates all tables, indexes, RLS policies, the inventory trigger, and seed data.
@@ -99,18 +98,34 @@ vercel login
 vercel --prod
 ```
 
-### Serverless Functions → Vercel
+### Edge Functions → Supabase
 
-Deploy all functions to Vercel:
+Install the Supabase CLI and deploy:
 
 ```bash
-# Deploy the functions
-vercel deploy --prod
+# Install Supabase CLI
+npm install -g supabase
+
+# Login
+supabase login
+
+# Link your project
+supabase link --project-ref bopshpvbesxnakhogfdc
+
+# Deploy all functions
+supabase functions deploy send-reminders
+supabase functions deploy webhook
+supabase functions deploy ai-faq
 ```
 
 ### Cron Job (180-Day Reminders)
 
-Use Vercel Cron by adding to `vercel.json`:
+In your Supabase dashboard:
+1. Go to **Database** → **Triggers**
+2. Add a scheduled function to call the `send-reminders` Edge Function daily at 8:00 AM IST (2:00 AM UTC)
+3. Pass `CRON_SECRET` as the authorization header
+
+Alternatively, use Vercel Cron by adding to `vercel.json`:
 
 ```json
 {
@@ -123,8 +138,8 @@ Use Vercel Cron by adding to `vercel.json`:
 
 ### WhatsApp Webhook
 
-1. Deploy the `webhook` function to Vercel
-2. Copy the function URL: `https://<your-vercel-project>.vercel.app/api/webhook`
+1. Deploy the `webhook` Edge Function to Supabase
+2. Copy the function URL: `https://bopshpvbesxnakhogfdc.supabase.co/functions/v1/webhook`
 3. In Meta Developer Console → WhatsApp → Configuration:
    - **Callback URL**: paste the function URL
    - **Verify Token**: match your `WHATSAPP_VERIFY_TOKEN`
@@ -135,13 +150,13 @@ Use Vercel Cron by adding to `vercel.json`:
 |----------|-------|----------|-------------|
 | `VITE_SUPABASE_URL` | Vercel (FE) | Yes | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Vercel (FE) | Yes | Supabase anon key |
-| `SUPABASE_URL` | Vercel (API) | Yes | Same as above |
-| `SUPABASE_SERVICE_ROLE_KEY` | Vercel (API) | Yes | Service role key (server-only) |
-| `WHATSAPP_TOKEN` | Vercel (API) | For WhatsApp | Meta WhatsApp access token |
-| `WHATSAPP_PHONE_NUMBER_ID` | Vercel (API) | For WhatsApp | Meta phone number ID |
-| `WHATSAPP_VERIFY_TOKEN` | Vercel (API) | For WhatsApp | Webhook verify token |
-| `NORTH_MINI_API_KEY` | Vercel (API) | For AI FAQ | North Mini API key |
-| `CRON_SECRET` | Vercel (API) | For Cron | Secret to protect cron endpoint |
+| `SUPABASE_URL` | Edge Functions | Yes | Same as above |
+| `SUPABASE_SERVICE_ROLE_KEY` | Edge Functions | Yes | Service role key (server-only) |
+| `WHATSAPP_TOKEN` | Edge Functions | For WhatsApp | Meta WhatsApp access token |
+| `WHATSAPP_PHONE_NUMBER_ID` | Edge Functions | For WhatsApp | Meta phone number ID |
+| `WHATSAPP_VERIFY_TOKEN` | Edge Functions | For WhatsApp | Webhook verify token |
+| `GEMINI_API_KEY` | Edge Functions | For AI FAQ | Google Gemini API key |
+| `CRON_SECRET` | Edge Functions | For Cron | Secret to protect cron endpoint |
 
 ## Feature Status
 
@@ -156,7 +171,7 @@ Use Vercel Cron by adding to `vercel.json`:
 | Staff attendance (manual override) | ✅ |
 | Monthly wage calculator | ✅ |
 | WhatsApp geofenced check-in/out | ✅ |
-| AI FAQ (North Mini) | ✅ |
+| AI FAQ (Gemini 1.5 Flash) | ✅ |
 | Support tickets dashboard | ✅ |
 | 180-day reminder cron engine | ✅ |
 | CSV data migration script | 🚧 |
@@ -183,90 +198,13 @@ futurefounders/
 │       ├── supabase.ts    # Supabase client
 │       ├── queries.ts     # TanStack Query hooks
 │       └── types.ts       # TypeScript types
-├── api/
-│   ├── cron/             # Vercel serverless functions
-│   │   └── send-reminders.ts
-│   ├── webhook/           # WhatsApp webhook handler
-│   │   └── index.ts
-│   └── ai-faq/            # North Mini AI handler
-│       └── index.ts
 ├── supabase/
 │   ├── migrations/        # PostgreSQL schema + triggers
-│   └── functions/         # Legacy Edge Functions (Deno)
+│   └── functions/         # Edge Functions (Deno)
 │       ├── send-reminders/
 │       ├── webhook/
 │       └── ai-faq/
 ├── vercel.json
 ├── .env.example
-├── .github/workflows/    # GitHub Actions workflow
-│   └── deploy.yml
 └── README.md
-```
-
-## Demo Script
-
-Run this script to test the AI FAQ functionality:
-
-```bash
-# Test the AI FAQ function
-node scripts/test-ai-faq.js
-```
-
-### scripts/test-ai-faq.js
-
-```javascript
-const https = require('https');
-
-const NORTH_MINI_API_KEY = 'xREuLwql7RtsagsI1uXIDdGk6rES7J04mcV12LGm';
-
-async function testAIFaq() {
-  const payload = {
-    model: "north-mini",
-    messages: [
-      {
-        role: "system",
-        content: "You are a customer support assistant for AquaClean Services. We offer water tank cleaning, sofa cleaning, and car seats cleaning. You can ONLY answer questions about: 1) Tank cleaning pricing (500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800), 2) Sofa cleaning pricing (per seat: Rs.500, full sofa set: Rs.1500), 3) Car seats cleaning pricing (per seat: Rs.300, full car interior: Rs.2000), 4) Working hours (Mon-Sat, 8AM-6PM), 5) Tank capacity calculation (approximate: length x width x height in meters x 1000 = liters). For ANY other question, respond with exactly: ESCALATE. Do not add any other text if escalating. Keep answers under 50 words. Be friendly and professional.",
-      },
-      { role: "user", content: "What are the water tank cleaning prices?" },
-    ],
-    max_tokens: 150,
-    temperature: 0.7,
-  };
-
-  const options = {
-    hostname: 'api.northmini.com',
-    path: '/v1/chat/completions',
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${NORTH_MINI_API_KEY}`,
-      'Content-Type': 'application/json',
-      'Content-Length': JSON.stringify(payload).length
-    }
-  };
-
-  const req = https.request(options, (res) => {
-    console.log(`Status: ${res.statusCode}`);
-    res.on('data', (chunk) => {
-      try {
-        const data = JSON.parse(chunk);
-        console.log('Response:', JSON.stringify(data, null, 2));
-      } catch (e) {
-        console.log('Raw response:', chunk.toString());
-      }
-    });
-  });
-
-  req.on('error', (e) => {
-    console.error(`Problem with request: ${e.message}`);
-  });
-
-  req.write(JSON.stringify(payload));
-  req.end();
-}
-
-if (require.main === module) {
-  testAIFaq();
-}
-
-module.exports = { testAIFaq };
 ```

@@ -12,7 +12,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const url = new URL(req.url);
-  const verifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "operation_overflow_app_verify";
+  const verifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "aquatrak_verify";
 
   // GET: Webhook verification
   if (req.method === "GET") {
@@ -224,7 +224,7 @@ async function sendWhatsAppReply(
   });
 }
 
-// Handle FAQ via North Mini
+// Handle FAQ via Gemini
 async function handleFAQ(
   phoneNumberId: string,
   whatsappToken: string,
@@ -233,7 +233,7 @@ async function handleFAQ(
   supabaseUrl: string,
   headers: Record<string, string>
 ) {
-  const aiApiKey = process.env.NORTH_MINI_API_KEY ?? "";
+  const aiApiKey = Deno.env.get("OPENROUTER_API_KEY") ?? "";
 
   if (!aiApiKey) {
     await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
@@ -253,14 +253,14 @@ async function handleFAQ(
   const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
 
   try {
-    const northMiniRes = await fetch("https://api.northmini.com/v1/chat/completions", {
+    const orRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${aiApiKey}`,
+        Authorization: `Bearer ${aiApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "north-mini",
+        model: "openai/gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -269,12 +269,11 @@ async function handleFAQ(
           { role: "user", content: sanitized },
         ],
         max_tokens: 150,
-        temperature: 0.7,
       }),
     });
 
-    const northMiniData = await northMiniRes.json();
-    const aiResponse = northMiniData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
+    const orData = await orRes.json();
+    const aiResponse = orData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
 
     if (aiResponse.startsWith("ESCALATE")) {
       await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");

@@ -57,9 +57,9 @@ export default function Sidebar() {
       >
 <div className="p-6 border-b border-slate-700">
   <div className="flex items-center gap-3">
-    <img src="/logo.png" alt="Operation Overflow App" className="w-10 h-10 rounded-lg object-cover" />
+    <img src="/logo.png" alt="AquaTrak" className="w-10 h-10 rounded-lg object-cover" />
     <div>
-      <h1 className="text-lg font-bold tracking-tight">Operation Overflow App</h1>
+      <h1 className="text-lg font-bold tracking-tight">AquaTrak</h1>
       <p className="text-xs text-slate-400">Operation Workflow</p>
     </div>
   </div>
