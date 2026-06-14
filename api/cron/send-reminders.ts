@@ -1,4 +1,4 @@
-import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio";
+import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

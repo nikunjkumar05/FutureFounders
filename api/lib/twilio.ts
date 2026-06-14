@@ -85,5 +85,9 @@ export function parseTwilioWebhook(body: Record<string, unknown>): TwilioWebhook
 }
 
 export function extractPhoneFromTwilio(from: string): string {
-  return from.replace("whatsapp:", "").replace("+", "");
+  let phone = from.replace("whatsapp:", "").replace("+", "");
+  if (phone.startsWith("91") && phone.length === 12) {
+    phone = phone.slice(2);
+  }
+  return phone;
 }

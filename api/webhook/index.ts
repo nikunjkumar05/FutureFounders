@@ -2,7 +2,7 @@ import {
   getTwilioConfig,
   sendTwilioMessage,
   extractPhoneFromTwilio,
-} from "../lib/twilio";
+} from "../lib/twilio.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,9 +68,14 @@ export default async function handler(req: any, res: any) {
       const staff = await staffRes.json();
 
       if (!Array.isArray(staff) || staff.length === 0) {
-        await replyViaTwilio(fromPhone, "You are not registered as staff. Contact your manager.");
+        // Non-staff: route text messages to AI FAQ
+        if (latitude && longitude) {
+          await replyViaTwilio(fromPhone, "You are not registered as staff. Contact your manager.");
+        } else {
+          await handleFAQ(phone, messageBody, supabaseUrl, headers);
+        }
         res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-        res.end(JSON.stringify({ status: "not_staff" }));
+        res.end(JSON.stringify({ status: "processed" }));
         return;
       }
 
@@ -212,78 +217,64 @@ async function handleFAQ(
   supabaseUrl: string,
   headers: Record<string, string>
 ) {
-  const aiApiKey = process.env.NORTH_MINI_API_KEY ?? "";
+  const mistralKey = process.env.MISTRAL_API_KEY ?? "";
+  const mistralModel = process.env.MISTRAL_MODEL ?? "mistral-large-latest";
 
-  if (!aiApiKey) {
-    await replyViaTwilio(phone, "I've connected you with our team — they'll respond within 2 hours!");
+  const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
+
+  if (!mistralKey) {
+    await replyViaTwilio(phone, "Thanks for reaching out! Our team will get back to you shortly.");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        customer_phone: phone,
-        message,
-        requires_human_intervention: true,
-        status: "open",
-      }),
+      body: JSON.stringify({ customer_phone: phone, message, requires_human_intervention: true, status: "open" }),
     });
     return;
   }
 
-  const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
-
   try {
-    const aiRes = await fetch("https://api.northmini.com/v1/chat/completions", {
+    const aiRes = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${aiApiKey}`,
+        Authorization: `Bearer ${mistralKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "north-mini",
+        model: mistralModel,
         messages: [
           {
             role: "system",
-            content: "You are a customer support assistant for AquaClean Services. We offer water tank cleaning, sofa cleaning, and car seats cleaning. You can ONLY answer questions about: 1) Tank cleaning pricing (500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800), 2) Sofa cleaning pricing (per seat: Rs.500, full sofa set: Rs.1500), 3) Car seats cleaning pricing (per seat: Rs.300, full car interior: Rs.2000), 4) Working hours (Mon-Sat, 8AM-6PM), 5) Tank capacity calculation (approximate: length x width x height in meters x 1000 = liters). For ANY other question, respond with exactly: ESCALATE. Do not add any other text if escalating. Keep answers under 50 words. Be friendly and professional.",
+            content: `You are a friendly customer support assistant for AquaClean Services — a water tank cleaning business. You help customers with ANY question about our services. Here is what we offer:\n\nServices & Pricing:\n- Water tank cleaning (standard): 500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800\n- Deep cleaning: 30% above standard rates\n- Sofa cleaning: per seat Rs.500, full sofa set Rs.1500\n- Car seats cleaning: per seat Rs.300, full car interior Rs.2000\n- Carpet cleaning: starting at Rs.600\n\nWorking hours: Monday to Saturday, 8:00 AM to 6:00 PM\nTank capacity formula: length x width x height (in meters) x 1000 = liters\nService interval: Every 6 months recommended\n\nRules:\n- Be helpful, friendly, and professional\n- Answer ANY question the customer has about our services\n- If asked about something completely unrelated to our services, politely redirect to our services\n- Keep answers under 80 words\n- You can use emojis occasionally`,
           },
           { role: "user", content: sanitized },
         ],
-        max_tokens: 150,
+        max_tokens: 200,
         temperature: 0.7,
       }),
     });
 
     const aiData = await aiRes.json();
-    const aiResponse = aiData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
+    const aiResponse = aiData?.choices?.[0]?.message?.content?.trim();
 
-    if (aiResponse.startsWith("ESCALATE")) {
-      await replyViaTwilio(phone, "I've connected you with our team — they'll respond within 2 hours!");
-      await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          customer_phone: phone,
-          message: sanitized,
-          ai_response: null,
-          requires_human_intervention: true,
-          status: "open",
-        }),
-      });
-    } else {
+    if (aiResponse) {
       await replyViaTwilio(phone, aiResponse);
-      await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          customer_phone: phone,
-          message: sanitized,
-          ai_response: aiResponse,
-          requires_human_intervention: false,
-          status: "auto_resolved",
-        }),
-      });
+    } else {
+      await replyViaTwilio(phone, "Thanks for your message! Our team will get back to you shortly.");
     }
+
+    await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        customer_phone: phone,
+        message: sanitized,
+        ai_response: aiResponse ?? null,
+        requires_human_intervention: !aiResponse,
+        status: aiResponse ? "auto_resolved" : "open",
+      }),
+    });
   } catch {
-    await replyViaTwilio(phone, "I've connected you with our team — they'll respond within 2 hours!");
+    await replyViaTwilio(phone, "Thanks for your message! Our team will get back to you shortly.");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
