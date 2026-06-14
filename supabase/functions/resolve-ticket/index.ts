@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,15 +30,12 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const whatsappToken = Deno.env.get("WHATSAPP_TOKEN") ?? "";
-    const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
     const dbHeaders = {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`,
       "Content-Type": "application/json",
     };
 
-    // Fetch ticket
     const ticketRes = await fetch(
       `${supabaseUrl}/rest/v1/support_tickets?id=eq.${ticketId}&select=*`,
       { headers: dbHeaders }
@@ -52,7 +50,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Update status to resolved
     await fetch(
       `${supabaseUrl}/rest/v1/support_tickets?id=eq.${ticketId}`,
       {
@@ -62,25 +59,12 @@ Deno.serve(async (req: Request) => {
       }
     );
 
-    // Send WhatsApp reply
-    if (whatsappToken && phoneNumberId && ticket.customer_phone) {
-      await fetch(
-        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${whatsappToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: `91${ticket.customer_phone}`,
-            type: "text",
-            text: {
-              body: "Hi! Your query has been resolved by our team. Let us know if you need anything else!",
-            },
-          }),
-        }
+    if (ticket.customer_phone) {
+      const twilioConfig = getTwilioConfig();
+      await sendTwilioMessage(
+        twilioConfig,
+        ticket.customer_phone,
+        "Hi! Your query has been resolved by our team. Let us know if you need anything else!"
       );
     }
 

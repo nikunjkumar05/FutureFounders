@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,12 +24,9 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const whatsappToken = Deno.env.get("WHATSAPP_TOKEN") ?? "";
-    const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
 
     const today = new Date().toISOString().slice(0, 10);
 
-    // Query service cards due today with no reminder sent
     const cardsRes = await fetch(
       `${supabaseUrl}/rest/v1/service_cards?select=id,customer_id,next_service_date,reminder_sent_at,customers(name,phone)&next_service_date=lte.${today}&reminder_sent_at=is.null&job_status=eq.pending`,
       {
@@ -48,11 +46,11 @@ Deno.serve(async (req: Request) => {
 
     let sent = 0;
     let failed = 0;
+    const twilioConfig = getTwilioConfig();
 
     for (const card of cards) {
       try {
-        if (!whatsappToken || !phoneNumberId) {
-          // No WhatsApp configured, just mark reminder as sent
+        if (!twilioConfig.accountSid || !twilioConfig.authToken) {
           await fetch(
             `${supabaseUrl}/rest/v1/service_cards?id=eq.${card.id}`,
             {
@@ -75,37 +73,11 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Send WhatsApp template message
-        const waRes = await fetch(
-          `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${whatsappToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              messaging_product: "whatsapp",
-              to: `91${customer.phone}`,
-              type: "template",
-              template: {
-                name: "tank_cleaning_reminder",
-                language: { code: "en" },
-                components: [
-                  {
-                    type: "body",
-                    parameters: [
-                      { type: "text", text: customer.name },
-                      { type: "text", text: "AquaClean Services" },
-                    ],
-                  },
-                ],
-              },
-            }),
-          }
-        );
+        const reminderMessage = `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`;
 
-        if (waRes.ok) {
+        const result = await sendTwilioMessage(twilioConfig, customer.phone, reminderMessage);
+
+        if (result.ok) {
           await fetch(
             `${supabaseUrl}/rest/v1/service_cards?id=eq.${card.id}`,
             {
@@ -120,7 +92,6 @@ Deno.serve(async (req: Request) => {
           );
           sent++;
         } else {
-          const errBody = await waRes.text();
           await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
             method: "POST",
             headers: {
@@ -131,20 +102,18 @@ Deno.serve(async (req: Request) => {
             body: JSON.stringify({
               type: "send_reminder",
               status: "failed",
-              error_message: `WhatsApp API error for card ${card.id}: ${errBody}`,
+              error_message: `Twilio error for card ${card.id}: ${result.error}`,
             }),
           });
           failed++;
         }
 
-        // Rate limiting: 300ms between calls
         await new Promise((r) => setTimeout(r, 300));
       } catch {
         failed++;
       }
     }
 
-    // Log successful run
     if (sent > 0 || failed > 0) {
       await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
         method: "POST",

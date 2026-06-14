@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { getTwilioConfig, sendTwilioMessage, extractPhoneFromTwilio } from "../lib/twilio.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,58 +12,50 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
-  const url = new URL(req.url);
-  const verifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? "operation_overflow_app_verify";
-
-  // GET: Webhook verification
   if (req.method === "GET") {
-    const mode = url.searchParams.get("hub.mode");
-    const token = url.searchParams.get("hub.verify_token");
-    const challenge = url.searchParams.get("hub.challenge");
-
-    if (mode === "subscribe" && token === verifyToken) {
-      return new Response(challenge, { status: 200, headers: corsHeaders });
-    }
-    return new Response("Forbidden", { status: 403, headers: corsHeaders });
+    return new Response("AquaTrak webhook is running", { status: 200, headers: corsHeaders });
   }
 
-  // POST: Incoming message handler
   if (req.method === "POST") {
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const whatsappToken = Deno.env.get("WHATSAPP_TOKEN") ?? "";
-      const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
       const headers = {
         apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
         "Content-Type": "application/json",
       };
 
-      const body = await req.json();
+      const rawBody = await req.text();
+      const params = new URLSearchParams(rawBody);
+      const body: Record<string, string> = {};
+      params.forEach((value, key) => {
+        body[key] = value;
+      });
 
-      // Extract message data from WhatsApp webhook payload
-      const entry = body.entry?.[0];
-      const change = entry?.changes?.[0];
-      const message = change?.value?.messages?.[0];
-      const fromPhone = message?.from;
+      const fromPhone = body.From;
+      const messageBody = body.Body ?? "";
+      const latitude = body.Latitude;
+      const longitude = body.Longitude;
 
-      if (!message || !fromPhone) {
+      if (!fromPhone) {
         return new Response(
-          JSON.stringify({ status: "no_message" }),
+          JSON.stringify({ status: "no_sender" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Look up staff by phone
+      const phone = extractPhoneFromTwilio(fromPhone);
+
       const staffRes = await fetch(
-        `${supabaseUrl}/rest/v1/staff?phone=eq.${fromPhone}&is_active=eq.true&select=*`,
+        `${supabaseUrl}/rest/v1/staff?phone=eq.${phone}&is_active=eq.true&select=*`,
         { headers }
       );
       const staff = await staffRes.json();
 
       if (!Array.isArray(staff) || staff.length === 0) {
-        await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "You are not registered as staff. Contact your manager.");
+        const twilioConfig = getTwilioConfig();
+        await sendTwilioMessage(twilioConfig, fromPhone, "You are not registered as staff. Contact your manager.");
         return new Response(
           JSON.stringify({ status: "not_staff" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -71,12 +64,10 @@ Deno.serve(async (req: Request) => {
 
       const staffMember = staff[0];
 
-      // Handle location message (check-in)
-      if (message.type === "location") {
-        const lat = message.location.latitude;
-        const lng = message.location.longitude;
+      if (latitude && longitude) {
+        const lat = parseFloat(latitude);
+        const lng = parseFloat(longitude);
 
-        // Get today's job site
         const today = new Date().toISOString().slice(0, 10);
         const jobRes = await fetch(
           `${supabaseUrl}/rest/v1/service_cards?technician_id=eq.${staffMember.id}&service_date=eq.${today}&select=*,customers(latitude,longitude,address)`,
@@ -84,8 +75,10 @@ Deno.serve(async (req: Request) => {
         );
         const jobs = await jobRes.json();
 
+        const twilioConfig = getTwilioConfig();
+
         if (!Array.isArray(jobs) || jobs.length === 0) {
-          await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "No job assigned for today. Contact your manager.");
+          await sendTwilioMessage(twilioConfig, fromPhone, "No job assigned for today. Contact your manager.");
           return new Response(
             JSON.stringify({ status: "no_job" }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -114,18 +107,17 @@ Deno.serve(async (req: Request) => {
           });
 
           if (verified) {
-            await sendWhatsAppReply(
-              phoneNumberId, whatsappToken, fromPhone,
+            await sendTwilioMessage(
+              twilioConfig, fromPhone,
               `Check-in confirmed at ${job.customers?.address ?? "job site"}! Have a great shift.`
             );
           } else {
-            await sendWhatsAppReply(
-              phoneNumberId, whatsappToken, fromPhone,
+            await sendTwilioMessage(
+              twilioConfig, fromPhone,
               `You're ${distance}m away from the job site. Please share your location once you arrive.`
             );
           }
         } else {
-          // No coordinates on customer, allow check-in without verification
           await fetch(`${supabaseUrl}/rest/v1/attendance`, {
             method: "POST",
             headers,
@@ -138,13 +130,19 @@ Deno.serve(async (req: Request) => {
               notes: "Check-in — no site coordinates available",
             }),
           });
-          await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "Check-in recorded. No site coordinates available for verification.");
+          await sendTwilioMessage(twilioConfig, fromPhone, "Check-in recorded. No site coordinates available for verification.");
         }
+
+        return new Response(
+          JSON.stringify({ status: "processed" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
-      // Handle text "checkout"
-      if (message.type === "text") {
-        const text = message.text?.body?.toLowerCase().trim();
+      if (messageBody) {
+        const text = messageBody.toLowerCase().trim();
+        const twilioConfig = getTwilioConfig();
+
         if (text === "checkout") {
           const today = new Date().toISOString().slice(0, 10);
           const attRes = await fetch(
@@ -162,13 +160,12 @@ Deno.serve(async (req: Request) => {
                 body: JSON.stringify({ checkout_time: new Date().toISOString() }),
               }
             );
-            await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "Checked out. Good work today!");
+            await sendTwilioMessage(twilioConfig, fromPhone, "Checked out. Good work today!");
           } else {
-            await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "No active check-in found for today.");
+            await sendTwilioMessage(twilioConfig, fromPhone, "No active check-in found for today.");
           }
         } else {
-          // Forward non-checkout text to AI FAQ handler
-          await handleFAQ(phoneNumberId, whatsappToken, fromPhone, message.text?.body ?? "", supabaseUrl, headers);
+          await handleFAQ(phone, messageBody, supabaseUrl, headers);
         }
       }
 
@@ -187,7 +184,6 @@ Deno.serve(async (req: Request) => {
   return new Response("Method not allowed", { status: 405, headers: corsHeaders });
 });
 
-// Haversine distance formula
 function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -201,47 +197,22 @@ function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return Math.round(R * c);
 }
 
-// Send WhatsApp text reply
-async function sendWhatsAppReply(
-  phoneNumberId: string,
-  token: string,
-  to: string,
-  text: string
-) {
-  if (!token || !phoneNumberId) return;
-  await fetch(`https://graph.facebook.com/v18.0/${phoneNumberId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body: text },
-    }),
-  });
-}
-
-// Handle FAQ via North Mini
 async function handleFAQ(
-  phoneNumberId: string,
-  whatsappToken: string,
-  fromPhone: string,
+  phone: string,
   message: string,
   supabaseUrl: string,
   headers: Record<string, string>
 ) {
-  const aiApiKey = process.env.NORTH_MINI_API_KEY ?? "";
+  const aiApiKey = Deno.env.get("NORTH_MINI_API_KEY") ?? "";
+  const twilioConfig = getTwilioConfig();
 
   if (!aiApiKey) {
-    await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+    await sendTwilioMessage(twilioConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        customer_phone: fromPhone,
+        customer_phone: phone,
         message,
         requires_human_intervention: true,
         status: "open",
@@ -253,10 +224,10 @@ async function handleFAQ(
   const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
 
   try {
-    const northMiniRes = await fetch("https://api.northmini.com/v1/chat/completions", {
+    const aiRes = await fetch("https://api.northmini.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${aiApiKey}`,
+        Authorization: `Bearer ${aiApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -273,16 +244,16 @@ async function handleFAQ(
       }),
     });
 
-    const northMiniData = await northMiniRes.json();
-    const aiResponse = northMiniData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
+    const aiData = await aiRes.json();
+    const aiResponse = aiData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
 
     if (aiResponse.startsWith("ESCALATE")) {
-      await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+      await sendTwilioMessage(twilioConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
       await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          customer_phone: fromPhone,
+          customer_phone: phone,
           message: sanitized,
           ai_response: null,
           requires_human_intervention: true,
@@ -290,12 +261,12 @@ async function handleFAQ(
         }),
       });
     } else {
-      await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, aiResponse);
+      await sendTwilioMessage(twilioConfig, phone, aiResponse);
       await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          customer_phone: fromPhone,
+          customer_phone: phone,
           message: sanitized,
           ai_response: aiResponse,
           requires_human_intervention: false,
@@ -304,12 +275,12 @@ async function handleFAQ(
       });
     }
   } catch {
-    await sendWhatsAppReply(phoneNumberId, whatsappToken, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+    await sendTwilioMessage(twilioConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        customer_phone: fromPhone,
+        customer_phone: phone,
         message: sanitized,
         requires_human_intervention: true,
         status: "open",

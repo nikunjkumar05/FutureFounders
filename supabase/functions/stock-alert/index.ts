@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,15 +15,12 @@ Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const whatsappToken = Deno.env.get("WHATSAPP_TOKEN") ?? "";
-    const phoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
     const dbHeaders = {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`,
       "Content-Type": "application/json",
     };
 
-    // Fetch unresolved stock alerts with inventory details
     const alertsRes = await fetch(
       `${supabaseUrl}/rest/v1/stock_alerts?select=*,inventory!inner(item_name,current_stock,minimum_threshold,merchant_id)&resolved=eq.false`,
       { headers: dbHeaders }
@@ -36,7 +34,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Get merchant phone
     const merchantId = alerts[0]?.inventory?.merchant_id;
     const merchRes = await fetch(
       `${supabaseUrl}/rest/v1/merchants?id=eq.${merchantId}&select=phone,business_name`,
@@ -52,7 +49,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Build alert summary
     const items = alerts.map((a: Record<string, unknown>) => {
       const inv = a.inventory as Record<string, unknown>;
       return `${inv.item_name}: ${inv.current_stock} left (min: ${inv.minimum_threshold})`;
@@ -61,37 +57,20 @@ Deno.serve(async (req: Request) => {
     const message = `Low Stock Alert!\n\nThe following items need reordering:\n${items.join("\n")}\n\nPlease restock soon.`;
 
     let sent = 0;
-    if (whatsappToken && phoneNumberId) {
-      const waRes = await fetch(
-        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${whatsappToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: `91${merchant.phone}`,
-            type: "text",
-            text: { body: message },
-          }),
-        }
-      );
+    const twilioConfig = getTwilioConfig();
+    const result = await sendTwilioMessage(twilioConfig, merchant.phone, message);
 
-      if (waRes.ok) sent = alerts.length;
+    if (result.ok) sent = alerts.length;
 
-      // Log to cron_logs
-      await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
-        method: "POST",
-        headers: dbHeaders,
-        body: JSON.stringify({
-          type: "stock_alert",
-          status: waRes.ok ? "success" : "failed",
-          error_message: waRes.ok ? null : await waRes.text(),
-        }),
-      });
-    }
+    await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
+      method: "POST",
+      headers: dbHeaders,
+      body: JSON.stringify({
+        type: "stock_alert",
+        status: result.ok ? "success" : "failed",
+        error_message: result.ok ? null : result.error,
+      }),
+    });
 
     return new Response(
       JSON.stringify({

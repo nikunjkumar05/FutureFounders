@@ -1,3 +1,5 @@
+import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -22,8 +24,7 @@ export default async function handler(req: any, res: any) {
 
     const supabaseUrl = process.env.SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const whatsappToken = process.env.WHATSAPP_TOKEN ?? "";
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID ?? "";
+    const twilioConfig = getTwilioConfig();
 
     const today = new Date().toISOString().slice(0, 10);
 
@@ -49,7 +50,7 @@ export default async function handler(req: any, res: any) {
 
     for (const card of cards) {
       try {
-        if (!whatsappToken || !phoneNumberId) {
+        if (!twilioConfig.accountSid || !twilioConfig.authToken) {
           await fetch(`${supabaseUrl}/rest/v1/service_cards?id=eq.${card.id}`, {
             method: "PATCH",
             headers: {
@@ -69,36 +70,15 @@ export default async function handler(req: any, res: any) {
           continue;
         }
 
-        const waRes = await fetch(
-          `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${whatsappToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              messaging_product: "whatsapp",
-              to: `91${customer.phone}`,
-              type: "template",
-              template: {
-                name: "tank_cleaning_reminder",
-                language: { code: "en" },
-                components: [
-                  {
-                    type: "body",
-                    parameters: [
-                      { type: "text", text: customer.name },
-                      { type: "text", text: "AquaClean Services" },
-                    ],
-                  },
-                ],
-              },
-            }),
-          }
+        const reminderMessage = `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`;
+
+        const result = await sendTwilioMessage(
+          twilioConfig,
+          customer.phone,
+          reminderMessage
         );
 
-        if (waRes.ok) {
+        if (result.ok) {
           await fetch(`${supabaseUrl}/rest/v1/service_cards?id=eq.${card.id}`, {
             method: "PATCH",
             headers: {
@@ -110,7 +90,6 @@ export default async function handler(req: any, res: any) {
           });
           sent++;
         } else {
-          const errBody = await waRes.text();
           await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
             method: "POST",
             headers: {
@@ -121,7 +100,7 @@ export default async function handler(req: any, res: any) {
             body: JSON.stringify({
               type: "send_reminder",
               status: "failed",
-              error_message: `WhatsApp API error for card ${card.id}: ${errBody}`,
+              error_message: `Twilio error for card ${card.id}: ${result.error}`,
             }),
           });
           failed++;
