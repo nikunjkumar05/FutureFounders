@@ -1,4 +1,4 @@
-import { getOpenWAConfig, sendWhatsAppMessage } from "../lib/openwa";
+import { getOpenWAConfig, sendWhatsAppMessage } from "../lib/openwa.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
