@@ -6,9 +6,9 @@ export interface OpenWAConfig {
 
 export function getOpenWAConfig(): OpenWAConfig {
   return {
-    baseUrl: process.env.OPENWA_API_URL ?? "http://localhost:2785",
-    apiKey: process.env.OPENWA_API_KEY ?? "",
-    sessionId: process.env.OPENWA_SESSION_ID ?? "",
+    baseUrl: (process.env.OPENWA_API_URL ?? "http://localhost:2785").trim(),
+    apiKey: (process.env.OPENWA_API_KEY ?? "").trim(),
+    sessionId: (process.env.OPENWA_SESSION_ID ?? "").trim(),
   };
 }
 
@@ -37,28 +37,31 @@ export async function sendWhatsAppMessage(
 
   const chatId = to.includes("@") ? to : toJID(to);
 
+  const url = `${config.baseUrl}/api/sessions/${config.sessionId}/messages/send-text`;
+  console.log(`[openwa] Sending to ${url} chatId=${chatId}`);
+
   try {
-    const res = await fetch(
-      `${config.baseUrl}/api/sessions/${config.sessionId}/messages/send-text`,
-      {
-        method: "POST",
-        headers: {
-          "X-API-Key": config.apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ chatId, text: body }),
-      }
-    );
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "X-API-Key": config.apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ chatId, text: body }),
+    });
 
     if (!res.ok) {
       const errorText = await res.text();
+      console.error(`[openwa] Failed: ${res.status} ${errorText}`);
       return { ok: false, error: `OpenWA ${res.status}: ${errorText}` };
     }
 
     const data = await res.json();
+    console.log(`[openwa] Sent OK messageId=${data.messageId}`);
     return { ok: true, messageId: data.messageId };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(`[openwa] Exception: ${message}`);
     return { ok: false, error: message };
   }
 }
