@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { getTwilioConfig, sendTwilioMessage, extractPhoneFromTwilio } from "../lib/twilio.ts";
+import { getOpenWAConfig, sendWhatsAppMessage, extractPhoneFromOpenWA } from "../lib/openwa.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const phone = extractPhoneFromTwilio(fromPhone);
+      const phone = extractPhoneFromOpenWA(fromPhone);
 
       const staffRes = await fetch(
         `${supabaseUrl}/rest/v1/staff?phone=eq.${phone}&is_active=eq.true&select=*`,
@@ -54,8 +54,8 @@ Deno.serve(async (req: Request) => {
       const staff = await staffRes.json();
 
       if (!Array.isArray(staff) || staff.length === 0) {
-        const twilioConfig = getTwilioConfig();
-        await sendTwilioMessage(twilioConfig, fromPhone, "You are not registered as staff. Contact your manager.");
+        const openwaConfig = getOpenWAConfig();
+        await sendWhatsAppMessage(openwaConfig, fromPhone, "You are not registered as staff. Contact your manager.");
         return new Response(
           JSON.stringify({ status: "not_staff" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -75,10 +75,10 @@ Deno.serve(async (req: Request) => {
         );
         const jobs = await jobRes.json();
 
-        const twilioConfig = getTwilioConfig();
+        const openwaConfig = getOpenWAConfig();
 
         if (!Array.isArray(jobs) || jobs.length === 0) {
-          await sendTwilioMessage(twilioConfig, fromPhone, "No job assigned for today. Contact your manager.");
+          await sendWhatsAppMessage(openwaConfig, fromPhone, "No job assigned for today. Contact your manager.");
           return new Response(
             JSON.stringify({ status: "no_job" }),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -107,13 +107,13 @@ Deno.serve(async (req: Request) => {
           });
 
           if (verified) {
-            await sendTwilioMessage(
-              twilioConfig, fromPhone,
+            await sendWhatsAppMessage(
+              openwaConfig, fromPhone,
               `Check-in confirmed at ${job.customers?.address ?? "job site"}! Have a great shift.`
             );
           } else {
-            await sendTwilioMessage(
-              twilioConfig, fromPhone,
+            await sendWhatsAppMessage(
+              openwaConfig, fromPhone,
               `You're ${distance}m away from the job site. Please share your location once you arrive.`
             );
           }
@@ -130,7 +130,7 @@ Deno.serve(async (req: Request) => {
               notes: "Check-in — no site coordinates available",
             }),
           });
-          await sendTwilioMessage(twilioConfig, fromPhone, "Check-in recorded. No site coordinates available for verification.");
+          await sendWhatsAppMessage(openwaConfig, fromPhone, "Check-in recorded. No site coordinates available for verification.");
         }
 
         return new Response(
@@ -141,7 +141,7 @@ Deno.serve(async (req: Request) => {
 
       if (messageBody) {
         const text = messageBody.toLowerCase().trim();
-        const twilioConfig = getTwilioConfig();
+        const openwaConfig = getOpenWAConfig();
 
         if (text === "checkout") {
           const today = new Date().toISOString().slice(0, 10);
@@ -160,9 +160,9 @@ Deno.serve(async (req: Request) => {
                 body: JSON.stringify({ checkout_time: new Date().toISOString() }),
               }
             );
-            await sendTwilioMessage(twilioConfig, fromPhone, "Checked out. Good work today!");
+            await sendWhatsAppMessage(openwaConfig, fromPhone, "Checked out. Good work today!");
           } else {
-            await sendTwilioMessage(twilioConfig, fromPhone, "No active check-in found for today.");
+            await sendWhatsAppMessage(openwaConfig, fromPhone, "No active check-in found for today.");
           }
         } else {
           await handleFAQ(phone, messageBody, supabaseUrl, headers);
@@ -204,10 +204,10 @@ async function handleFAQ(
   headers: Record<string, string>
 ) {
   const aiApiKey = Deno.env.get("NORTH_MINI_API_KEY") ?? "";
-  const twilioConfig = getTwilioConfig();
+  const openwaConfig = getOpenWAConfig();
 
   if (!aiApiKey) {
-    await sendTwilioMessage(twilioConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
+    await sendWhatsAppMessage(openwaConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
@@ -248,7 +248,7 @@ async function handleFAQ(
     const aiResponse = aiData?.choices?.[0]?.message?.content?.trim() ?? "ESCALATE";
 
     if (aiResponse.startsWith("ESCALATE")) {
-      await sendTwilioMessage(twilioConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
+      await sendWhatsAppMessage(openwaConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
       await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
         method: "POST",
         headers,
@@ -261,7 +261,7 @@ async function handleFAQ(
         }),
       });
     } else {
-      await sendTwilioMessage(twilioConfig, phone, aiResponse);
+      await sendWhatsAppMessage(openwaConfig, phone, aiResponse);
       await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
         method: "POST",
         headers,
@@ -275,7 +275,7 @@ async function handleFAQ(
       });
     }
   } catch {
-    await sendTwilioMessage(twilioConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
+    await sendWhatsAppMessage(openwaConfig, phone, "I've connected you with our team — they'll respond within 2 hours!");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,

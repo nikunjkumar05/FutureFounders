@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio.ts";
+import { getOpenWAConfig, sendWhatsAppMessage } from "../lib/openwa.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -57,8 +57,8 @@ Deno.serve(async (req: Request) => {
     const message = `Low Stock Alert!\n\nThe following items need reordering:\n${items.join("\n")}\n\nPlease restock soon.`;
 
     let sent = 0;
-    const twilioConfig = getTwilioConfig();
-    const result = await sendTwilioMessage(twilioConfig, merchant.phone, message);
+    const openwaConfig = getOpenWAConfig();
+    const result = await sendWhatsAppMessage(openwaConfig, merchant.phone, message);
 
     if (result.ok) sent = alerts.length;
 

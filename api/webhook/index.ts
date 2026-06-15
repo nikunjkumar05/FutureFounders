@@ -1,8 +1,8 @@
 import {
-  getTwilioConfig,
-  sendTwilioMessage,
-  extractPhoneFromTwilio,
-} from "../lib/twilio.js";
+  getOpenWAConfig,
+  sendWhatsAppMessage,
+  extractPhoneFromOpenWA,
+} from "../lib/openwa.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,14 +17,12 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  // GET: Twilio webhook verification (Twilio sends a test request)
   if (req.method === "GET") {
     res.writeHead(200, { "Content-Type": "text/plain", ...corsHeaders });
     res.end("AquaTrak webhook is running");
     return;
   }
 
-  // POST: Incoming Twilio webhook
   if (req.method === "POST") {
     try {
       const supabaseUrl = process.env.SUPABASE_URL!;
@@ -35,32 +33,28 @@ export default async function handler(req: any, res: any) {
         "Content-Type": "application/json",
       };
 
-      // Parse Twilio's URL-encoded body
       let rawBody = "";
       for await (const chunk of req) {
         rawBody += chunk;
       }
-      const params = new URLSearchParams(rawBody);
-      const body: Record<string, string> = {};
-      params.forEach((value, key) => {
-        body[key] = value;
-      });
 
-      const fromPhone = body.From;
-      const messageBody = body.Body ?? "";
-      const latitude = body.Latitude;
-      const longitude = body.Longitude;
+      const payload = JSON.parse(rawBody);
 
-      if (!fromPhone) {
+      const event = payload.event;
+      const data = payload.data;
+
+      if (event !== "message.received" || !data || data.fromMe) {
         res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-        res.end(JSON.stringify({ status: "no_sender" }));
+        res.end(JSON.stringify({ status: "ignored" }));
         return;
       }
 
-      // Extract phone number (remove whatsapp: prefix and + sign)
-      const phone = extractPhoneFromTwilio(fromPhone);
+      const fromJid = data.from;
+      const messageBody = data.body ?? "";
+      const location = data.location;
 
-      // Look up staff by phone
+      const phone = extractPhoneFromOpenWA(fromJid);
+
       const staffRes = await fetch(
         `${supabaseUrl}/rest/v1/staff?phone=eq.${phone}&is_active=eq.true&select=*`,
         { headers }
@@ -68,10 +62,9 @@ export default async function handler(req: any, res: any) {
       const staff = await staffRes.json();
 
       if (!Array.isArray(staff) || staff.length === 0) {
-        // Non-staff: route text messages to AI FAQ
-        if (latitude && longitude) {
-          await replyViaTwilio(fromPhone, "You are not registered as staff. Contact your manager.");
-        } else {
+        if (location?.latitude && location?.longitude) {
+          await replyViaOpenWA(fromJid, "You are not registered as staff. Contact your manager.");
+        } else if (phone) {
           await handleFAQ(phone, messageBody, supabaseUrl, headers);
         }
         res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
@@ -81,10 +74,9 @@ export default async function handler(req: any, res: any) {
 
       const staffMember = staff[0];
 
-      // Handle location message (check-in)
-      if (latitude && longitude) {
-        const lat = parseFloat(latitude);
-        const lng = parseFloat(longitude);
+      if (location?.latitude && location?.longitude) {
+        const lat = location.latitude;
+        const lng = location.longitude;
 
         const today = new Date().toISOString().slice(0, 10);
         const jobRes = await fetch(
@@ -94,7 +86,7 @@ export default async function handler(req: any, res: any) {
         const jobs = await jobRes.json();
 
         if (!Array.isArray(jobs) || jobs.length === 0) {
-          await replyViaTwilio(fromPhone, "No job assigned for today. Contact your manager.");
+          await replyViaOpenWA(fromJid, "No job assigned for today. Contact your manager.");
           res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
           res.end(JSON.stringify({ status: "no_job" }));
           return;
@@ -122,13 +114,13 @@ export default async function handler(req: any, res: any) {
           });
 
           if (verified) {
-            await replyViaTwilio(
-              fromPhone,
+            await replyViaOpenWA(
+              fromJid,
               `Check-in confirmed at ${job.customers?.address ?? "job site"}! Have a great shift.`
             );
           } else {
-            await replyViaTwilio(
-              fromPhone,
+            await replyViaOpenWA(
+              fromJid,
               `You're ${distance}m away from the job site. Please share your location once you arrive.`
             );
           }
@@ -145,7 +137,7 @@ export default async function handler(req: any, res: any) {
               notes: "Check-in — no site coordinates available",
             }),
           });
-          await replyViaTwilio(fromPhone, "Check-in recorded. No site coordinates available for verification.");
+          await replyViaOpenWA(fromJid, "Check-in recorded. No site coordinates available for verification.");
         }
 
         res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
@@ -153,7 +145,6 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      // Handle text messages
       const text = messageBody.toLowerCase().trim();
 
       if (text === "checkout") {
@@ -170,12 +161,11 @@ export default async function handler(req: any, res: any) {
             headers,
             body: JSON.stringify({ checkout_time: new Date().toISOString() }),
           });
-          await replyViaTwilio(fromPhone, "Checked out. Good work today!");
+          await replyViaOpenWA(fromJid, "Checked out. Good work today!");
         } else {
-          await replyViaTwilio(fromPhone, "No active check-in found for today.");
+          await replyViaOpenWA(fromJid, "No active check-in found for today.");
         }
       } else {
-        // Forward non-checkout text to AI FAQ handler
         await handleFAQ(phone, messageBody, supabaseUrl, headers);
       }
 
@@ -206,9 +196,9 @@ function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return Math.round(R * c);
 }
 
-async function replyViaTwilio(to: string, text: string) {
-  const config = getTwilioConfig();
-  await sendTwilioMessage(config, to, text);
+async function replyViaOpenWA(to: string, text: string) {
+  const config = getOpenWAConfig();
+  await sendWhatsAppMessage(config, to, text);
 }
 
 async function handleFAQ(
@@ -223,7 +213,7 @@ async function handleFAQ(
   const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
 
   if (!mistralKey) {
-    await replyViaTwilio(phone, "Thanks for reaching out! Our team will get back to you shortly.");
+    await replyViaOpenWA(phone, "Thanks for reaching out! Our team will get back to you shortly.");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
@@ -257,9 +247,9 @@ async function handleFAQ(
     const aiResponse = aiData?.choices?.[0]?.message?.content?.trim();
 
     if (aiResponse) {
-      await replyViaTwilio(phone, aiResponse);
+      await replyViaOpenWA(phone, aiResponse);
     } else {
-      await replyViaTwilio(phone, "Thanks for your message! Our team will get back to you shortly.");
+      await replyViaOpenWA(phone, "Thanks for your message! Our team will get back to you shortly.");
     }
 
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
@@ -274,7 +264,7 @@ async function handleFAQ(
       }),
     });
   } catch {
-    await replyViaTwilio(phone, "Thanks for your message! Our team will get back to you shortly.");
+    await replyViaOpenWA(phone, "Thanks for your message! Our team will get back to you shortly.");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
