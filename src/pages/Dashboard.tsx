@@ -7,12 +7,16 @@ import {
   CircleDot,
   Kanban,
   Droplets,
+  Briefcase,
+  ChevronRight,
+  Sun,
 } from 'lucide-react';
-import { useDashboardMetrics } from '../lib/queries';
+import { useDashboardMetrics, useDailyBriefing } from '../lib/queries';
 import { CardSkeleton } from '../components/LoadingSkeleton';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
+import DailyBriefingModal from '../components/DailyBriefing';
 
 const metrics = [
   {
@@ -61,6 +65,8 @@ const metrics = [
 
 export default function Dashboard() {
   const { data, isLoading } = useDashboardMetrics();
+  const { data: briefing } = useDailyBriefing();
+  const [showBriefing, setShowBriefing] = useState(false);
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -111,6 +117,31 @@ export default function Dashboard() {
         </p>
       </div>
 
+      <button
+        onClick={() => setShowBriefing(true)}
+        className="w-full mb-6 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-5 text-left text-white shadow-lg hover:shadow-xl transition-all hover:from-blue-700 hover:to-indigo-800"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-white/20 rounded-lg">
+              <Briefcase size={24} className="text-white" />
+            </div>
+            <div>
+              <p className="text-lg font-bold">Today's Briefing</p>
+              <p className="text-sm text-blue-100 mt-0.5">
+                {briefing
+                  ? `${briefing.jobs.total} jobs · ${briefing.workers.checkedIn}/${briefing.workers.totalActive} workers · ${briefing.inventoryAlerts.length} alerts`
+                  : 'Loading summary...'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-blue-100">
+            <Sun size={16} />
+            <ChevronRight size={20} />
+          </div>
+        </div>
+      </button>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {isLoading
           ? Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)
@@ -144,6 +175,8 @@ export default function Dashboard() {
         <QuickActions />
         <RecentActivity />
       </div>
+
+      {showBriefing && <DailyBriefingModal onClose={() => setShowBriefing(false)} />}
     </div>
   );
 }
