@@ -18,16 +18,8 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method === "GET") {
-    const config = getOpenWAConfig();
-    res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-    res.end(JSON.stringify({
-      status: "running",
-      openwa: {
-        baseUrl: config.baseUrl,
-        sessionId: config.sessionId ? `${config.sessionId.slice(0, 8)}...` : "MISSING",
-        apiKey: config.apiKey ? "set" : "MISSING",
-      }
-    }));
+    res.writeHead(200, { "Content-Type": "text/plain", ...corsHeaders });
+    res.end("AquaTrak webhook is running");
     return;
   }
 
