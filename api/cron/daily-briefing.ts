@@ -1,4 +1,4 @@
-import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio";
+import { getOpenWAConfig, sendWhatsAppMessage } from "../lib/openwa";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -134,7 +134,7 @@ export default async function handler(req: any, res: any) {
 
     const supabaseUrl = process.env.SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const twilioConfig = getTwilioConfig();
+    const openwaConfig = getOpenWAConfig();
     const today = new Date().toISOString().slice(0, 10);
 
     const headers = {
@@ -198,8 +198,8 @@ export default async function handler(req: any, res: any) {
     const briefingText = buildBriefingText(payload, today);
 
     let whatsappSent = false;
-    if (twilioConfig.accountSid && twilioConfig.authToken && merchantPhone) {
-      const result = await sendTwilioMessage(twilioConfig, merchantPhone, briefingText);
+    if (openwaConfig.apiKey && openwaConfig.sessionId && merchantPhone) {
+      const result = await sendWhatsAppMessage(openwaConfig, merchantPhone, briefingText);
       whatsappSent = result.ok;
     }
 
@@ -213,7 +213,7 @@ export default async function handler(req: any, res: any) {
       body: JSON.stringify({
         type: "daily_briefing",
         status: "success",
-        error_message: whatsappSent ? null : "WhatsApp not configured or merchant phone unavailable",
+        error_message: whatsappSent ? null : "OpenWA not configured or merchant phone unavailable",
       }),
     });
 

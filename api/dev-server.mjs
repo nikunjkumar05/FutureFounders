@@ -28,43 +28,47 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-const TWILIO_API = "https://api.twilio.com/2010-04-01";
-
-function getTwilioConfig() {
+function getOpenWAConfig() {
   return {
-    accountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
-    authToken: process.env.TWILIO_AUTH_TOKEN ?? "",
-    whatsappNumber: process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:+14155238886",
+    baseUrl: process.env.OPENWA_API_URL ?? "http://localhost:2785",
+    apiKey: process.env.OPENWA_API_KEY ?? "",
+    sessionId: process.env.OPENWA_SESSION_ID ?? "",
   };
 }
 
-function getTwilioAuthHeader(config) {
-  return `Basic ${Buffer.from(`${config.accountSid}:${config.authToken}`).toString('base64')}`;
+function toJID(phone) {
+  const cleaned = phone.replace(/[^0-9]/g, "");
+  if (cleaned.startsWith("0")) return `91${cleaned.slice(1)}@c.us`;
+  if (cleaned.startsWith("+")) return `${cleaned.slice(1)}@c.us`;
+  if (cleaned.startsWith("91") && cleaned.length === 12) return `${cleaned}@c.us`;
+  return `${cleaned}@c.us`;
 }
 
-async function sendTwilioMessage(config, to, body) {
-  if (!config.accountSid || !config.authToken) {
-    console.log('[TWILIO] No credentials, skipping');
+async function sendOpenWAMessage(config, to, body) {
+  if (!config.apiKey || !config.sessionId) {
+    console.log('[OPENWA] No credentials, skipping');
     return { ok: false, error: 'No credentials' };
   }
-  const toNumber = to.startsWith('whatsapp:') ? to : `whatsapp:${to.startsWith('+') ? to : `+91${to}`}`;
-  const params = new URLSearchParams({ To: toNumber, From: config.whatsappNumber, Body: body });
-  const res = await fetch(`${TWILIO_API}/Accounts/${config.accountSid}/Messages.json`, {
+  const chatId = toJID(to);
+  const res = await fetch(`${config.baseUrl}/api/sessions/${config.sessionId}/messages/send-text`, {
     method: 'POST',
-    headers: { Authorization: getTwilioAuthHeader(config), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
+    headers: { 'X-API-Key': config.apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chatId, text: body }),
   });
-  const data = await res.json();
   if (!res.ok) {
-    console.log('[TWILIO ERROR]', data);
-    return { ok: false, error: JSON.stringify(data) };
+    const errorText = await res.text();
+    console.log('[OPENWA ERROR]', errorText);
+    return { ok: false, error: errorText };
   }
-  console.log('[TWILIO] Sent to', toNumber, 'SID:', data.sid);
-  return { ok: true, sid: data.sid };
+  const data = await res.json();
+  console.log('[OPENWA] Sent to', chatId);
+  return { ok: true, messageId: data.messageId };
 }
 
 function extractPhone(from) {
-  return from.replace('whatsapp:', '').replace('+', '');
+  let phone = from.split("@")[0];
+  if (phone.startsWith("91") && phone.length === 12) return phone.slice(2);
+  return phone;
 }
 
 function getDistance(lat1, lng1, lat2, lng2) {
@@ -103,7 +107,7 @@ app.post('/api/webhook', async (req, res) => {
     }
 
     const phone = extractPhone(fromPhone);
-    const twilioConfig = getTwilioConfig();
+    const openwaConfig = getOpenWAConfig();
 
     // Look up staff
     const staffRes = await fetch(`${supabaseUrl}/rest/v1/staff?phone=eq.${phone}&is_active=eq.true&select=*`, { headers });
@@ -111,7 +115,7 @@ app.post('/api/webhook', async (req, res) => {
     console.log('[WEBHOOK] Staff lookup:', staff.length > 0 ? staff[0].name : 'NOT FOUND');
 
     if (!Array.isArray(staff) || staff.length === 0) {
-      await sendTwilioMessage(twilioConfig, fromPhone, 'You are not registered as staff. Contact your manager.');
+      await sendOpenWAMessage(openwaConfig, fromPhone, 'You are not registered as staff. Contact your manager.');
       res.set(corsHeaders);
       return res.json({ status: 'not_staff' });
     }
@@ -127,7 +131,7 @@ app.post('/api/webhook', async (req, res) => {
       const jobs = await jobRes.json();
 
       if (!Array.isArray(jobs) || jobs.length === 0) {
-        await sendTwilioMessage(twilioConfig, fromPhone, 'No job assigned for today. Contact your manager.');
+        await sendOpenWAMessage(openwaConfig, fromPhone, 'No job assigned for today. Contact your manager.');
         res.set(corsHeaders);
         return res.json({ status: 'no_job' });
       }
@@ -146,13 +150,13 @@ app.post('/api/webhook', async (req, res) => {
         const msg = verified
           ? `Check-in confirmed at ${job.customers?.address ?? 'job site'}! Have a great shift.`
           : `You're ${distance}m away from the job site. Please share your location once you arrive.`;
-        await sendTwilioMessage(twilioConfig, fromPhone, msg);
+        await sendOpenWAMessage(openwaConfig, fromPhone, msg);
       } else {
         await fetch(`${supabaseUrl}/rest/v1/attendance`, {
           method: 'POST', headers,
           body: JSON.stringify({ staff_id: staffMember.id, merchant_id: staffMember.merchant_id, checkin_time: new Date().toISOString(), verified_location: false, date: today, notes: 'Check-in — no site coordinates available' }),
         });
-        await sendTwilioMessage(twilioConfig, fromPhone, 'Check-in recorded. No site coordinates available for verification.');
+        await sendOpenWAMessage(openwaConfig, fromPhone, 'Check-in recorded. No site coordinates available for verification.');
       }
       res.set(corsHeaders);
       return res.json({ status: 'processed' });
@@ -166,15 +170,15 @@ app.post('/api/webhook', async (req, res) => {
       const att = await attRes.json();
       if (Array.isArray(att) && att.length > 0) {
         await fetch(`${supabaseUrl}/rest/v1/attendance?id=eq.${att[0].id}`, { method: 'PATCH', headers, body: JSON.stringify({ checkout_time: new Date().toISOString() }) });
-        await sendTwilioMessage(twilioConfig, fromPhone, 'Checked out. Good work today!');
+        await sendOpenWAMessage(openwaConfig, fromPhone, 'Checked out. Good work today!');
       } else {
-        await sendTwilioMessage(twilioConfig, fromPhone, 'No active check-in found for today.');
+        await sendOpenWAMessage(openwaConfig, fromPhone, 'No active check-in found for today.');
       }
     } else {
       // AI FAQ
       const aiApiKey = process.env.NORTH_MINI_API_KEY ?? '';
       if (!aiApiKey) {
-        await sendTwilioMessage(twilioConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+        await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
         await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: messageBody, requires_human_intervention: true, status: 'open' }) });
       } else {
         const sanitized = messageBody.replace(/[^a-zA-Z0-9\s?!,.]/g, '').slice(0, 500);
@@ -196,15 +200,15 @@ app.post('/api/webhook', async (req, res) => {
           console.log('[AI FAQ] Response:', aiResponse);
 
           if (aiResponse.startsWith('ESCALATE')) {
-            await sendTwilioMessage(twilioConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+            await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
             await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: null, requires_human_intervention: true, status: 'open' }) });
           } else {
-            await sendTwilioMessage(twilioConfig, fromPhone, aiResponse);
+            await sendOpenWAMessage(openwaConfig, fromPhone, aiResponse);
             await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: aiResponse, requires_human_intervention: false, status: 'auto_resolved' }) });
           }
         } catch (err) {
           console.log('[AI FAQ] Error:', err.message);
-          await sendTwilioMessage(twilioConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+          await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
           await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, requires_human_intervention: true, status: 'open' }) });
         }
       }
@@ -223,7 +227,7 @@ const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`\n🚀 AquaTrak webhook server running on http://localhost:${PORT}`);
   console.log(`\n📋 Webhook URL: http://localhost:${PORT}/api/webhook`);
-  console.log(`\nConfigure in Twilio Console → Messaging → Sandbox → When a message comes in:`);
+  console.log(`\nConfigure OpenWA webhook to point to: http://localhost:${PORT}/webhook`);
   console.log(`  URL: http://localhost:${PORT}/api/webhook`);
   console.log(`  Method: POST\n`);
 });

@@ -1,4 +1,4 @@
-import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio.js";
+import { getOpenWAConfig, sendWhatsAppMessage } from "../lib/openwa.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +24,7 @@ export default async function handler(req: any, res: any) {
 
     const supabaseUrl = process.env.SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const twilioConfig = getTwilioConfig();
+    const openwaConfig = getOpenWAConfig();
 
     const today = new Date().toISOString().slice(0, 10);
 
@@ -50,7 +50,7 @@ export default async function handler(req: any, res: any) {
 
     for (const card of cards) {
       try {
-        if (!twilioConfig.accountSid || !twilioConfig.authToken) {
+        if (!openwaConfig.apiKey || !openwaConfig.sessionId) {
           await fetch(`${supabaseUrl}/rest/v1/service_cards?id=eq.${card.id}`, {
             method: "PATCH",
             headers: {
@@ -72,8 +72,8 @@ export default async function handler(req: any, res: any) {
 
         const reminderMessage = `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`;
 
-        const result = await sendTwilioMessage(
-          twilioConfig,
+        const result = await sendWhatsAppMessage(
+          openwaConfig,
           customer.phone,
           reminderMessage
         );
@@ -100,7 +100,7 @@ export default async function handler(req: any, res: any) {
             body: JSON.stringify({
               type: "send_reminder",
               status: "failed",
-              error_message: `Twilio error for card ${card.id}: ${result.error}`,
+              error_message: `OpenWA error for card ${card.id}: ${result.error}`,
             }),
           });
           failed++;

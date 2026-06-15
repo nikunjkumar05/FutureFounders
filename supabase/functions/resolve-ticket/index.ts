@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { getTwilioConfig, sendTwilioMessage } from "../lib/twilio.ts";
+import { getOpenWAConfig, sendWhatsAppMessage } from "../lib/openwa.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,9 +60,9 @@ Deno.serve(async (req: Request) => {
     );
 
     if (ticket.customer_phone) {
-      const twilioConfig = getTwilioConfig();
-      await sendTwilioMessage(
-        twilioConfig,
+      const openwaConfig = getOpenWAConfig();
+      await sendWhatsAppMessage(
+        openwaConfig,
         ticket.customer_phone,
         "Hi! Your query has been resolved by our team. Let us know if you need anything else!"
       );
