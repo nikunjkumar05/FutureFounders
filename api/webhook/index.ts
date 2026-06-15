@@ -24,163 +24,170 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method === "POST") {
+    let rawBody = "";
+    for await (const chunk of req) {
+      rawBody += chunk;
+    }
+
+    let payload: any;
     try {
-      const supabaseUrl = process.env.SUPABASE_URL!;
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-      const headers = {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        "Content-Type": "application/json",
-      };
-
-      let rawBody = "";
-      for await (const chunk of req) {
-        rawBody += chunk;
-      }
-
-      const payload = JSON.parse(rawBody);
-
-      const event = payload.event;
-      const data = payload.data;
-
-      if (event !== "message.received" || !data || data.fromMe) {
-        res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-        res.end(JSON.stringify({ status: "ignored" }));
-        return;
-      }
-
-      const fromJid = data.from;
-      const messageBody = data.body ?? "";
-      const location = data.location;
-
-      const phone = extractPhoneFromOpenWA(fromJid);
-
-      const staffRes = await fetch(
-        `${supabaseUrl}/rest/v1/staff?phone=eq.${phone}&is_active=eq.true&select=*`,
-        { headers }
-      );
-      const staff = await staffRes.json();
-
-      if (!Array.isArray(staff) || staff.length === 0) {
-        if (location?.latitude && location?.longitude) {
-          await replyViaOpenWA(fromJid, "You are not registered as staff. Contact your manager.");
-        } else if (phone) {
-          await handleFAQ(phone, messageBody, supabaseUrl, headers);
-        }
-        res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-        res.end(JSON.stringify({ status: "processed" }));
-        return;
-      }
-
-      const staffMember = staff[0];
-
-      if (location?.latitude && location?.longitude) {
-        const lat = location.latitude;
-        const lng = location.longitude;
-
-        const today = new Date().toISOString().slice(0, 10);
-        const jobRes = await fetch(
-          `${supabaseUrl}/rest/v1/service_cards?technician_id=eq.${staffMember.id}&service_date=eq.${today}&select=*,customers(latitude,longitude,address)`,
-          { headers }
-        );
-        const jobs = await jobRes.json();
-
-        if (!Array.isArray(jobs) || jobs.length === 0) {
-          await replyViaOpenWA(fromJid, "No job assigned for today. Contact your manager.");
-          res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-          res.end(JSON.stringify({ status: "no_job" }));
-          return;
-        }
-
-        const job = jobs[0];
-        const siteLat = job.customers?.latitude;
-        const siteLng = job.customers?.longitude;
-
-        if (siteLat && siteLng) {
-          const distance = getDistance(lat, lng, siteLat, siteLng);
-          const verified = distance <= 100;
-
-          await fetch(`${supabaseUrl}/rest/v1/attendance`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              staff_id: staffMember.id,
-              merchant_id: staffMember.merchant_id,
-              checkin_time: new Date().toISOString(),
-              verified_location: verified,
-              date: today,
-              notes: verified ? "Auto check-in via WhatsApp" : `Location ${distance}m from site`,
-            }),
-          });
-
-          if (verified) {
-            await replyViaOpenWA(
-              fromJid,
-              `Check-in confirmed at ${job.customers?.address ?? "job site"}! Have a great shift.`
-            );
-          } else {
-            await replyViaOpenWA(
-              fromJid,
-              `You're ${distance}m away from the job site. Please share your location once you arrive.`
-            );
-          }
-        } else {
-          await fetch(`${supabaseUrl}/rest/v1/attendance`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              staff_id: staffMember.id,
-              merchant_id: staffMember.merchant_id,
-              checkin_time: new Date().toISOString(),
-              verified_location: false,
-              date: today,
-              notes: "Check-in — no site coordinates available",
-            }),
-          });
-          await replyViaOpenWA(fromJid, "Check-in recorded. No site coordinates available for verification.");
-        }
-
-        res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-        res.end(JSON.stringify({ status: "processed" }));
-        return;
-      }
-
-      const text = messageBody.toLowerCase().trim();
-
-      if (text === "checkout") {
-        const today = new Date().toISOString().slice(0, 10);
-        const attRes = await fetch(
-          `${supabaseUrl}/rest/v1/attendance?staff_id=eq.${staffMember.id}&date=eq.${today}&checkout_time=is.null&select=id`,
-          { headers }
-        );
-        const att = await attRes.json();
-
-        if (Array.isArray(att) && att.length > 0) {
-          await fetch(`${supabaseUrl}/rest/v1/attendance?id=eq.${att[0].id}`, {
-            method: "PATCH",
-            headers,
-            body: JSON.stringify({ checkout_time: new Date().toISOString() }),
-          });
-          await replyViaOpenWA(fromJid, "Checked out. Good work today!");
-        } else {
-          await replyViaOpenWA(fromJid, "No active check-in found for today.");
-        }
-      } else {
-        await handleFAQ(phone, messageBody, supabaseUrl, headers);
-      }
-
-      res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-      res.end(JSON.stringify({ status: "processed" }));
-      return;
-    } catch (err: any) {
-      res.writeHead(500, { "Content-Type": "application/json", ...corsHeaders });
-      res.end(JSON.stringify({ error: err.message }));
+      payload = JSON.parse(rawBody);
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json", ...corsHeaders });
+      res.end(JSON.stringify({ error: "Invalid JSON" }));
       return;
     }
+
+    const event = payload.event;
+    const data = payload.data;
+
+    if (event !== "message.received" || !data || data.fromMe) {
+      res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
+      res.end(JSON.stringify({ status: "ignored" }));
+      return;
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
+    res.end(JSON.stringify({ status: "accepted" }));
+
+    processMessage(data).catch((err) => {
+      console.error("Background processing error:", err);
+    });
+    return;
   }
 
   res.writeHead(405, corsHeaders);
   res.end("Method not allowed");
+}
+
+async function processMessage(data: any) {
+  const supabaseUrl = process.env.SUPABASE_URL!;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const headers = {
+    apikey: serviceRoleKey,
+    Authorization: `Bearer ${serviceRoleKey}`,
+    "Content-Type": "application/json",
+  };
+
+  const fromJid = data.from;
+  const messageBody = data.body ?? "";
+  const location = data.location;
+
+  const isLid = fromJid.includes("@lid");
+  const phone = isLid ? null : extractPhoneFromOpenWA(fromJid);
+
+  let staff = null;
+  if (phone) {
+    const staffRes = await fetch(
+      `${supabaseUrl}/rest/v1/staff?phone=eq.${phone}&is_active=eq.true&select=*`,
+      { headers }
+    );
+    const staffData = await staffRes.json();
+    if (Array.isArray(staffData) && staffData.length > 0) {
+      staff = staffData[0];
+    }
+  }
+
+  if (!staff) {
+    if (location?.latitude && location?.longitude) {
+      await replyViaOpenWA(fromJid, "You are not registered as staff. Contact your manager.");
+    } else {
+      await handleFAQ(fromJid, phone ?? fromJid, messageBody, supabaseUrl, headers);
+    }
+    return;
+  }
+
+  const staffMember = staff;
+
+  if (location?.latitude && location?.longitude) {
+    const lat = location.latitude;
+    const lng = location.longitude;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const jobRes = await fetch(
+      `${supabaseUrl}/rest/v1/service_cards?technician_id=eq.${staffMember.id}&service_date=eq.${today}&select=*,customers(latitude,longitude,address)`,
+      { headers }
+    );
+    const jobs = await jobRes.json();
+
+    if (!Array.isArray(jobs) || jobs.length === 0) {
+      await replyViaOpenWA(fromJid, "No job assigned for today. Contact your manager.");
+      return;
+    }
+
+    const job = jobs[0];
+    const siteLat = job.customers?.latitude;
+    const siteLng = job.customers?.longitude;
+
+    if (siteLat && siteLng) {
+      const distance = getDistance(lat, lng, siteLat, siteLng);
+      const verified = distance <= 100;
+
+      await fetch(`${supabaseUrl}/rest/v1/attendance`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          staff_id: staffMember.id,
+          merchant_id: staffMember.merchant_id,
+          checkin_time: new Date().toISOString(),
+          verified_location: verified,
+          date: today,
+          notes: verified ? "Auto check-in via WhatsApp" : `Location ${distance}m from site`,
+        }),
+      });
+
+      if (verified) {
+        await replyViaOpenWA(
+          fromJid,
+          `Check-in confirmed at ${job.customers?.address ?? "job site"}! Have a great shift.`
+        );
+      } else {
+        await replyViaOpenWA(
+          fromJid,
+          `You're ${distance}m away from the job site. Please share your location once you arrive.`
+        );
+      }
+    } else {
+      await fetch(`${supabaseUrl}/rest/v1/attendance`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          staff_id: staffMember.id,
+          merchant_id: staffMember.merchant_id,
+          checkin_time: new Date().toISOString(),
+          verified_location: false,
+          date: today,
+          notes: "Check-in — no site coordinates available",
+        }),
+      });
+      await replyViaOpenWA(fromJid, "Check-in recorded. No site coordinates available for verification.");
+    }
+    return;
+  }
+
+  const text = messageBody.toLowerCase().trim();
+
+  if (text === "checkout") {
+    const today = new Date().toISOString().slice(0, 10);
+    const attRes = await fetch(
+      `${supabaseUrl}/rest/v1/attendance?staff_id=eq.${staffMember.id}&date=eq.${today}&checkout_time=is.null&select=id`,
+      { headers }
+    );
+    const att = await attRes.json();
+
+    if (Array.isArray(att) && att.length > 0) {
+      await fetch(`${supabaseUrl}/rest/v1/attendance?id=eq.${att[0].id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ checkout_time: new Date().toISOString() }),
+      });
+      await replyViaOpenWA(fromJid, "Checked out. Good work today!");
+    } else {
+      await replyViaOpenWA(fromJid, "No active check-in found for today.");
+    }
+  } else {
+    await handleFAQ(fromJid, phone ?? fromJid, messageBody, supabaseUrl, headers);
+  }
 }
 
 function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -202,7 +209,8 @@ async function replyViaOpenWA(to: string, text: string) {
 }
 
 async function handleFAQ(
-  phone: string,
+  replyTo: string,
+  identifier: string,
   message: string,
   supabaseUrl: string,
   headers: Record<string, string>
@@ -213,11 +221,11 @@ async function handleFAQ(
   const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
 
   if (!mistralKey) {
-    await replyViaOpenWA(phone, "Thanks for reaching out! Our team will get back to you shortly.");
+    await replyViaOpenWA(replyTo, "Thanks for reaching out! Our team will get back to you shortly.");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ customer_phone: phone, message, requires_human_intervention: true, status: "open" }),
+      body: JSON.stringify({ customer_phone: identifier, message, requires_human_intervention: true, status: "open" }),
     });
     return;
   }
@@ -247,16 +255,16 @@ async function handleFAQ(
     const aiResponse = aiData?.choices?.[0]?.message?.content?.trim();
 
     if (aiResponse) {
-      await replyViaOpenWA(phone, aiResponse);
+      await replyViaOpenWA(replyTo, aiResponse);
     } else {
-      await replyViaOpenWA(phone, "Thanks for your message! Our team will get back to you shortly.");
+      await replyViaOpenWA(replyTo, "Thanks for your message! Our team will get back to you shortly.");
     }
 
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        customer_phone: phone,
+        customer_phone: identifier,
         message: sanitized,
         ai_response: aiResponse ?? null,
         requires_human_intervention: !aiResponse,
@@ -264,12 +272,12 @@ async function handleFAQ(
       }),
     });
   } catch {
-    await replyViaOpenWA(phone, "Thanks for your message! Our team will get back to you shortly.");
+    await replyViaOpenWA(replyTo, "Thanks for your message! Our team will get back to you shortly.");
     await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        customer_phone: phone,
+        customer_phone: identifier,
         message: sanitized,
         requires_human_intervention: true,
         status: "open",

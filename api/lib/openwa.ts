@@ -35,7 +35,7 @@ export async function sendWhatsAppMessage(
     return { ok: false, error: "OpenWA not configured" };
   }
 
-  const chatId = toJID(to);
+  const chatId = to.includes("@") ? to : toJID(to);
 
   try {
     const res = await fetch(
