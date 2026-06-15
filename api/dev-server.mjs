@@ -86,7 +86,7 @@ app.get('/api/webhook', (req, res) => {
   res.send('AquaTrak webhook is running');
 });
 
-// POST webhook - incoming messages
+// POST webhook - incoming messages (OpenWA JSON format)
 app.post('/api/webhook', async (req, res) => {
   console.log('[WEBHOOK] POST - Incoming message');
   try {
@@ -94,19 +94,26 @@ app.post('/api/webhook', async (req, res) => {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' };
 
-    const fromPhone = req.body.From;
-    const messageBody = req.body.Body ?? '';
-    const latitude = req.body.Latitude;
-    const longitude = req.body.Longitude;
+    // OpenWA JSON payload: { event, sessionId, data: { from, body, location } }
+    const event = req.body.event;
+    const data = req.body.data ?? {};
+    
+    const fromJid = data.from ?? '';
+    const messageBody = data.body ?? '';
+    const location = data.location ?? null;
+    const latitude = location?.latitude;
+    const longitude = location?.longitude;
 
-    console.log('[WEBHOOK] From:', fromPhone, 'Body:', messageBody, 'Lat:', latitude, 'Lng:', longitude);
+    console.log('[WEBHOOK] Event:', event, 'From:', fromJid, 'Body:', messageBody, 'Lat:', latitude, 'Lng:', longitude);
 
-    if (!fromPhone) {
+    // Convert JID to phone number
+    const fromPhone = fromJid.split('@')[0];
+    if (!fromPhone || !event?.includes('message')) {
       res.set(corsHeaders);
-      return res.json({ status: 'no_sender' });
+      return res.json({ status: 'ignored_event' });
     }
 
-    const phone = extractPhone(fromPhone);
+    const phone = extractPhone(fromJid);
     const openwaConfig = getOpenWAConfig();
 
     // Look up staff
