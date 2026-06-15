@@ -23,43 +23,43 @@ const metrics = [
     key: 'pendingJobs' as const,
     label: 'Pending Jobs',
     icon: CircleDot,
-    color: 'bg-amber-50 text-amber-600 border-amber-200',
-    iconBg: 'bg-amber-100',
+    color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+    iconBg: 'bg-amber-100 dark:bg-amber-900/50',
   },
   {
     key: 'inProgressJobs' as const,
     label: 'In Progress',
     icon: Kanban,
-    color: 'bg-blue-50 text-blue-600 border-blue-200',
-    iconBg: 'bg-blue-100',
+    color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+    iconBg: 'bg-blue-100 dark:bg-blue-900/50',
   },
   {
     key: 'jobsCompletedThisWeek' as const,
     label: 'Completed This Week',
     icon: CheckCircle2,
-    color: 'bg-green-50 text-green-600 border-green-200',
-    iconBg: 'bg-green-100',
+    color: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800',
+    iconBg: 'bg-green-100 dark:bg-green-900/50',
   },
   {
     key: 'dueReminders' as const,
     label: 'Due Reminders',
     icon: Bell,
-    color: 'bg-amber-50 text-amber-600 border-amber-200',
-    iconBg: 'bg-amber-100',
+    color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+    iconBg: 'bg-amber-100 dark:bg-amber-900/50',
   },
   {
     key: 'lowStockAlerts' as const,
     label: 'Low Stock Alerts',
     icon: Package,
-    color: 'bg-red-50 text-red-600 border-red-200',
-    iconBg: 'bg-red-100',
+    color: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800',
+    iconBg: 'bg-red-100 dark:bg-red-900/50',
   },
   {
     key: 'staffCheckedIn' as const,
     label: 'Staff Checked In Today',
     icon: Clock,
-    color: 'bg-blue-50 text-blue-600 border-blue-200',
-    iconBg: 'bg-blue-100',
+    color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+    iconBg: 'bg-blue-100 dark:bg-blue-900/50',
   },
 ];
 
@@ -108,11 +108,11 @@ export default function Dashboard() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Droplets size={28} className="text-blue-600" />
           Dashboard
         </h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Welcome back, Sunil. Here's your business at a glance.
         </p>
       </div>
@@ -183,16 +183,16 @@ export default function Dashboard() {
 
 function QuickActions() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6">
-      <h2 className="text-sm font-semibold text-slate-900 mb-4">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">
         Quick Actions
       </h2>
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Create Job', to: '/jobs', color: 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200' },
-          { label: 'Check Inventory', to: '/inventory', color: 'bg-green-50 text-green-700 hover:bg-green-100 border-green-200' },
-          { label: 'Send Reminders', to: '/customers', color: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200' },
-          { label: 'Staff Attendance', to: '/attendance', color: 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200' },
+          { label: 'Create Job', to: '/jobs', color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800' },
+          { label: 'Check Inventory', to: '/inventory', color: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/50 border-green-200 dark:border-green-800' },
+          { label: 'Send Reminders', to: '/customers', color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 border-amber-200 dark:border-amber-800' },
+          { label: 'Staff Attendance', to: '/attendance', color: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800' },
         ].map(({ label, to, color }) => (
           <a
             key={label}
@@ -209,8 +209,8 @@ function QuickActions() {
 
 function RecentActivity() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6">
-      <h2 className="text-sm font-semibold text-slate-900 mb-4">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">
         System Status
       </h2>
       <div className="space-y-3">
@@ -222,14 +222,14 @@ function RecentActivity() {
         ].map(({ label, status, active }) => (
           <div
             key={label}
-            className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50"
+            className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50 dark:bg-slate-700/50"
           >
-            <span className="text-sm text-slate-700">{label}</span>
+            <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
             <span
               className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                 active
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-slate-100 text-slate-500'
+                  ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
               }`}
             >
               {status}

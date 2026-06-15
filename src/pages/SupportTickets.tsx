@@ -43,11 +43,11 @@ export default function SupportTickets() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Headphones size={24} className="text-blue-600" />
           Support Tickets
         </h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           AI-assisted customer support with human escalation
         </p>
       </div>
@@ -58,7 +58,7 @@ export default function SupportTickets() {
           className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border transition-colors ${
             tab === 'attention'
               ? 'bg-red-600 text-white border-red-600'
-              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
           }`}
         >
           <AlertCircle size={14} />
@@ -80,7 +80,7 @@ export default function SupportTickets() {
           className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border transition-colors ${
             tab === 'auto'
               ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
           }`}
         >
           <Bot size={14} />
@@ -120,7 +120,7 @@ function AttentionList({ tickets }: { tickets: SupportTicket[] }) {
       {tickets.map((ticket) => (
         <div
           key={ticket.id}
-          className="bg-white rounded-xl border border-red-200 p-5 hover:shadow-md transition-shadow"
+          className="bg-white dark:bg-slate-800 rounded-xl border border-red-200 p-5 hover:shadow-md transition-shadow"
         >
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-3">
@@ -128,13 +128,13 @@ function AttentionList({ tickets }: { tickets: SupportTicket[] }) {
                 <User size={16} className="text-red-600" />
               </div>
               <div>
-                <p className="font-medium text-slate-900 text-sm">
+                <p className="font-medium text-slate-900 dark:text-white text-sm">
                   {ticket.customer_phone}
                 </p>
-                <p className="text-sm text-slate-600 mt-1">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                   {ticket.message}
                 </p>
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
                   {format(new Date(ticket.created_at), 'dd MMM yyyy, HH:mm')}
                 </p>
               </div>
@@ -160,7 +160,7 @@ function AutoResolvedList({ tickets }: { tickets: SupportTicket[] }) {
       {tickets.map((ticket) => (
         <div
           key={ticket.id}
-          className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow"
+          className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md transition-shadow"
         >
           <div className="flex items-start gap-3">
             <div className="p-2 rounded-lg bg-blue-50">
@@ -168,14 +168,14 @@ function AutoResolvedList({ tickets }: { tickets: SupportTicket[] }) {
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <p className="font-medium text-slate-900 text-sm">
+                <p className="font-medium text-slate-900 dark:text-white text-sm">
                   {ticket.customer_phone}
                 </p>
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
                   Auto-Resolved
                 </span>
               </div>
-              <p className="text-sm text-slate-600 mt-1">
+              <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
                 <span className="font-medium">Q:</span> {ticket.message}
               </p>
               {ticket.ai_response && (
@@ -183,7 +183,7 @@ function AutoResolvedList({ tickets }: { tickets: SupportTicket[] }) {
                   <span className="font-medium">A:</span> {ticket.ai_response}
                 </p>
               )}
-              <p className="text-xs text-slate-400 mt-2">
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
                 {format(new Date(ticket.created_at), 'dd MMM yyyy, HH:mm')}
               </p>
             </div>
@@ -196,18 +196,18 @@ function AutoResolvedList({ tickets }: { tickets: SupportTicket[] }) {
 
 function EmptyState({ tab }: { tab: 'attention' | 'auto' }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
       {tab === 'attention' ? (
-        <AlertCircle size={40} className="mx-auto text-slate-300 mb-3" />
+        <AlertCircle size={40} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
       ) : (
-        <Bot size={40} className="mx-auto text-slate-300 mb-3" />
+        <Bot size={40} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
       )}
-      <h3 className="text-lg font-semibold text-slate-700 mb-1">
+      <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-1">
         {tab === 'attention'
           ? 'No tickets need attention'
           : 'No auto-resolved tickets yet'}
       </h3>
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         {tab === 'attention'
           ? 'All customer queries have been handled.'
           : 'AI-resolved conversations will appear here.'}

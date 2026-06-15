@@ -1,10 +1,10 @@
 export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: number }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="p-4 border-b border-slate-100">
-        <div className="h-5 w-32 bg-slate-200 rounded animate-pulse" />
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="p-4 border-b border-slate-100 dark:border-slate-700/50">
+        <div className="h-5 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
       </div>
-      <div className="divide-y divide-slate-100">
+      <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex gap-4 p-4">
             {Array.from({ length: cols }).map((_, j) => (
@@ -23,7 +23,7 @@ export function TableSkeleton({ rows = 5, cols = 4 }: { rows?: number; cols?: nu
 
 export function CardSkeleton() {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 animate-pulse">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 animate-pulse">
       <div className="h-4 w-24 bg-slate-200 rounded mb-3" />
       <div className="h-8 w-16 bg-slate-200 rounded mb-2" />
       <div className="h-3 w-20 bg-slate-150 rounded" />
