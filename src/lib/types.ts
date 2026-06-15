@@ -216,6 +216,72 @@ export interface AttendanceWithStaff extends Attendance {
   staff: Staff;
 }
 
+// ─── Daily Briefing ──────────────────────────────────────────────
+
+export interface BriefingJob {
+  id: string;
+  customerName: string;
+  customerAddress: string | null;
+  serviceType: ServiceType;
+  serviceTypeLabel: string;
+  workerName: string | null;
+  scheduledTime: string;
+  status: JobStatus;
+  readinessStatus: string;
+}
+
+export interface BriefingWorker {
+  id: string;
+  name: string;
+  checkedIn: boolean;
+  checkinTime: string | null;
+}
+
+export interface BriefingCustomerAlert {
+  customerName: string;
+  issue: string;
+}
+
+export interface BriefingInventoryAlert {
+  itemName: string;
+  remaining: string;
+  threshold: string;
+}
+
+export interface BriefingReminder {
+  customerName: string;
+  serviceTypeLabel: string;
+  dueDate: string;
+}
+
+export interface BriefingInsights {
+  estimatedWorkload: string;
+  customersToContact: number;
+  potentialDelays: string[];
+  inventoryRisks: string[];
+}
+
+export interface DailyBriefing {
+  date: string;
+  jobs: {
+    total: number;
+    pending: number;
+    inProgress: number;
+    completed: number;
+    items: BriefingJob[];
+  };
+  workers: {
+    totalActive: number;
+    checkedIn: number;
+    items: BriefingWorker[];
+  };
+  customerAlerts: BriefingCustomerAlert[];
+  inventoryAlerts: BriefingInventoryAlert[];
+  reminders: BriefingReminder[];
+  openSupportTickets: number;
+  insights: BriefingInsights;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────
 
 let _itemIdCounter = 0;

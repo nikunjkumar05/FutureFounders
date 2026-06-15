@@ -11,7 +11,15 @@ import type {
   SupportTicket,
   JobStatus,
   ServiceType,
+  DailyBriefing,
+  BriefingJob,
+  BriefingWorker,
+  BriefingCustomerAlert,
+  BriefingInventoryAlert,
+  BriefingReminder,
+  BriefingInsights,
 } from './types';
+import { SERVICE_TYPE_LABELS } from './types';
 
 const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
@@ -742,6 +750,187 @@ export function useDeleteInventory() {
 }
 
 // Feedback
+// Daily Briefing
+export function useDailyBriefing() {
+  return useQuery({
+    queryKey: ['daily_briefing'],
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+
+      const [
+        jobsRes,
+        staffRes,
+        attendanceRes,
+        inventoryRes,
+        stockAlertsRes,
+        remindersRes,
+        ticketsRes,
+      ] = await Promise.all([
+        supabase
+          .from('service_cards')
+          .select('*, customers(*), staff(*)')
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('service_date', today),
+        supabase
+          .from('staff')
+          .select('*')
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('is_active', true),
+        supabase
+          .from('attendance')
+          .select('*, staff(*)')
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('date', today)
+          .not('checkin_time', 'is', null),
+        supabase
+          .from('inventory')
+          .select('*')
+          .eq('merchant_id', MERCHANT_ID),
+        supabase
+          .from('stock_alerts')
+          .select('*, inventory(*)')
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('resolved', false),
+        supabase
+          .from('service_cards')
+          .select('*, customers(*)')
+          .eq('merchant_id', MERCHANT_ID)
+          .lte('next_service_date', today)
+          .is('reminder_sent_at', null),
+        supabase
+          .from('support_tickets')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'open'),
+      ]);
+
+      const serviceCards = (jobsRes.data ?? []) as unknown as ServiceCardWithDetails[];
+      const staffList = (staffRes.data ?? []) as Staff[];
+      const attendanceRecords = (attendanceRes.data ?? []) as AttendanceWithStaff[];
+      const inventoryItems = (inventoryRes.data ?? []) as Inventory[];
+      const stockAlerts = stockAlertsRes.data ?? [];
+      const remindersCards = (remindersRes.data ?? []) as unknown as (ServiceCardWithDetails)[];
+      const openTickets = ticketsRes.count ?? 0;
+
+      const checkedInStaffIds = new Set(attendanceRecords.map(a => a.staff_id));
+
+      const jobs: BriefingJob[] = serviceCards.map(card => {
+        const details = (card.service_details ?? {}) as Record<string, unknown>;
+        const services = Array.isArray(details.services) ? details.services : [];
+        const label = services.length > 1
+          ? `${services.length} services`
+          : (SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type);
+        return {
+          id: card.id,
+          customerName: card.customers?.name ?? 'Unknown',
+          customerAddress: card.customers?.address ?? null,
+          serviceType: card.service_type,
+          serviceTypeLabel: label,
+          workerName: card.staff?.name ?? null,
+          scheduledTime: card.service_date,
+          status: card.job_status,
+          readinessStatus: 'N/A',
+        };
+      });
+
+      const workers: BriefingWorker[] = staffList.map(s => ({
+        id: s.id,
+        name: s.name,
+        checkedIn: checkedInStaffIds.has(s.id),
+        checkinTime: attendanceRecords.find(a => a.staff_id === s.id)?.checkin_time ?? null,
+      }));
+
+      const customerAlerts: BriefingCustomerAlert[] = [];
+
+      const inventoryAlerts: BriefingInventoryAlert[] = [];
+
+      const alertedInventoryIds = new Set(
+        stockAlerts.map((a: Record<string, unknown>) => a.inventory_id as string)
+      );
+
+      for (const alert of stockAlerts) {
+        const inv = (alert as Record<string, unknown>).inventory as Inventory | undefined;
+        if (inv) {
+          inventoryAlerts.push({
+            itemName: inv.item_name,
+            remaining: `${inv.current_stock}${inv.unit}`,
+            threshold: `${inv.minimum_threshold}${inv.unit}`,
+          });
+        }
+      }
+
+      for (const item of inventoryItems) {
+        if (item.current_stock < item.minimum_threshold && !alertedInventoryIds.has(item.id)) {
+          inventoryAlerts.push({
+            itemName: item.item_name,
+            remaining: `${item.current_stock}${item.unit}`,
+            threshold: `${item.minimum_threshold}${item.unit}`,
+          });
+        }
+      }
+
+      const reminders: BriefingReminder[] = remindersCards.map(card => ({
+        customerName: card.customers?.name ?? 'Unknown',
+        serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
+        dueDate: card.next_service_date ?? 'N/A',
+      }));
+
+      const insights: BriefingInsights = {
+        estimatedWorkload: serviceCards.length > 5 ? 'High' : serviceCards.length > 2 ? 'Medium' : 'Low',
+        customersToContact: reminders.length + customerAlerts.length,
+        potentialDelays: [],
+        inventoryRisks: [],
+      };
+
+      if (serviceCards.length === 0) {
+        insights.estimatedWorkload = 'None';
+      }
+
+      const uncheckedWorkers = workers.filter(w => !w.checkedIn);
+      if (uncheckedWorkers.length > 0) {
+        insights.potentialDelays.push(`${uncheckedWorkers.length} worker(s) not yet checked in`);
+      }
+
+      if (inventoryAlerts.length > 0) {
+        const critical = inventoryAlerts.filter(a => {
+          const match = a.remaining.match(/^([\d.]+)/);
+          const remaining = match ? parseFloat(match[1]) : 0;
+          const thresholdMatch = a.threshold.match(/^([\d.]+)/);
+          const threshold = thresholdMatch ? parseFloat(thresholdMatch[1]) : 0;
+          const usage = threshold > 0 ? remaining / threshold : 1;
+          return usage < 0.5;
+        });
+        for (const alert of critical) {
+          insights.inventoryRisks.push(`${alert.itemName} may run out within 3 days`);
+        }
+      }
+
+      const briefing: DailyBriefing = {
+        date: today,
+        jobs: {
+          total: serviceCards.length,
+          pending: serviceCards.filter(j => j.job_status === 'pending').length,
+          inProgress: serviceCards.filter(j => j.job_status === 'in_progress').length,
+          completed: serviceCards.filter(j => j.job_status === 'completed').length,
+          items: jobs,
+        },
+        workers: {
+          totalActive: staffList.length,
+          checkedIn: attendanceRecords.length,
+          items: workers,
+        },
+        customerAlerts,
+        inventoryAlerts,
+        reminders,
+        openSupportTickets: openTickets,
+        insights,
+      };
+
+      return briefing;
+    },
+    staleTime: 60_000,
+  });
+}
+
 export function useSendFeedback() {
   const qc = useQueryClient();
   return useMutation({
