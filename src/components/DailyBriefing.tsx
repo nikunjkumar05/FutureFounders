@@ -1,7 +1,7 @@
 import { X, Briefcase, Users, AlertTriangle, Package, Bell, Headphones, Lightbulb, CheckCircle2, Circle, Clock, MapPin } from 'lucide-react';
 import { useDailyBriefing } from '../lib/queries';
 import type { DailyBriefing as BriefingData, BriefingJob, BriefingWorker } from '../lib/types';
-import { SERVICE_TYPE_LABELS } from '../lib/types';
+
 
 interface Props {
   onClose: () => void;
