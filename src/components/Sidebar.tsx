@@ -9,9 +9,12 @@ import {
   Menu,
   X,
   LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -25,6 +28,7 @@ const navItems = [
 export default function Sidebar() {
   const [open, setOpen] = useState(false);
   const { signOut } = useAuth();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -86,6 +90,13 @@ export default function Sidebar() {
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-700">
+          <button
+            onClick={toggle}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors w-full mb-1"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </button>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors w-full"

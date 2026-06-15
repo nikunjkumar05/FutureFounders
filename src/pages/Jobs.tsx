@@ -49,8 +49,8 @@ export default function Jobs() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Jobs</h1>
-          <p className="text-slate-500 text-sm mt-1">Track and manage service jobs across all stages</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Jobs</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Track and manage service jobs across all stages</p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -67,13 +67,13 @@ export default function Jobs() {
             <div key={status} className="flex flex-col">
               <div className="flex items-center gap-2 mb-3">
                 <Icon size={16} className={color} />
-                <h2 className="text-sm font-semibold text-slate-900">{label}</h2>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{cards.length}</span>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{label}</h2>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{cards.length}</span>
               </div>
               <div className="space-y-3 flex-1">
                 {cards.length === 0 ? (
-                  <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
-                    <p className="text-sm text-slate-400">No {label.toLowerCase()} jobs</p>
+                  <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center">
+                    <p className="text-sm text-slate-400 dark:text-slate-500">No {label.toLowerCase()} jobs</p>
                   </div>
                 ) : (
                   cards.map((card) => (
@@ -174,10 +174,10 @@ function JobCard({ card, onEdit, onDelete, onView }: {
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow relative">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:shadow-md transition-shadow relative">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-slate-900 text-sm truncate">{card.customers?.name}</h3>
+          <h3 className="font-semibold text-slate-900 dark:text-white text-sm truncate">{card.customers?.name}</h3>
           <p className="text-[10px] font-medium text-blue-600 mt-0.5">
             {services.length > 1 ? `${services.length} Services` : SERVICE_TYPE_LABELS[services[0]?.serviceType as ServiceType] ?? card.service_type}
           </p>
@@ -196,7 +196,7 @@ function JobCard({ card, onEdit, onDelete, onView }: {
         </div>
       </div>
 
-      <div className="text-xs text-slate-500 space-y-0.5">
+      <div className="text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
         {services.map((svc, i) => (
           <div key={i} className="flex items-center justify-between">
             <span className="truncate">{SERVICE_TYPE_LABELS[svc.serviceType as ServiceType] ?? svc.serviceType}: {getServiceSummary(svc)}</span>
@@ -206,10 +206,10 @@ function JobCard({ card, onEdit, onDelete, onView }: {
       </div>
 
       <div className="space-y-1 mt-2 mb-3">
-        <p className="text-xs text-slate-400 flex items-center gap-1"><Calendar size={10} />{format(new Date(card.service_date), 'dd MMM yyyy')}</p>
-        {card.staff && <p className="text-xs text-slate-400 flex items-center gap-1"><User size={10} />{card.staff.name}</p>}
+        <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1"><Calendar size={10} />{format(new Date(card.service_date), 'dd MMM yyyy')}</p>
+        {card.staff && <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1"><User size={10} />{card.staff.name}</p>}
         {totalCharge > 0 && <p className="text-xs font-medium text-green-600 flex items-center gap-1"><IndianRupee size={10} />Total: ₹{totalCharge.toLocaleString('en-IN')}</p>}
-        {card.notes && <p className="text-xs text-slate-400 italic flex items-center gap-1"><FileText size={10} />{card.notes}</p>}
+        {card.notes && <p className="text-xs text-slate-400 dark:text-slate-500 italic flex items-center gap-1"><FileText size={10} />{card.notes}</p>}
       </div>
 
       <div className="flex gap-2">
@@ -252,61 +252,61 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Job Details</h2>
-            <p className="text-xs text-slate-400">Created {format(new Date(card.created_at), 'dd MMM yyyy, h:mm a')}</p>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Job Details</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Created {format(new Date(card.created_at), 'dd MMM yyyy, h:mm a')}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"><X size={20} /></button>
         </div>
 
         <div className="p-5 space-y-5">
-          <div className="bg-slate-50 rounded-lg p-4">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Customer</h3>
-            <p className="text-sm font-semibold text-slate-900">{card.customers?.name}</p>
-            <p className="text-xs text-slate-500">{card.customers?.phone}</p>
-            {card.customers?.address && <p className="text-xs text-slate-500 mt-0.5">{card.customers.address}</p>}
+          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">
+            <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Customer</h3>
+            <p className="text-sm font-semibold text-slate-900 dark:text-white">{card.customers?.name}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{card.customers?.phone}</p>
+            {card.customers?.address && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{card.customers.address}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-50 rounded-lg p-3">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Status</h3>
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
+              <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Status</h3>
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                 card.job_status === 'pending' ? 'bg-amber-100 text-amber-700'
                   : card.job_status === 'in_progress' ? 'bg-blue-100 text-blue-700'
                   : 'bg-green-100 text-green-700'
               }`}>{card.job_status.replace('_', ' ')}</span>
             </div>
-            <div className="bg-slate-50 rounded-lg p-3">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Service Date</h3>
-              <p className="text-sm font-medium text-slate-900">{format(new Date(card.service_date), 'dd MMM yyyy')}</p>
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
+              <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Service Date</h3>
+              <p className="text-sm font-medium text-slate-900 dark:text-white">{format(new Date(card.service_date), 'dd MMM yyyy')}</p>
             </div>
           </div>
 
-          <div className="bg-slate-50 rounded-lg p-4">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Assigned Worker</h3>
+          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">
+            <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Assigned Worker</h3>
             {card.staff ? (
               <div className="flex items-center gap-2">
-                <User size={14} className="text-slate-400" />
-                <span className="text-sm font-medium text-slate-900">{card.staff.name}</span>
-                <span className="text-xs text-slate-400">₹{card.staff.daily_wage_inr}/day</span>
+                <User size={14} className="text-slate-400 dark:text-slate-500" />
+                <span className="text-sm font-medium text-slate-900 dark:text-white">{card.staff.name}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">₹{card.staff.daily_wage_inr}/day</span>
               </div>
-            ) : <span className="text-sm text-slate-400">Unassigned</span>}
+            ) : <span className="text-sm text-slate-400 dark:text-slate-500">Unassigned</span>}
           </div>
 
           <div>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Services ({services.length})</h3>
+            <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Services ({services.length})</h3>
             <div className="space-y-3">
               {services.map((svc, idx) => (
-                <div key={idx} className="border border-slate-200 rounded-lg p-3">
+                <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm font-semibold text-slate-900">{SERVICE_TYPE_LABELS[svc.serviceType as ServiceType] ?? svc.serviceType}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{SERVICE_TYPE_LABELS[svc.serviceType as ServiceType] ?? svc.serviceType}</p>
                     {svc.totalPrice > 0 && <span className="text-sm font-semibold text-green-600">₹{svc.totalPrice.toLocaleString('en-IN')}</span>}
                   </div>
                   <div className="space-y-1">
                     {svc.items.map((item, itemIdx) => (
-                      <div key={itemIdx} className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 rounded px-2 py-1">
+                      <div key={itemIdx} className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 rounded px-2 py-1">
                         <span>{formatItemDetail(item, svc.serviceType)} × {item.quantity}</span>
                         {item.price > 0 && <span className="text-green-600 font-medium">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
                       </div>
@@ -331,9 +331,9 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
           )}
 
           {card.notes && (
-            <div className="bg-slate-50 rounded-lg p-4">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Notes</h3>
-              <p className="text-sm text-slate-700">{card.notes}</p>
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4">
+              <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</h3>
+              <p className="text-sm text-slate-700 dark:text-slate-200">{card.notes}</p>
             </div>
           )}
 
@@ -570,17 +570,17 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
       case 'select_customer':
         return (
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">Select Customer</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Select Customer</h3>
             {!showNewCustomer ? (
               <>
                 <div className="max-h-48 overflow-y-auto space-y-1">
                   {customers?.map((c) => (
                     <button key={c.id} onClick={() => setSelectedCustomerId(c.id)}
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                        selectedCustomerId === c.id ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'
+                        selectedCustomerId === c.id ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border border-transparent'
                       }`}>
                       <span className="font-medium">{c.name}</span>
-                      <span className="text-slate-400 ml-2">{c.phone}</span>
+                      <span className="text-slate-400 dark:text-slate-500 ml-2">{c.phone}</span>
                     </button>
                   ))}
                 </div>
@@ -590,22 +590,22 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
             ) : (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Name *</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name *</label>
                   <input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Phone *</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Phone *</label>
                   <input value={newCustomerPhone} onChange={e => setNewCustomerPhone(e.target.value)} placeholder="10-digit number"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Address</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Address</label>
                   <input value={newCustomerAddress} onChange={e => setNewCustomerAddress(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                 </div>
                 <button onClick={() => { setShowNewCustomer(false); setNewCustomerName(''); setNewCustomerPhone(''); setNewCustomerAddress(''); }}
-                  className="text-xs text-slate-500 hover:text-slate-700 font-medium">← Select existing customer</button>
+                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-medium">← Select existing customer</button>
               </div>
             )}
             <div className="flex justify-end pt-2">
@@ -617,15 +617,15 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
       case 'select_service':
         return (
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">Select Services</h3>
-            <p className="text-xs text-slate-400">Select one or more services for this job</p>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Select Services</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Select one or more services for this job</p>
             <div className="grid grid-cols-1 gap-2">
               {serviceOptions.map((opt) => {
                 const isSelected = selectedServiceTypes.includes(opt.value);
                 return (
                   <button key={opt.value} onClick={() => toggleServiceType(opt.value)}
                     className={`w-full text-left px-4 py-3 rounded-lg text-sm transition-colors border ${
-                      isSelected ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-blue-200' : 'hover:bg-slate-50 border-slate-200'
+                      isSelected ? 'bg-blue-50 text-blue-700 border-blue-200 ring-2 ring-blue-200' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border-slate-200 dark:border-slate-700'
                     }`}>
                     <div className="flex items-center gap-3">
                       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
@@ -650,15 +650,15 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         return (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">{SERVICE_TYPE_LABELS[group.serviceType as ServiceType]} — Items</h3>
-              <span className="text-xs text-slate-400">Service {currentServiceIdx + 1} of {serviceGroups.length}</span>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{SERVICE_TYPE_LABELS[group.serviceType as ServiceType]} — Items</h3>
+              <span className="text-xs text-slate-400 dark:text-slate-500">Service {currentServiceIdx + 1} of {serviceGroups.length}</span>
             </div>
 
             <div className="space-y-3">
               {group.items.map((item, itemIdx) => (
-                <div key={item.id} className="bg-slate-50 rounded-lg p-3 space-y-2">
+                <div key={item.id} className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">Item {itemIdx + 1}</span>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Item {itemIdx + 1}</span>
                     {group.items.length > 1 && (
                       <button onClick={() => removeServiceItem(currentServiceIdx, itemIdx)}
                         className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={12} /></button>
@@ -668,9 +668,9 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                   {(group.serviceType === 'standard_cleaning' || group.serviceType === 'deep_cleaning') && (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Capacity (L)</label>
+                        <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Capacity (L)</label>
                         <select value={item.capacity ?? 1000} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { capacity: parseInt(e.target.value) })}
-                          className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                          className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white">
                           <option value={500}>500L</option>
                           <option value={1000}>1000L</option>
                           <option value={1500}>1500L</option>
@@ -681,19 +681,19 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Quantity</label>
+                        <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Quantity</label>
                         <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
-                          className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                      </div>
+                          className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
+                    </div>
                     </div>
                   )}
 
                   {group.serviceType === 'sofa_cleaning' && (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Type</label>
+                        <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Type</label>
                         <select value={item.sofaType ?? 'Standard'} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { sofaType: e.target.value })}
-                          className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                          className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white">
                           <option value="Standard">Standard</option>
                           <option value="L-Shape">L-Shape</option>
                           <option value="Sectional">Sectional</option>
@@ -701,32 +701,32 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Quantity</label>
+                        <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Quantity</label>
                         <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
-                          className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                       </div>
                     </div>
                   )}
 
                   {group.serviceType === 'seats_cleaning' && (
                     <div>
-                      <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Quantity</label>
+                      <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Quantity</label>
                       <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
-                        className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                     </div>
                   )}
 
                   {group.serviceType === 'carpet_cleaning' && (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Area (sq ft)</label>
+                        <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Area (sq ft)</label>
                         <input type="number" min={1} value={item.carpetArea ?? 100} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { carpetArea: parseInt(e.target.value) || 100 })}
-                          className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Quantity</label>
+                        <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Quantity</label>
                         <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
-                          className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                       </div>
                     </div>
                   )}
@@ -734,29 +734,29 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                   {group.serviceType === 'custom_service' && (
                     <>
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Name</label>
+                        <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Name</label>
                         <input value={item.serviceName ?? ''} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { serviceName: e.target.value })}
-                          placeholder="e.g. Window Cleaning" className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          placeholder="e.g. Window Cleaning" className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Quantity</label>
+                          <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Quantity</label>
                           <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
-                            className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                            className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Notes</label>
+                          <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Notes</label>
                           <input value={item.notes ?? ''} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { notes: e.target.value })}
-                            className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                            className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                         </div>
                       </div>
                     </>
                   )}
 
                   <div>
-                    <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Unit Price (₹)</label>
+                    <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-0.5">Unit Price (₹)</label>
                     <input type="number" min={0} value={item.price || ''} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { price: parseInt(e.target.value) || 0 })}
-                      placeholder="0" className="w-full px-2 py-1.5 rounded border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      placeholder="0" className="w-full px-2 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
                   </div>
                 </div>
               ))}
@@ -767,9 +767,9 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
               <Plus size={12} /> Add Another Item
             </button>
 
-            <div className="bg-slate-100 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
-              <span className="text-slate-600 font-medium">Service Subtotal</span>
-              <span className="font-bold text-slate-900">₹{(group.totalPrice || getGroupTotal(group)).toLocaleString('en-IN')}</span>
+            <div className="bg-slate-100 dark:bg-slate-700 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
+              <span className="text-slate-600 dark:text-slate-300 font-medium">Service Subtotal</span>
+              <span className="font-bold text-slate-900 dark:text-white">₹{(group.totalPrice || getGroupTotal(group)).toLocaleString('en-IN')}</span>
             </div>
 
             <div className="flex justify-between pt-2">
@@ -790,17 +790,17 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
       case 'assign_worker':
         return (
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">Assign Worker</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Assign Worker</h3>
             <div className="space-y-1">
               <button onClick={() => setTechnicianId('')}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${!technicianId ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'}`}>
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${!technicianId ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border border-transparent'}`}>
                 <span className="font-medium">Unassigned</span>
               </button>
               {staff?.map((s) => (
                 <button key={s.id} onClick={() => setTechnicianId(s.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${technicianId === s.id ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-slate-50 border border-transparent'}`}>
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${technicianId === s.id ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 border border-transparent'}`}>
                   <span className="font-medium">{s.name}</span>
-                  <span className="text-slate-400 ml-2">₹{s.daily_wage_inr}/day</span>
+                  <span className="text-slate-400 dark:text-slate-500 ml-2">₹{s.daily_wage_inr}/day</span>
                 </button>
               ))}
             </div>
@@ -814,16 +814,16 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
       case 'schedule':
         return (
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">Schedule</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Schedule</h3>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Service Date</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Service Date</label>
               <input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notes</label>
               <textarea value={jobNotes} onChange={e => setJobNotes(e.target.value)} rows={2}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-white dark:bg-slate-700 dark:text-white"
                 placeholder="Optional job notes" />
             </div>
             <div className="flex justify-between pt-2">
@@ -838,27 +838,27 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         const workerName = staff?.find(s => s.id === technicianId)?.name ?? 'Unassigned';
         return (
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">Review & Create</h3>
-            <div className="bg-slate-50 rounded-lg p-4 space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Customer</span><span className="font-medium">{customerName}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Worker</span><span className="font-medium">{workerName}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Date</span><span className="font-medium">{format(new Date(serviceDate), 'dd MMM yyyy')}</span></div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Review & Create</h3>
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-4 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Customer</span><span className="font-medium">{customerName}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Worker</span><span className="font-medium">{workerName}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Date</span><span className="font-medium">{format(new Date(serviceDate), 'dd MMM yyyy')}</span></div>
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Services ({serviceGroups.length})</h4>
+              <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Services ({serviceGroups.length})</h4>
               <div className="space-y-2">
                 {serviceGroups.map((svc, idx) => (
-                  <div key={idx} className="border border-slate-200 rounded-lg p-3">
+                  <div key={idx} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-medium text-slate-900">{SERVICE_TYPE_LABELS[svc.serviceType as ServiceType]}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{SERVICE_TYPE_LABELS[svc.serviceType as ServiceType]}</p>
                       {(svc.totalPrice || getGroupTotal(svc)) > 0 && (
                         <span className="text-sm font-semibold text-green-600">₹{(svc.totalPrice || getGroupTotal(svc)).toLocaleString('en-IN')}</span>
                       )}
                     </div>
                     <div className="space-y-0.5">
                       {svc.items.map((item, itemIdx) => (
-                        <div key={itemIdx} className="flex items-center justify-between text-xs text-slate-600">
+                        <div key={itemIdx} className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
                           <span>{formatItemDetail(item, svc.serviceType)} × {item.quantity}</span>
                           {item.price > 0 && <span className="text-green-600">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
                         </div>
@@ -892,13 +892,13 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Create Job</h2>
-            <p className="text-xs text-slate-400">Step {stepOrder.indexOf(step) + 1} of 6</p>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Create Job</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Step {stepOrder.indexOf(step) + 1} of 6</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"><X size={20} /></button>
         </div>
         <div className="p-5">{renderStep()}</div>
       </div>
@@ -946,44 +946,44 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100">
-          <h2 className="text-lg font-semibold text-slate-900">Edit Job</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Edit Job</h2>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"><X size={20} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Customer</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Customer</label>
             <select value={customerId} onChange={e => setCustomerId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" required>
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" required>
               <option value="">Select customer</option>
               {customers?.map(c => <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Service Type</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Service Type</label>
             <select value={serviceType} onChange={e => setServiceType(e.target.value as ServiceType)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white">
               {serviceOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Service Date</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Service Date</label>
             <input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Worker</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Worker</label>
             <select value={technicianId} onChange={e => setTechnicianId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white">
               <option value="">Unassigned</option>
               {staff?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Notes</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notes</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-white dark:bg-slate-700 dark:text-white" />
           </div>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>}
           <button type="submit" disabled={submitting}
@@ -1014,16 +1014,16 @@ function DeleteJobConfirmModal({ card, onClose }: { card: ServiceCardWithDetails
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl w-full max-w-sm shadow-xl p-5">
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-xl p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">Delete Job</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Delete Job</h2>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"><X size={20} /></button>
         </div>
-        <p className="text-sm text-slate-600 mb-2">Are you sure you want to delete the job for <strong>{card.customers?.name}</strong>?</p>
-        <p className="text-xs text-slate-400 mb-4">This action cannot be undone. Inventory transactions linked to this job will also be removed.</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">Are you sure you want to delete the job for <strong>{card.customers?.name}</strong>?</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">This action cannot be undone. Inventory transactions linked to this job will also be removed.</p>
         {error && <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2 mb-4">{error}</div>}
         <div className="flex gap-2 justify-end">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors">Cancel</button>
           <button onClick={handleDelete} className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition-colors">Delete</button>
         </div>
       </div>
@@ -1041,5 +1041,5 @@ function NextBtn({ onClick, disabled }: { onClick: () => void; disabled?: boolea
 }
 
 function BackBtn({ onClick }: { onClick: () => void }) {
-  return <button onClick={onClick} className="text-slate-500 hover:text-slate-700 text-sm font-medium px-4 py-2">← Back</button>;
+  return <button onClick={onClick} className="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-sm font-medium px-4 py-2">← Back</button>;
 }

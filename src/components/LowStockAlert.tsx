@@ -42,9 +42,9 @@ export function LowStockAlert() {
       {alerts.map((alert) => (
         <div
           key={alert.id}
-          className="bg-red-50 border-b border-red-200 px-4 py-2.5 flex items-center justify-between"
+          className="bg-red-50 dark:bg-red-900/30 border-b border-red-200 dark:border-red-800/50 px-4 py-2.5 flex items-center justify-between"
         >
-          <div className="flex items-center gap-2 text-red-800 text-sm font-medium">
+          <div className="flex items-center gap-2 text-red-800 dark:text-red-200 text-sm font-medium">
             <AlertTriangle size={16} className="text-red-500 shrink-0" />
             <span>
               Low Stock: {alert.inventory?.item_name} — Only{' '}
@@ -56,7 +56,7 @@ export function LowStockAlert() {
           </div>
           <button
             onClick={() => resolveAlert.mutate({ alertId: alert.id, inventoryId: alert.inventory_id, merchantId: alert.merchant_id })}
-            className="flex items-center gap-1.5 text-xs font-medium text-red-700 hover:text-red-900 bg-red-100 hover:bg-red-200 px-3 py-1 rounded-md transition-colors"
+            className="flex items-center gap-1.5 text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100 bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800/50 px-3 py-1 rounded-md transition-colors"
           >
             <CheckCircle size={14} />
             Mark Reordered
