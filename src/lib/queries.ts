@@ -488,7 +488,7 @@ export function useAddCustomer() {
       name: string;
       phone: string;
       address?: string | null;
-      tankCapacityLiters?: number | null;
+      notes?: string | null;
       latitude?: number | null;
       longitude?: number | null;
     }) => {
@@ -508,7 +508,7 @@ export function useAddCustomer() {
           name: customer.name,
           phone: customer.phone,
           address: customer.address ?? null,
-          tank_capacity_liters: customer.tankCapacityLiters ?? 1000,
+          notes: customer.notes ?? null,
           latitude: customer.latitude ?? null,
           longitude: customer.longitude ?? null,
         })
@@ -529,7 +529,7 @@ export function useUpdateCustomer() {
       name: string;
       phone: string;
       address?: string | null;
-      tankCapacityLiters?: number | null;
+      notes?: string | null;
       latitude?: number | null;
       longitude?: number | null;
     }) => {
@@ -539,7 +539,7 @@ export function useUpdateCustomer() {
           name: customer.name,
           phone: customer.phone,
           address: customer.address ?? null,
-          tank_capacity_liters: customer.tankCapacityLiters ?? 1000,
+          notes: customer.notes ?? null,
           latitude: customer.latitude ?? null,
           longitude: customer.longitude ?? null,
         })

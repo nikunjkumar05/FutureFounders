@@ -108,7 +108,7 @@ export interface Customer {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
-  tank_capacity_liters: number;
+  notes: string | null;
   created_at: string;
 }
 
