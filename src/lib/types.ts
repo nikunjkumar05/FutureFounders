@@ -282,6 +282,52 @@ export interface DailyBriefing {
   insights: BriefingInsights;
 }
 
+// ─── Revenue Intelligence ──────────────────────────────────────
+
+export type ReminderResponse = 'interested' | 'not_interested' | null;
+
+export type CustomerSegment = 'ready_to_book' | 'follow_up_needed' | 'high_churn_risk';
+
+export interface RevenueIntelligence {
+  potentialRevenueDue: number;
+  customersDue: number;
+  respondedToReminder: number;
+  awaitingFollowUp: number;
+  highChurnRisk: number;
+  potentialRevenueRecovery: number;
+  totalCustomers: number;
+}
+
+export interface CustomerSegmentItem {
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  segment: CustomerSegment;
+  expectedValue: number;
+  daysOverdue: number;
+  lastServiceDate: string | null;
+  lastServiceType: ServiceType;
+  serviceCardId: string;
+}
+
+export interface ReminderAnalyticsData {
+  totalSent: number;
+  responses: number;
+  bookingsGenerated: number;
+  conversionRate: number;
+}
+
+export interface BusinessInsight {
+  type: 'warning' | 'info' | 'positive';
+  message: string;
+}
+
+export interface ServiceCardWithRevenue extends ServiceCardWithDetails {
+  reminder_response?: ReminderResponse;
+  reminder_response_at?: string | null;
+  reminder_count?: number;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────
 
 let _itemIdCounter = 0;

@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import DailyBriefingModal from '../components/DailyBriefing';
+import RevenueIntelligence from '../components/RevenueIntelligence';
 
 const metrics = [
   {
@@ -177,6 +178,8 @@ export default function Dashboard() {
       </div>
 
       {showBriefing && <DailyBriefingModal onClose={() => setShowBriefing(false)} />}
+
+      <RevenueIntelligence />
     </div>
   );
 }

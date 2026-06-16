@@ -18,8 +18,14 @@ import type {
   BriefingInventoryAlert,
   BriefingReminder,
   BriefingInsights,
+  RevenueIntelligence,
+  CustomerSegmentItem,
+  CustomerSegment,
+  ReminderAnalyticsData,
+  BusinessInsight,
+  ServiceCardWithRevenue,
 } from './types';
-import { SERVICE_TYPE_LABELS } from './types';
+import { SERVICE_TYPE_LABELS, getServicesFromDetails, getTotalCharge } from './types';
 
 const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
@@ -958,5 +964,284 @@ export function useSendFeedback() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['service_cards'] }),
+  });
+}
+
+// ─── Revenue Intelligence ──────────────────────────────────────
+
+const DEFAULT_PRICING: Record<string, { base: number; perLitre?: number }> = {
+  standard_cleaning: { base: 800, perLitre: 0.4 },
+  deep_cleaning: { base: 1200, perLitre: 0.6 },
+  sofa_cleaning: { base: 500 },
+  seats_cleaning: { base: 300 },
+  carpet_cleaning: { base: 800 },
+  custom_service: { base: 500 },
+};
+
+function estimateServiceValue(card: ServiceCardWithRevenue): number {
+  const details = (card.service_details ?? {}) as Record<string, unknown>;
+  const totalCharge = getTotalCharge(details);
+  if (totalCharge > 0) return totalCharge;
+
+  const services = getServicesFromDetails(details);
+  if (services.length > 0) {
+    return services.reduce((sum, g) => sum + (g.totalPrice || 0), 0);
+  }
+
+  const pricing = DEFAULT_PRICING[card.service_type] ?? DEFAULT_PRICING.custom_service;
+  let total = pricing.base;
+  const tankCap = (details.tankCapacity as number) || 0;
+  if (pricing.perLitre && tankCap > 0) {
+    total = Math.round(tankCap * pricing.perLitre);
+  }
+  return total;
+}
+
+function getDaysOverdue(card: ServiceCardWithRevenue): number {
+  if (!card.next_service_date) return 0;
+  const dueDate = new Date(card.next_service_date + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.floor((today.getTime() - dueDate.getTime()) / 86400000);
+  return Math.max(0, diff);
+}
+
+function isDueThisMonth(card: ServiceCardWithRevenue): boolean {
+  if (!card.next_service_date) return false;
+  const due = new Date(card.next_service_date + 'T00:00:00');
+  const now = new Date();
+  return due.getFullYear() === now.getFullYear() && due.getMonth() === now.getMonth();
+}
+
+function getSegmentForCard(card: ServiceCardWithRevenue): CustomerSegment | null {
+  const response = card.reminder_response;
+  const daysOverdue = getDaysOverdue(card);
+  const reminderSent = !!card.reminder_sent_at;
+  const reminderCount = card.reminder_count ?? (reminderSent ? 1 : 0);
+
+  if (response === 'interested') return 'ready_to_book';
+
+  if (daysOverdue >= 30 && reminderCount >= 2 && response !== 'not_interested') {
+    return 'high_churn_risk';
+  }
+
+  if (reminderSent && response === null) return 'follow_up_needed';
+
+  if (daysOverdue > 0 && reminderSent) return 'high_churn_risk';
+
+  return null;
+}
+
+export function useRevenueIntelligence() {
+  return useQuery({
+    queryKey: ['revenue_intelligence'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_cards')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, reminder_response, reminder_response_at, reminder_count, created_at, customers(*), staff(*)')
+        .eq('merchant_id', MERCHANT_ID)
+        .order('next_service_date', { ascending: true });
+
+      if (error) throw error;
+      const cards = (data ?? []) as unknown as ServiceCardWithRevenue[];
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const segmentItems: CustomerSegmentItem[] = [];
+      let totalRevenueDue = 0;
+      let customersDue = 0;
+      let respondedCount = 0;
+      let awaitingCount = 0;
+      let churnCount = 0;
+      let recoveryTotal = 0;
+      let totalRemindersSent = 0;
+      let totalResponses = 0;
+
+      for (const card of cards) {
+        const value = estimateServiceValue(card);
+        const segment = getSegmentForCard(card);
+        const daysOverdue = getDaysOverdue(card);
+        const reminderSent = !!card.reminder_sent_at;
+
+        if (reminderSent) totalRemindersSent++;
+        if (card.reminder_response === 'interested') respondedCount++;
+        if (card.reminder_response === 'interested' || card.reminder_response === 'not_interested') totalResponses++;
+
+        if (isDueThisMonth(card)) {
+          totalRevenueDue += value;
+          customersDue++;
+        }
+
+        if (segment === 'follow_up_needed') awaitingCount++;
+        if (segment === 'high_churn_risk') {
+          churnCount++;
+          recoveryTotal += value;
+        }
+
+        if (segment) {
+          segmentItems.push({
+            customerId: card.customer_id,
+            customerName: card.customers?.name ?? 'Unknown',
+            customerPhone: card.customers?.phone ?? '',
+            segment,
+            expectedValue: value,
+            daysOverdue,
+            lastServiceDate: card.service_date,
+            lastServiceType: card.service_type as ServiceType,
+            serviceCardId: card.id,
+          });
+        }
+      }
+
+      const revenueIntelligence: RevenueIntelligence = {
+        potentialRevenueDue: totalRevenueDue,
+        customersDue,
+        respondedToReminder: respondedCount,
+        awaitingFollowUp: awaitingCount,
+        highChurnRisk: churnCount,
+        potentialRevenueRecovery: recoveryTotal,
+        totalCustomers: cards.length,
+      };
+
+      const reminderAnalytics: ReminderAnalyticsData = {
+        totalSent: totalRemindersSent,
+        responses: totalResponses,
+        bookingsGenerated: respondedCount,
+        conversionRate: totalRemindersSent > 0 ? Math.round((respondedCount / totalRemindersSent) * 100) : 0,
+      };
+
+      const insights: BusinessInsight[] = [];
+
+      const highRiskItems = segmentItems.filter(s => s.segment === 'high_churn_risk');
+      const overdue30plus = highRiskItems.filter(s => s.daysOverdue >= 30);
+      if (overdue30plus.length > 0) {
+        insights.push({
+          type: 'warning',
+          message: `${overdue30plus.length} customer(s) are overdue by more than 30 days.`,
+        });
+      }
+
+      if (revenueIntelligence.potentialRevenueRecovery > 0) {
+        insights.push({
+          type: 'info',
+          message: `₹${revenueIntelligence.potentialRevenueRecovery.toLocaleString('en-IN')} of potential revenue is currently recoverable.`,
+        });
+      }
+
+      if (reminderAnalytics.conversionRate > 0) {
+        insights.push({
+          type: 'positive',
+          message: `Reminder conversion rate is ${reminderAnalytics.conversionRate}% this month.`,
+        });
+      }
+
+      const readyItems = segmentItems.filter(s => s.segment === 'ready_to_book');
+      if (readyItems.length > 0) {
+        const names = readyItems.slice(0, 2).map(s => s.customerName).join(', ');
+        insights.push({
+          type: 'positive',
+          message: `${readyItems.length} customer(s) ready to book: ${names}.`,
+        });
+      }
+
+      const followUpItems = segmentItems.filter(s => s.segment === 'follow_up_needed');
+      if (followUpItems.length > 0) {
+        insights.push({
+          type: 'info',
+          message: `${followUpItems.length} customer(s) need follow-up. Send them a WhatsApp reminder today.`,
+        });
+      }
+
+      const dueNotResponded = cards.filter(c =>
+        isDueThisMonth(c) && !c.reminder_sent_at
+      );
+      if (dueNotResponded.length > 0) {
+        insights.push({
+          type: 'info',
+          message: `${dueNotResponded.length} customer(s) due this month haven't received a reminder yet.`,
+        });
+      }
+
+      const respondedNotBooked = cards.filter(c =>
+        c.reminder_response === 'interested' && (c.job_status === 'pending' || c.job_status === 'completed')
+      );
+      if (respondedNotBooked.length > 0) {
+        insights.push({
+          type: 'positive',
+          message: `${respondedNotBooked.length} interested customer(s) haven't been scheduled yet. Convert them today!`,
+        });
+      }
+
+      return {
+        revenueIntelligence,
+        segments: segmentItems,
+        reminderAnalytics,
+        insights,
+        cards,
+      };
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useUpdateReminderResponse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      cardId,
+      response,
+    }: {
+      cardId: string;
+      response: 'interested' | 'not_interested';
+    }) => {
+      const { data, error } = await supabase
+        .from('service_cards')
+        .update({
+          reminder_response: response,
+          reminder_response_at: new Date().toISOString(),
+        })
+        .eq('id', cardId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['revenue_intelligence'] });
+      qc.invalidateQueries({ queryKey: ['service_cards'] });
+    },
+  });
+}
+
+export function useIncrementReminderCount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ cardId }: { cardId: string }) => {
+      const { data: current, error: fetchError } = await supabase
+        .from('service_cards')
+        .select('reminder_count')
+        .eq('id', cardId)
+        .single();
+      if (fetchError) throw fetchError;
+
+      const currentCount = (current as { reminder_count: number | null }).reminder_count ?? 0;
+
+      const { data, error } = await supabase
+        .from('service_cards')
+        .update({
+          reminder_count: currentCount + 1,
+          reminder_sent_at: new Date().toISOString(),
+        })
+        .eq('id', cardId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['revenue_intelligence'] });
+      qc.invalidateQueries({ queryKey: ['service_cards'] });
+    },
   });
 }
