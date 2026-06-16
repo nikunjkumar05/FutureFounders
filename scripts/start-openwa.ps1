@@ -137,14 +137,16 @@ if (-not $vercelToken) {
     exit 1
 }
 
-npx vercel env rm OPENWA_API_URL production --yes --token $vercelToken 2>$null
-npx vercel env rm OPENWA_SESSION_ID production --yes --token $vercelToken 2>$null
+$ErrorActionPreference = "SilentlyContinue"
+npx vercel env rm OPENWA_API_URL production --yes --token $vercelToken
+npx vercel env rm OPENWA_SESSION_ID production --yes --token $vercelToken
 if ($sessionId) {
-    npx vercel env add OPENWA_SESSION_ID production --token $vercelToken --value $sessionId 2>$null
+    npx vercel env add OPENWA_SESSION_ID production --token $vercelToken --value $sessionId
     Write-Host "  Updated OPENWA_SESSION_ID: $sessionId" -ForegroundColor Green
 }
-npx vercel env add OPENWA_API_URL production --token $vercelToken --value $tunnelUrl 2>$null
+npx vercel env add OPENWA_API_URL production --token $vercelToken --value $tunnelUrl
 Write-Host "  Updated OPENWA_API_URL: $tunnelUrl" -ForegroundColor Green
+$ErrorActionPreference = "Stop"
 Pop-Location
 
 # Verify tunnel reaches OpenWA
@@ -156,6 +158,14 @@ if ($tunnelHealth -match '"status":"ok"') {
 } else {
     Write-Host "  WARNING: Tunnel health check failed" -ForegroundColor Red
 }
+
+# Trigger Vercel redeployment so new env vars take effect
+Write-Host "Triggering Vercel redeployment..." -ForegroundColor Yellow
+Push-Location "C:\Users\sange\FutureFounders"
+git commit --allow-empty -m "redeploy: new tunnel URL $tunnelUrl" 2>$null
+git push origin main 2>$null
+Pop-Location
+Write-Host "  Redeployment triggered!" -ForegroundColor Green
 
 # Summary
 Write-Host ""
