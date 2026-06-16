@@ -41,35 +41,35 @@ export default function Customers() {
   });
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Customers</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          <h1 className="text-display-lg font-display text-surface-900 dark:text-surface-100">Properties</h1>
+          <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
             Manage your customer base and view service history
           </p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          className="btn-primary"
         >
           <Plus size={16} />
-          Add Customer
+          Add property
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search
             size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 dark:text-surface-500"
           />
           <input
             type="text"
             placeholder="Search by name or phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            className="input-base pl-9"
           />
         </div>
       </div>
@@ -79,21 +79,21 @@ export default function Customers() {
       ) : !filtered?.length ? (
         <EmptyState />
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="card-base overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Phone</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Address</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Last Service</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Next Service</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Jobs</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Action</th>
+                <tr className="border-b border-surface-100 dark:border-surface-700 bg-surface-50 dark:bg-surface-700/50">
+                  <th className="text-left px-4 py-3 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">Name</th>
+                  <th className="text-left px-4 py-3 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">Phone</th>
+                  <th className="text-left px-4 py-3 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">Address</th>
+                  <th className="text-left px-4 py-3 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">Last service</th>
+                  <th className="text-left px-4 py-3 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">Next service</th>
+                  <th className="text-center px-4 py-3 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">Jobs</th>
+                  <th className="text-right px-4 py-3 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              <tbody className="divide-y divide-surface-100 dark:divide-surface-700">
                 {filtered.map((customer) => {
                   const cards = serviceCards?.filter(
                     (sc) => sc.customer_id === customer.id
@@ -187,16 +187,16 @@ function CustomerRow({
   };
 
   return (
-    <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+    <tr className="hover:bg-surface-50 dark:hover:bg-surface-700/50 transition-colors">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
+          <div className="w-8 h-8 rounded-full bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400 flex items-center justify-center text-xs font-display font-bold shrink-0">
             {customer.name.charAt(0)}
           </div>
           <div>
-            <p className="font-medium text-slate-900 dark:text-white">{customer.name}</p>
+            <p className="font-display font-medium text-surface-900 dark:text-surface-100">{customer.name}</p>
             {customer.notes && (
-              <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1 mt-0.5">
+              <p className="text-xs text-surface-400 dark:text-surface-500 flex items-center gap-1 mt-0.5">
                 <FileText size={10} />
                 {customer.notes.length > 40 ? customer.notes.slice(0, 40) + '...' : customer.notes}
               </p>
@@ -205,53 +205,49 @@ function CustomerRow({
         </div>
       </td>
       <td className="px-4 py-3">
-        <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1 text-xs">
+        <span className="font-mono text-surface-600 dark:text-surface-300 flex items-center gap-1 text-xs">
           <Phone size={12} />
           {customer.phone}
         </span>
       </td>
       <td className="px-4 py-3">
         {customer.address ? (
-          <span className="text-slate-500 dark:text-slate-400 text-xs flex items-center gap-1">
+          <span className="text-surface-500 dark:text-surface-400 text-xs flex items-center gap-1">
             <MapPin size={12} />
             {customer.address.length > 30 ? customer.address.slice(0, 30) + '...' : customer.address}
           </span>
         ) : (
-          <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+          <span className="text-surface-300 dark:text-surface-600 text-xs">—</span>
         )}
       </td>
       <td className="px-4 py-3">
         {latestCard ? (
           <div>
-            <span className="text-slate-600 dark:text-slate-300 text-xs font-medium">
+            <span className="text-surface-600 dark:text-surface-300 text-xs font-display font-medium">
               {SERVICE_TYPE_LABELS[latestCard.service_type as ServiceType] ?? latestCard.service_type}
             </span>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+            <p className="text-body-xs text-surface-400 dark:text-surface-500 mt-0.5">
               {new Date(latestCard.service_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
             </p>
           </div>
         ) : (
-          <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+          <span className="text-surface-300 dark:text-surface-600 text-xs">—</span>
         )}
       </td>
       <td className="px-4 py-3">
         {latestCard?.next_service_date ? (
-          <span className="text-xs text-slate-600 dark:text-slate-300">
+          <span className="font-mono text-xs text-surface-600 dark:text-surface-300">
             {new Date(latestCard.next_service_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
           </span>
         ) : (
-          <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>
+          <span className="text-surface-300 dark:text-surface-600 text-xs">—</span>
         )}
       </td>
       <td className="px-4 py-3 text-center">
         <div className="flex items-center justify-center gap-2">
-          <span className="text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">
-            {totalJobs}
-          </span>
+          <span className="badge-neutral">{totalJobs}</span>
           {activeJobs > 0 && (
-            <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-              {activeJobs} active
-            </span>
+            <span className="badge-info">{activeJobs} active</span>
           )}
         </div>
       </td>
@@ -259,21 +255,21 @@ function CustomerRow({
         <div className="flex items-center gap-1 justify-end">
           <button
             onClick={onViewHistory}
-            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+            className="btn-ghost p-1.5"
             title="View service history"
           >
             <ClipboardList size={12} />
           </button>
           <button
             onClick={onEdit}
-            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            className="btn-ghost p-1.5"
             title="Edit"
           >
             <Edit2 size={12} />
           </button>
           <button
             onClick={onDelete}
-            className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+            className="btn-ghost p-1.5 text-surface-400 hover:text-red-600"
             title="Delete"
           >
             <Trash2 size={12} />
@@ -281,12 +277,12 @@ function CustomerRow({
           <button
             onClick={handleSendReminder}
             disabled={reminderSent || !latestCard}
-            className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+            className={`inline-flex items-center gap-1.5 text-xs font-display font-semibold px-3 py-1.5 rounded-lg transition-colors ${
               reminderSent
-                ? 'bg-green-100 text-green-700 cursor-default'
+                ? 'badge-ok cursor-default'
                 : latestCard
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                ? 'btn-primary !py-1.5 !text-xs'
+                : 'bg-surface-100 dark:bg-surface-700 text-surface-400 dark:text-surface-500 cursor-not-allowed'
             }`}
           >
             {reminderSent ? (
@@ -303,13 +299,13 @@ function CustomerRow({
 
 function EmptyState() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
-      <Users size={40} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-      <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-1">
-        No customers yet
+    <div className="card-base p-12 text-center">
+      <Users size={40} className="mx-auto text-surface-300 dark:text-surface-600 mb-3" />
+      <h3 className="text-display-sm font-display text-surface-700 dark:text-surface-200 mb-1">
+        No properties yet
       </h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Add your first customer to get started.
+      <p className="text-body-sm text-surface-500 dark:text-surface-400">
+        Add your first property to get started.
       </p>
     </div>
   );
@@ -325,45 +321,45 @@ function ServiceHistoryModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg max-h-[80vh] shadow-xl overflow-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-lg max-h-[80vh] shadow-xl overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{customer.name}</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <h2 className="text-lg font-semibold text-surface-900 dark:text-white">{customer.name}</h2>
+            <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">
               {customer.phone}{customer.address ? ` · ${customer.address}` : ''}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
             <X size={20} />
           </button>
         </div>
 
         <div className="p-5 overflow-y-auto max-h-[calc(80vh-120px)]">
           {customer.notes && (
-            <div className="mb-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Notes</p>
-              <p className="text-sm text-slate-700 dark:text-slate-200">{customer.notes}</p>
+            <div className="mb-4 bg-surface-50 dark:bg-surface-900/50 rounded-lg p-3">
+              <p className="text-xs font-medium text-surface-500 dark:text-surface-400 mb-1">Notes</p>
+              <p className="text-sm text-surface-700 dark:text-surface-200">{customer.notes}</p>
             </div>
           )}
 
-          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
-            <ClipboardList size={16} className="text-blue-600" />
+          <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-200 mb-3 flex items-center gap-2">
+            <ClipboardList size={16} className="text-navy-600" />
             Service History
-            <span className="text-xs font-normal text-slate-400 dark:text-slate-500">({cards.length} total)</span>
+            <span className="text-xs font-normal text-surface-400 dark:text-surface-500">({cards.length} total)</span>
           </h3>
 
           {cards.length === 0 ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-8">No service history yet</p>
+            <p className="text-sm text-surface-400 dark:text-surface-500 text-center py-8">No service history yet</p>
           ) : (
             <div className="space-y-3">
               {cards.map((card) => {
                 const details = card.service_details as Record<string, unknown>;
                 const services = getServicesFromDetails(details);
                 const statusColor = card.job_status === 'completed'
-                  ? 'bg-green-100 text-green-700'
+                  ? 'bg-cyan-100 text-cyan-700'
                   : card.job_status === 'in_progress'
-                  ? 'bg-blue-100 text-blue-700'
+                  ? 'bg-navy-100 text-navy-700'
                   : 'bg-amber-100 text-amber-700';
                 const statusLabel = card.job_status === 'completed'
                   ? 'Completed'
@@ -371,13 +367,13 @@ function ServiceHistoryModal({
                   ? 'In Progress'
                   : 'Pending';
                 return (
-                  <div key={card.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                  <div key={card.id} className="border border-surface-200 dark:border-surface-600 rounded-lg p-4 hover:shadow-sm transition-shadow">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-white text-sm">
+                        <p className="font-medium text-surface-900 dark:text-white text-sm">
                           {SERVICE_TYPE_LABELS[card.service_type as ServiceType] ?? card.service_type}
                         </p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                        <p className="text-xs text-surface-400 dark:text-surface-500 mt-0.5">
                           {new Date(card.service_date + 'T00:00:00').toLocaleDateString('en-IN', {
                             weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
                           })}
@@ -399,10 +395,10 @@ function ServiceHistoryModal({
                             if (item.serviceName) parts.push(item.serviceName);
                             if (item.quantity && item.quantity > 1) parts.push(`x${item.quantity}`);
                             return (
-                              <div key={item.id} className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                <ChevronRight size={10} className="text-slate-300 dark:text-slate-600" />
+                              <div key={item.id} className="text-xs text-surface-500 dark:text-surface-400 flex items-center gap-1">
+                                <ChevronRight size={10} className="text-surface-300 dark:text-surface-600" />
                                 {parts.length > 0 ? parts.join(' · ') : `1 service`}
-                                {item.price > 0 && <span className="text-slate-400 dark:text-slate-500">· ₹{item.price}</span>}
+                                {item.price > 0 && <span className="text-surface-400 dark:text-surface-500">· ₹{item.price}</span>}
                               </div>
                             );
                           })
@@ -410,7 +406,7 @@ function ServiceHistoryModal({
                       </div>
                     )}
 
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                    <div className="flex items-center gap-3 mt-2 text-[11px] text-surface-400 dark:text-surface-500">
                       {card.staff && <span>Worker: {card.staff.name}</span>}
                       {card.next_service_date && (
                         <span>Next: {new Date(card.next_service_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -465,40 +461,40 @@ function EditCustomerModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Edit Customer</h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Edit Customer</h2>
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
             <X size={20} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name *</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Name *</label>
             <input value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Phone *</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Phone *</label>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number"
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Address</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Address</label>
             <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, area, city..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notes / Landmark</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Notes / Landmark</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Nearby landmark, directions, special instructions..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none" />
           </div>
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
           )}
           <button type="submit" disabled={submitting}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
             {submitting ? 'Saving...' : 'Save Changes'}
           </button>
         </form>
@@ -528,18 +524,18 @@ function DeleteConfirmModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-xl p-5">
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-sm shadow-xl p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Delete Customer</h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Delete Customer</h2>
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
             <X size={20} />
           </button>
         </div>
-        <p className="text-sm text-slate-600 dark:text-slate-300 mb-2">
+        <p className="text-sm text-surface-600 dark:text-surface-300 mb-2">
           Are you sure you want to delete <strong>{customer.name}</strong>?
         </p>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
+        <p className="text-xs text-surface-400 dark:text-surface-500 mb-4">
           This action cannot be undone. Their service history will also be removed.
         </p>
         {error && (
@@ -547,7 +543,7 @@ function DeleteConfirmModal({
         )}
         <div className="flex gap-2 justify-end">
           <button onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+            className="px-4 py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-600 transition-colors">
             Cancel
           </button>
           <button onClick={handleDelete}
@@ -591,40 +587,40 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Add Customer</h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Add Customer</h2>
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
             <X size={20} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name *</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Name *</label>
             <input value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Phone *</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Phone *</label>
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number"
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Address</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Address</label>
             <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, area, city..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notes / Landmark</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Notes / Landmark</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Nearby landmark, directions, special instructions..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none" />
           </div>
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
           )}
           <button type="submit" disabled={submitting}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
             {submitting ? 'Adding...' : 'Add Customer'}
           </button>
         </form>

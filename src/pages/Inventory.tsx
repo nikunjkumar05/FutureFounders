@@ -13,20 +13,20 @@ export default function Inventory() {
   const [showAlertHistory, setShowAlertHistory] = useState(false);
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Inventory</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          <h1 className="text-display-lg font-display text-surface-900 dark:text-surface-100">Supplies</h1>
+          <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
             Track chemical supplies and stock levels
           </p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          className="btn-primary"
         >
           <Plus size={16} />
-          Add Item
+          Add item
         </button>
       </div>
 
@@ -50,18 +50,10 @@ export default function Inventory() {
               status === 'critical'
                 ? 'bg-red-500'
                 : status === 'low'
-                ? 'bg-amber-500'
+                ? 'bg-red-400'
                 : status === 'reordered'
-                ? 'bg-blue-500'
-                : 'bg-green-500';
-            const badgeColor =
-              status === 'critical'
-                ? 'bg-red-100 text-red-700'
-                : status === 'low'
-                ? 'bg-amber-100 text-amber-700'
-                : status === 'reordered'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-green-100 text-green-700';
+                ? 'bg-cyan-500'
+                : 'bg-cyan-500';
             const badgeLabel =
               status === 'critical'
                 ? 'Critical'
@@ -74,18 +66,18 @@ export default function Inventory() {
             return (
               <div
                 key={item.id}
-                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md transition-shadow"
+                className="card-base p-5"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700">
-                      <Package size={18} className="text-slate-600 dark:text-slate-300" />
+                    <div className="p-2 rounded-xl bg-surface-100 dark:bg-surface-700">
+                      <Package size={18} className="text-surface-600 dark:text-surface-300" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-slate-900 dark:text-white">
+                      <h3 className="font-display font-semibold text-surface-900 dark:text-surface-100">
                         {item.item_name}
                       </h3>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                      <p className="text-body-xs text-surface-500 dark:text-surface-400">
                         Per {item.unit}
                       </p>
                     </div>
@@ -93,32 +85,33 @@ export default function Inventory() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setEditItem(item)}
-                      className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                      className="btn-ghost p-1.5"
                       title="Edit item"
                     >
                       <Pencil size={14} />
                     </button>
                     <DeleteButton itemId={item.id} itemName={item.item_name} />
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${badgeColor}`}
-                    >
+                    <span className={
+                      status === 'critical' ? 'badge-warn'
+                        : status === 'low' ? 'badge-warn'
+                        : status === 'reordered' ? 'badge-info'
+                        : 'badge-ok'
+                    }>
                       {badgeLabel}
                     </span>
                   </div>
                 </div>
 
                 <div className="mb-3">
-                  <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-                    <span>
-                      Current: {item.current_stock}
-                      {item.unit}
+                  <div className="flex justify-between text-body-xs text-surface-500 dark:text-surface-400 mb-1.5">
+                    <span className="font-mono">
+                      {item.current_stock}{item.unit}
                     </span>
-                    <span>
-                      Min: {item.minimum_threshold}
-                      {item.unit}
+                    <span className="font-mono">
+                      min: {item.minimum_threshold}{item.unit}
                     </span>
                   </div>
-                  <div className="h-2.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-2.5 bg-surface-100 dark:bg-surface-700 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all ${barColor}`}
                       style={{
@@ -128,9 +121,8 @@ export default function Inventory() {
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-400 dark:text-slate-500">
-                  Max ref: {(item.minimum_threshold * 3).toFixed(0)}
-                  {item.unit}
+                <div className="text-body-xs text-surface-500 dark:text-surface-400 font-mono">
+                  Max ref: {(item.minimum_threshold * 3).toFixed(0)}{item.unit}
                 </div>
               </div>
             );
@@ -143,7 +135,7 @@ export default function Inventory() {
         <div className="mt-8">
           <button
             onClick={() => setShowAlertHistory(!showAlertHistory)}
-            className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white mb-3"
+            className="flex items-center gap-2 text-sm font-medium text-surface-600 dark:text-surface-200 hover:text-surface-900 dark:hover:text-white mb-3"
           >
             <AlertTriangle size={14} className="text-amber-500" />
             Stock Alert History
@@ -179,7 +171,7 @@ function DeleteButton({ itemId, itemName }: { itemId: string; itemName: string }
         </button>
         <button
           onClick={() => setConfirming(false)}
-          className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+          className="text-[10px] text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300"
         >
           <X size={12} />
         </button>
@@ -190,7 +182,7 @@ function DeleteButton({ itemId, itemName }: { itemId: string; itemName: string }
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+      className="p-1.5 rounded-lg text-surface-400 dark:text-surface-500 hover:text-red-600 hover:bg-red-50 transition-colors"
       title={`Delete ${itemName}`}
     >
       <Trash2 size={14} />
@@ -203,48 +195,48 @@ function AlertHistoryTable() {
   const resolveAlert = useResolveAlert();
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+    <div className="bg-white dark:bg-surface-700 rounded-xl border border-surface-200 dark:border-surface-600 overflow-hidden">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
-              <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+          <tr className="border-b border-surface-100 dark:border-surface-600/50 bg-surface-50 dark:bg-surface-900/50">
+              <th className="text-left px-4 py-2.5 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">
               Item
             </th>
-            <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+            <th className="text-left px-4 py-2.5 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">
               Current Stock
             </th>
-            <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+            <th className="text-left px-4 py-2.5 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">
               Min Threshold
             </th>
-            <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+            <th className="text-left px-4 py-2.5 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">
               Created
             </th>
-            <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
+            <th className="text-right px-4 py-2.5 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">
               Action
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+        <tbody className="divide-y divide-surface-100 dark:divide-surface-600/50">
           {alerts?.map((alert) => (
-            <tr key={alert.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-              <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-white">
+            <tr key={alert.id} className="hover:bg-surface-50 dark:hover:bg-surface-600/50">
+              <td className="px-4 py-2.5 font-medium text-surface-900 dark:text-white">
                 {alert.inventory?.item_name}
               </td>
               <td className="px-4 py-2.5 text-red-600 font-medium">
                 {alert.inventory?.current_stock}
                 {alert.inventory?.unit}
               </td>
-              <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+              <td className="px-4 py-2.5 text-surface-500 dark:text-surface-400">
                 {alert.inventory?.minimum_threshold}
                 {alert.inventory?.unit}
               </td>
-              <td className="px-4 py-2.5 text-slate-400 dark:text-slate-500 text-xs">
+              <td className="px-4 py-2.5 text-surface-400 dark:text-surface-500 text-xs">
                 {new Date(alert.created_at).toLocaleDateString()}
               </td>
               <td className="px-4 py-2.5 text-right">
                 <button
                   onClick={() => resolveAlert.mutate({ alertId: alert.id, inventoryId: alert.inventory_id, merchantId: alert.merchant_id })}
-                  className="text-xs font-medium text-green-700 hover:text-green-900 bg-green-50 hover:bg-green-100 px-3 py-1 rounded-md transition-colors"
+                  className="text-xs font-medium text-cyan-700 hover:text-cyan-900 bg-cyan-50 hover:bg-cyan-100 px-3 py-1 rounded-md transition-colors"
                 >
                   Mark Reordered
                 </button>
@@ -278,37 +270,37 @@ function AddItemModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-navy-900 rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
             Add Inventory Item
           </h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
             <X size={20} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
               Item Name *
             </label>
             <input
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
               required
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
                 Unit
               </label>
               <select
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
               >
                 <option value="g">grams</option>
                 <option value="kg">kg</option>
@@ -317,32 +309,32 @@ function AddItemModal({ onClose }: { onClose: () => void }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
                 Current Stock
               </label>
               <input
                 type="number"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
               Minimum Threshold
             </label>
             <input
               type="number"
               value={threshold}
               onChange={(e) => setThreshold(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
             />
           </div>
           <button
             type="submit"
             disabled={addInventory.isPending}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50"
           >
             {addInventory.isPending ? 'Adding...' : 'Add Item'}
           </button>
@@ -374,37 +366,37 @@ function EditItemModal({ item, onClose }: { item: Inventory; onClose: () => void
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-navy-900 rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
             Edit Inventory Item
           </h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
             <X size={20} />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
               Item Name *
             </label>
             <input
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
               required
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
                 Unit
               </label>
               <select
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
               >
                 <option value="g">grams</option>
                 <option value="kg">kg</option>
@@ -413,32 +405,32 @@ function EditItemModal({ item, onClose }: { item: Inventory; onClose: () => void
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
                 Current Stock
               </label>
               <input
                 type="number"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
               Minimum Threshold
             </label>
             <input
               type="number"
               value={threshold}
               onChange={(e) => setThreshold(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
             />
           </div>
           <button
             type="submit"
             disabled={updateInventory.isPending}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50"
           >
             {updateInventory.isPending ? 'Saving...' : 'Save Changes'}
           </button>
@@ -450,12 +442,12 @@ function EditItemModal({ item, onClose }: { item: Inventory; onClose: () => void
 
 function EmptyState() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
-      <Package size={40} className="mx-auto text-slate-300 dark:text-slate-500 mb-3" />
-      <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-1">
+    <div className="bg-white dark:bg-surface-700 rounded-xl border border-surface-200 dark:border-surface-600 p-12 text-center">
+      <Package size={40} className="mx-auto text-surface-300 dark:text-surface-500 mb-3" />
+      <h3 className="text-lg font-semibold text-surface-600 dark:text-surface-200 mb-1">
         No inventory items
       </h3>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
+      <p className="text-sm text-surface-500 dark:text-surface-400">
         Add your first inventory item to start tracking stock levels.
       </p>
     </div>

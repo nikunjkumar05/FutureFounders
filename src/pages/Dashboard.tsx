@@ -1,67 +1,21 @@
 import {
-  Bell,
   Package,
-  Clock,
-  CheckCircle2,
   TrendingUp,
   CircleDot,
   Kanban,
-  Droplets,
   Briefcase,
   ChevronRight,
-  Sun,
+  Users,
+  AlertTriangle,
 } from 'lucide-react';
 import { useDashboardMetrics, useDailyBriefing } from '../lib/queries';
 import { CardSkeleton } from '../components/LoadingSkeleton';
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, memo, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
-import DailyBriefingModal from '../components/DailyBriefing';
+import TankRing from '../components/TankRing';
 
-const metrics = [
-  {
-    key: 'pendingJobs' as const,
-    label: 'Pending Jobs',
-    icon: CircleDot,
-    color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-    iconBg: 'bg-amber-100 dark:bg-amber-900/50',
-  },
-  {
-    key: 'inProgressJobs' as const,
-    label: 'In Progress',
-    icon: Kanban,
-    color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-    iconBg: 'bg-blue-100 dark:bg-blue-900/50',
-  },
-  {
-    key: 'jobsCompletedThisWeek' as const,
-    label: 'Completed This Week',
-    icon: CheckCircle2,
-    color: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800',
-    iconBg: 'bg-green-100 dark:bg-green-900/50',
-  },
-  {
-    key: 'dueReminders' as const,
-    label: 'Due Reminders',
-    icon: Bell,
-    color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800',
-    iconBg: 'bg-amber-100 dark:bg-amber-900/50',
-  },
-  {
-    key: 'lowStockAlerts' as const,
-    label: 'Low Stock Alerts',
-    icon: Package,
-    color: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800',
-    iconBg: 'bg-red-100 dark:bg-red-900/50',
-  },
-  {
-    key: 'staffCheckedIn' as const,
-    label: 'Staff Checked In Today',
-    icon: Clock,
-    color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800',
-    iconBg: 'bg-blue-100 dark:bg-blue-900/50',
-  },
-];
+const DailyBriefingModal = lazy(() => import('../components/DailyBriefing'));
 
 export default function Dashboard() {
   const { data, isLoading } = useDashboardMetrics();
@@ -105,133 +59,229 @@ export default function Dashboard() {
     };
   }, [qc]);
 
-  return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <Droplets size={28} className="text-blue-600" />
-          Dashboard
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-          Welcome back, Sunil. Here's your business at a glance.
-        </p>
-      </div>
+  const completedToday = data?.jobsCompletedThisWeek ?? 0;
+  const monthlyTarget = 30;
+  const pendingJobs = data?.pendingJobs ?? 0;
+  const inProgressJobs = data?.inProgressJobs ?? 0;
+  const staffCheckedIn = data?.staffCheckedIn ?? 0;
+  const lowStockAlerts = data?.lowStockAlerts ?? 0;
 
-      <button
-        onClick={() => setShowBriefing(true)}
-        className="w-full mb-6 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-5 text-left text-white shadow-lg hover:shadow-xl transition-all hover:from-blue-700 hover:to-indigo-800"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/20 rounded-lg">
-              <Briefcase size={24} className="text-white" />
-            </div>
-            <div>
-              <p className="text-lg font-bold">Today's Briefing</p>
-              <p className="text-sm text-blue-100 mt-0.5">
-                {briefing
-                  ? `${briefing.jobs.total} jobs · ${briefing.workers.checkedIn}/${briefing.workers.totalActive} workers · ${briefing.inventoryAlerts.length} alerts`
-                  : 'Loading summary...'}
-              </p>
-            </div>
+  return (
+    <div className="space-y-6">
+      {/* Hero: Today's Pulse */}
+      <div className="card-base p-6 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-navy-50 to-cyan-50 dark:from-navy-950/30 dark:to-cyan-950/30" />
+        <div className="relative flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-display font-medium text-navy-600 dark:text-cyan-400">
+              Today's pulse
+            </p>
+            <h1 className="text-display-lg font-display text-navy-900 dark:text-surface-100">
+              {completedToday} tank{completedToday !== 1 ? 's' : ''} cleaned
+            </h1>
+            <p className="text-body-sm text-surface-500 dark:text-surface-400">
+              {staffCheckedIn} crew on site · {pendingJobs + inProgressJobs} jobs active
+            </p>
           </div>
-          <div className="flex items-center gap-2 text-blue-100">
-            <Sun size={16} />
-            <ChevronRight size={20} />
+          <div className="shrink-0">
+            <TankRing current={completedToday} target={monthlyTarget} size={80} strokeWidth={6} />
           </div>
         </div>
-      </button>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        {/* Quick summary row */}
+        <div className="relative mt-5 flex flex-wrap gap-3">
+          <button
+            onClick={() => setShowBriefing(true)}
+            className="btn-primary"
+          >
+            <Briefcase size={16} />
+            Today's briefing
+            {briefing && (
+              <span className="ml-1 text-cyan-200 font-mono text-xs">
+                {briefing.jobs.total} jobs
+              </span>
+            )}
+          </button>
+          <div className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
+            <span className="flex items-center gap-1.5">
+              <CircleDot size={12} className="text-amber-500" />
+              {pendingJobs} pending
+            </span>
+            <span className="text-surface-300 dark:text-surface-600">·</span>
+            <span className="flex items-center gap-1.5">
+              <Kanban size={12} className="text-cyan-500" />
+              {inProgressJobs} in progress
+            </span>
+            {lowStockAlerts > 0 && (
+              <>
+                <span className="text-surface-300 dark:text-surface-600">·</span>
+                <span className="flex items-center gap-1.5">
+                  <AlertTriangle size={12} className="text-red-500" />
+                  {lowStockAlerts} low stock
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Key Metrics - 3 cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {isLoading
-          ? Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)
-          : metrics.map(({ key, label, icon: Icon, color, iconBg }) => (
-              <div
-                key={key}
-                className={`rounded-xl border p-5 ${color} transition-all hover:shadow-md`}
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-medium opacity-80 uppercase tracking-wide">
-                      {label}
-                    </p>
-                    <p className="text-3xl font-bold mt-2">
-                      {data?.[key] ?? 0}
-                    </p>
-                  </div>
-                  <div className={`p-2.5 rounded-lg ${iconBg}`}>
-                    <Icon size={20} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 mt-3 text-xs opacity-70">
-                  <TrendingUp size={12} />
-                  Live updates
-                </div>
-              </div>
-            ))}
+          ? Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
+          : (
+            <>
+              <MetricCard
+                label="Pending jobs"
+                value={pendingJobs}
+                icon={CircleDot}
+                color="amber"
+                trend={`${inProgressJobs} in progress`}
+              />
+              <MetricCard
+                label="Crew checked in"
+                value={staffCheckedIn}
+                icon={Users}
+                color="cyan"
+                trend="Today"
+              />
+              <MetricCard
+                label="Low stock items"
+                value={lowStockAlerts}
+                icon={Package}
+                color={lowStockAlerts > 0 ? 'red' : 'surface'}
+                trend={lowStockAlerts > 0 ? 'Needs attention' : 'All stocked'}
+              />
+            </>
+          )}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Quick Actions + System Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <QuickActions />
-        <RecentActivity />
+        <SystemStatus />
       </div>
 
-      {showBriefing && <DailyBriefingModal onClose={() => setShowBriefing(false)} />}
+      {showBriefing && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"><div className="animate-spin w-6 h-6 border-2 border-navy-500 border-t-transparent rounded-full" /></div>}>
+          <DailyBriefingModal onClose={() => setShowBriefing(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
 
-function QuickActions() {
+const MetricCard = memo(function MetricCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  trend,
+}: {
+  label: string;
+  value: number;
+  icon: typeof CircleDot;
+  color: 'cyan' | 'amber' | 'red' | 'surface';
+  trend: string;
+}) {
+  const colorMap = {
+    cyan: {
+      bg: 'bg-cyan-50 dark:bg-cyan-950/50',
+      icon: 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400',
+      value: 'text-cyan-700 dark:text-cyan-300',
+    },
+    amber: {
+      bg: 'bg-amber-50 dark:bg-amber-950/50',
+      icon: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
+      value: 'text-amber-700 dark:text-amber-300',
+    },
+    red: {
+      bg: 'bg-red-50 dark:bg-red-950/50',
+      icon: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400',
+      value: 'text-red-700 dark:text-red-300',
+    },
+    surface: {
+      bg: 'bg-surface-50 dark:bg-surface-800/50',
+      icon: 'bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-400',
+      value: 'text-surface-700 dark:text-surface-300',
+    },
+  };
+
+  const styles = colorMap[color];
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">
-        Quick Actions
+    <div className={`metric-card ${styles.bg}`}>
+      <div className="relative flex items-start justify-between">
+        <div>
+          <p className="text-xs font-display font-medium text-surface-500 dark:text-surface-400 uppercase tracking-wide">
+            {label}
+          </p>
+          <p className={`text-display-md font-display ${styles.value} mt-1`}>
+            {value}
+          </p>
+        </div>
+        <div className={`p-2 rounded-xl ${styles.icon}`}>
+          <Icon size={18} />
+        </div>
+      </div>
+      <div className="relative mt-3 flex items-center gap-1.5 text-xs text-surface-500 dark:text-surface-400">
+        <TrendingUp size={12} />
+        {trend}
+      </div>
+    </div>
+  );
+});
+
+const QuickActions = memo(function QuickActions() {
+  return (
+    <div className="card-base p-5">
+      <h2 className="text-sm font-display font-semibold text-navy-900 dark:text-surface-100 mb-3">
+        Quick actions
       </h2>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2.5">
         {[
-          { label: 'Create Job', to: '/jobs', color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800' },
-          { label: 'Check Inventory', to: '/inventory', color: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/50 border-green-200 dark:border-green-800' },
-          { label: 'Send Reminders', to: '/customers', color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 border-amber-200 dark:border-amber-800' },
-          { label: 'Staff Attendance', to: '/attendance', color: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 border-purple-200 dark:border-purple-800' },
-        ].map(({ label, to, color }) => (
+          { label: 'Schedule cleaning', to: '/jobs' },
+          { label: 'Check supplies', to: '/inventory' },
+          { label: 'Send reminders', to: '/customers' },
+          { label: 'Log shifts', to: '/attendance' },
+        ].map(({ label, to }) => (
           <a
             key={label}
             href={to}
-            className={`text-sm font-medium px-4 py-3 rounded-lg border transition-colors text-center ${color}`}
+            className={`group flex items-center gap-2.5 px-3.5 py-3 rounded-xl border border-surface-200 dark:border-surface-700
+              text-sm font-medium text-surface-700 dark:text-surface-300
+              hover:border-navy-300 hover:bg-navy-50 hover:text-navy-700
+              dark:hover:border-cyan-700 dark:hover:bg-cyan-950/50 dark:hover:text-cyan-300
+              transition-all duration-150`}
           >
-            {label}
+            <span className="flex-1">{label}</span>
+            <ChevronRight size={14} className="text-surface-400 group-hover:text-current transition-colors" />
           </a>
         ))}
       </div>
     </div>
   );
-}
+});
 
-function RecentActivity() {
+const SystemStatus = memo(function SystemStatus() {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">
-        System Status
+    <div className="card-base p-5">
+      <h2 className="text-sm font-display font-semibold text-navy-900 dark:text-surface-100 mb-3">
+        System status
       </h2>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {[
-          { label: 'WhatsApp Integration', status: 'Configured', active: true },
-          { label: 'Inventory Auto-Deduct', status: 'Active', active: true },
-          { label: '180-Day Reminder Cron', status: 'Scheduled', active: true },
-          { label: 'AI FAQ Responder', status: 'Active', active: true },
+          { label: 'WhatsApp integration', status: 'Connected', active: true },
+          { label: 'Inventory auto-deduct', status: 'Active', active: true },
+          { label: '180-day reminder cron', status: 'Scheduled', active: true },
+          { label: 'AI FAQ responder', status: 'Active', active: true },
         ].map(({ label, status, active }) => (
           <div
             key={label}
-            className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50 dark:bg-slate-700/50"
+            className="flex items-center justify-between py-2 px-3 rounded-xl bg-surface-50 dark:bg-surface-800/50"
           >
-            <span className="text-sm text-slate-700 dark:text-slate-200">{label}</span>
-            <span
-              className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                active
-                  ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-              }`}
-            >
+            <span className="text-sm text-surface-700 dark:text-surface-300">{label}</span>
+            <span className={active ? 'badge-ok' : 'badge-neutral'}>
               {status}
             </span>
           </div>
@@ -239,4 +289,4 @@ function RecentActivity() {
       </div>
     </div>
   );
-}
+});
