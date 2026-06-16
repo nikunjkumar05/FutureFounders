@@ -443,8 +443,10 @@ export function useMonthlyAttendance(staffId: string, month: string) {
   return useQuery({
     queryKey: ['monthly_attendance', staffId, month],
     queryFn: async () => {
+      const [year, mon] = month.split('-').map(Number);
+      const lastDay = new Date(year, mon, 0).getDate();
       const startDate = `${month}-01`;
-      const endDate = `${month}-31`;
+      const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
       const { data, error } = await supabase
         .from('attendance')
         .select('id, date, checkin_time, checkout_time')
@@ -464,8 +466,10 @@ export function useMonthlyAttendanceExport(month: string) {
   return useQuery({
     queryKey: ['monthly_attendance_export', month],
     queryFn: async () => {
+      const [year, mon] = month.split('-').map(Number);
+      const lastDay = new Date(year, mon, 0).getDate();
       const startDate = `${month}-01`;
-      const endDate = `${month}-31`;
+      const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
       const { data, error } = await supabase
         .from('attendance')
         .select('*, staff(name, daily_wage_inr)')
