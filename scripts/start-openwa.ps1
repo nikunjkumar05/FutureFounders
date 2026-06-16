@@ -120,15 +120,30 @@ if ($sessionId) {
 # 6. Update Vercel env
 Write-Host "[6/6] Updating Vercel production env..." -ForegroundColor Yellow
 Push-Location "C:\Users\sange\FutureFounders"
-cmd.exe /c "echo y | npx vercel env rm OPENWA_API_URL production --yes 2>nul"
-cmd.exe /c "echo y | npx vercel env rm OPENWA_SESSION_ID production --yes 2>nul"
+
+# Read Vercel token from .env
+$vercelToken = ""
+$envLines = Get-Content ".env" -ErrorAction SilentlyContinue
+foreach ($line in $envLines) {
+    if ($line -match "^OPENWA_VERCEL_TOKEN=(.+)$") {
+        $vercelToken = $matches[1].Trim()
+        break
+    }
+}
+
+if (-not $vercelToken) {
+    Write-Host "  ERROR: OPENWA_VERCEL_TOKEN not found in .env" -ForegroundColor Red
+    Pop-Location
+    exit 1
+}
+
+npx vercel env rm OPENWA_API_URL production --yes --token $vercelToken 2>$null
+npx vercel env rm OPENWA_SESSION_ID production --yes --token $vercelToken 2>$null
 if ($sessionId) {
-    [System.IO.File]::WriteAllText("$env:TEMP\sid.txt", $sessionId, [System.Text.UTF8Encoding]::new($false))
-    cmd.exe /c "vercel env add OPENWA_SESSION_ID production < $env:TEMP\sid.txt"
+    npx vercel env add OPENWA_SESSION_ID production --token $vercelToken --value $sessionId 2>$null
     Write-Host "  Updated OPENWA_SESSION_ID: $sessionId" -ForegroundColor Green
 }
-[System.IO.File]::WriteAllText("$env:TEMP\turl.txt", $tunnelUrl, [System.Text.UTF8Encoding]::new($false))
-cmd.exe /c "vercel env add OPENWA_API_URL production < $env:TEMP\turl.txt"
+npx vercel env add OPENWA_API_URL production --token $vercelToken --value $tunnelUrl 2>$null
 Write-Host "  Updated OPENWA_API_URL: $tunnelUrl" -ForegroundColor Green
 Pop-Location
 
@@ -141,10 +156,6 @@ if ($tunnelHealth -match '"status":"ok"') {
 } else {
     Write-Host "  WARNING: Tunnel health check failed" -ForegroundColor Red
 }
-
-# Clean up temp files
-Remove-Item "$env:TEMP\sid.txt" -ErrorAction SilentlyContinue
-Remove-Item "$env:TEMP\turl.txt" -ErrorAction SilentlyContinue
 
 # Summary
 Write-Host ""
