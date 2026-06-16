@@ -37,7 +37,7 @@ export default function Attendance() {
 
   if (staffLoading || attLoading) {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-400 dark:text-slate-500 text-sm">
+      <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-8 text-center text-surface-400 dark:text-surface-500 text-sm">
         Loading...
       </div>
     );
@@ -47,54 +47,52 @@ export default function Attendance() {
   attendance?.forEach((a) => attendanceMap.set(a.staff_id, a));
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Attendance</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+          <h1 className="text-display-lg font-display text-surface-900 dark:text-surface-100">Shifts</h1>
+          <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
             Staff attendance and wage tracking
           </p>
         </div>
         <button
           onClick={() => setShowAddStaff(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+          className="btn-primary"
         >
           <Plus size={16} />
-          Add Staff
+          Add crew member
         </button>
       </div>
 
       {/* Date selector */}
-      <div className="mb-4">
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <CalendarDays size={16} />
-          Date:
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-700 dark:text-white"
-          />
-        </label>
+      <div className="flex items-center gap-2">
+        <CalendarDays size={16} className="text-surface-500 dark:text-surface-400" />
+        <label className="text-body-sm text-surface-600 dark:text-surface-300">Date:</label>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="input-base !w-auto"
+        />
       </div>
 
       {(!staff || staff.length === 0) ? (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-12 text-center">
-          <User size={40} className="mx-auto text-slate-300 dark:text-slate-500 mb-3" />
-          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-1">No staff members</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Add your first staff member to start tracking attendance.</p>
+        <div className="card-base p-12 text-center">
+          <User size={40} className="mx-auto text-surface-300 dark:text-surface-600 mb-3" />
+          <h3 className="text-display-sm font-display text-surface-700 dark:text-surface-200 mb-1">No crew members</h3>
+          <p className="text-body-sm text-surface-500 dark:text-surface-400">Add your first crew member to start tracking shifts.</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 dark:border-slate-700/50 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+        <div className="card-base overflow-hidden">
+          <div className="p-4 border-b border-surface-100 dark:border-surface-800 flex items-center justify-between">
+            <h2 className="text-sm font-display font-semibold text-surface-900 dark:text-surface-100">
               {format(new Date(selectedDate), 'dd MMM yyyy')}
             </h2>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
+            <span className="badge-neutral">
               {attendance?.length ?? 0} checked in
             </span>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+          <div className="divide-y divide-surface-100 dark:divide-surface-800">
             {staff.map((s) => {
               const att = attendanceMap.get(s.id);
               const status = att
@@ -107,16 +105,16 @@ export default function Attendance() {
 
               return (
                 <div key={s.id}>
-                  <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <div className="flex items-center justify-between px-4 py-3 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs font-bold">
+                      <div className="w-9 h-9 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 flex items-center justify-center text-xs font-display font-bold">
                         {s.name.charAt(0)}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-white text-sm">
+                        <p className="font-display font-medium text-surface-900 dark:text-surface-100 text-sm">
                           {s.name}
                         </p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500">{s.phone}</p>
+                        <p className="font-mono text-body-xs text-surface-500 dark:text-surface-400">{s.phone}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -125,9 +123,9 @@ export default function Attendance() {
                         {!att?.checkin_time && (
                           <button
                             onClick={() => setModalStaff(s.id)}
-                            className="text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
+                            className="btn-primary !py-1.5 !text-xs"
                           >
-                            Check In
+                            Start shift
                           </button>
                         )}
                         {att?.checkin_time && !att.checkout_time && (
@@ -137,15 +135,15 @@ export default function Attendance() {
                                 expandedStaff === s.id ? null : s.id
                               )
                             }
-                            className="text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"
+                            className="btn-secondary !py-1.5 !text-xs"
                           >
-                            Check Out
+                            End shift
                           </button>
                         )}
                         <button
                           onClick={() => setEditStaff(s)}
-                          className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-                          title="Edit staff"
+                          className="btn-ghost p-1.5"
+                          title="Edit crew member"
                         >
                           <Pencil size={12} />
                         </button>
@@ -201,7 +199,7 @@ function DeleteStaffButton({ staffId, staffName }: { staffId: string; staffName:
         >
           Sure?
         </button>
-        <button onClick={() => setConfirming(false)} className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+        <button onClick={() => setConfirming(false)} className="text-[10px] text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
           <X size={12} />
         </button>
       </div>
@@ -211,7 +209,7 @@ function DeleteStaffButton({ staffId, staffName }: { staffId: string; staffName:
   return (
     <button
       onClick={() => setConfirming(true)}
-      className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+      className="p-1.5 rounded-lg text-surface-400 dark:text-surface-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
       title={`Remove ${staffName}`}
     >
       <Trash2 size={12} />
@@ -223,12 +221,12 @@ function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; color: string; icon: typeof CheckCircle }> = {
     checked_in: {
       label: 'Checked In',
-      color: 'bg-green-100 text-green-700',
+      color: 'bg-cyan-100 text-cyan-700',
       icon: CheckCircle,
     },
     checked_out: {
       label: 'Checked Out',
-      color: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300',
+      color: 'bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300',
       icon: Clock,
     },
     absent: { label: 'Absent', color: 'bg-red-100 text-red-700', icon: XCircle },
@@ -263,8 +261,8 @@ function CheckOutSection({
 
   return (
     <div className="px-4 pb-3 pl-16">
-      <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg px-4 py-2.5">
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+      <div className="flex items-center gap-3 bg-surface-50 dark:bg-surface-700/50 rounded-lg px-4 py-2.5">
+        <p className="text-sm text-surface-600 dark:text-surface-300">
           Check out <span className="font-medium">{staffName}</span>?
         </p>
         <button
@@ -272,7 +270,7 @@ function CheckOutSection({
             checkOut.mutate({ attendanceId }, { onSuccess: onDone });
           }}
           disabled={checkOut.isPending}
-          className="text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-md transition-colors disabled:opacity-50"
+          className="text-xs font-medium text-white bg-navy-600 hover:bg-navy-700 px-4 py-1.5 rounded-md transition-colors disabled:opacity-50"
         >
           {checkOut.isPending ? 'Checking out...' : 'Confirm Check-Out'}
         </button>
@@ -297,30 +295,30 @@ function CheckInModal({
   const checkIn = useManualCheckIn();
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Manual Check-In</h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-navy-900 rounded-xl w-full max-w-sm shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-700/50">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Manual Check-In</h2>
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
             <X size={20} />
           </button>
         </div>
         <div className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Date</label>
-            <input readOnly value={date} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm bg-slate-50 dark:bg-slate-700/50 dark:text-white" />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Date</label>
+            <input readOnly value={date} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm bg-surface-50 dark:bg-surface-700/50 dark:text-white" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Time</label>
-            <input readOnly value={format(new Date(), 'HH:mm')} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm bg-slate-50 dark:bg-slate-700/50 dark:text-white" />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Time</label>
+            <input readOnly value={format(new Date(), 'HH:mm')} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm bg-surface-50 dark:bg-surface-700/50 dark:text-white" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Notes</label>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Notes</label>
             <input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Optional note..."
-              className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white"
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white"
             />
           </div>
           <button
@@ -331,7 +329,7 @@ function CheckInModal({
               );
             }}
             disabled={checkIn.isPending}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50"
           >
             {checkIn.isPending ? 'Checking in...' : 'Confirm Check-In'}
           </button>
@@ -384,14 +382,14 @@ function WageCalculator({ staff }: { staff: Staff[] }) {
   }, [month, fetchExport]);
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+    <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+        <h2 className="text-sm font-semibold text-surface-900 dark:text-white">
           Monthly Wage Calculator — {format(new Date(), 'MMM yyyy')}
         </h2>
         <button
           onClick={handleExport}
-          className="flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 text-xs font-medium text-navy-700 bg-navy-50 hover:bg-navy-100 px-3 py-1.5 rounded-lg transition-colors"
         >
           <Download size={14} />
           Export CSV ({exportData?.length ?? 0} records)
@@ -400,14 +398,14 @@ function WageCalculator({ staff }: { staff: Staff[] }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-700/50">
-              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Staff</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Daily Wage</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Present Days</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Est. Payout</th>
+            <tr className="border-b border-surface-100 dark:border-surface-700/50">
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Staff</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Daily Wage</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Present Days</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Est. Payout</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+          <tbody className="divide-y divide-surface-100 dark:divide-surface-700/50">
             {staff.map((s) => (
               <WageRow key={s.id} staff={s} month={month} />
             ))}
@@ -424,11 +422,11 @@ function WageRow({ staff, month }: { staff: Staff; month: string }) {
   const payout = presentDays * staff.daily_wage_inr;
 
   return (
-    <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-      <td className="px-3 py-2 font-medium text-slate-900 dark:text-white">{staff.name}</td>
-      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">₹{staff.daily_wage_inr.toLocaleString()}</td>
-      <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{presentDays}</td>
-      <td className="px-3 py-2 font-semibold text-green-700">₹{payout.toLocaleString()}</td>
+    <tr className="hover:bg-surface-50 dark:hover:bg-surface-700/50">
+      <td className="px-3 py-2 font-medium text-surface-900 dark:text-white">{staff.name}</td>
+      <td className="px-3 py-2 text-surface-600 dark:text-surface-300">₹{staff.daily_wage_inr.toLocaleString()}</td>
+      <td className="px-3 py-2 text-surface-600 dark:text-surface-300">{presentDays}</td>
+      <td className="px-3 py-2 font-semibold text-cyan-700">₹{payout.toLocaleString()}</td>
     </tr>
   );
 }
@@ -449,26 +447,26 @@ function AddStaffModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Add Staff</h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"><X size={20} /></button>
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-navy-900 rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-700/50">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Add Staff</h2>
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300"><X size={20} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name *</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white" required />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Name *</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Phone *</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number" className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white" required />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Phone *</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number" className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Daily Wage (₹)</label>
-            <input type="number" value={dailyWage} onChange={(e) => setDailyWage(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white" />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Daily Wage (₹)</label>
+            <input type="number" value={dailyWage} onChange={(e) => setDailyWage(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" />
           </div>
-          <button type="submit" disabled={addStaff.isPending} className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+          <button type="submit" disabled={addStaff.isPending} className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
             {addStaff.isPending ? 'Adding...' : 'Add Staff'}
           </button>
         </form>
@@ -493,30 +491,30 @@ function EditStaffModal({ staff, onClose }: { staff: Staff; onClose: () => void 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-700/50">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Edit Staff</h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"><X size={20} /></button>
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-navy-900 rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-700/50">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Edit Staff</h2>
+          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300"><X size={20} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Name *</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white" required />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Name *</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Phone *</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white" required />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Phone *</label>
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Daily Wage (₹)</label>
-            <input type="number" value={dailyWage} onChange={(e) => setDailyWage(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-700 dark:text-white" />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Daily Wage (₹)</label>
+            <input type="number" value={dailyWage} onChange={(e) => setDailyWage(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" />
           </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded border-slate-300 dark:border-slate-600" />
+        <label className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-300">
+            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded border-surface-300 dark:border-surface-600" />
             Active staff member
           </label>
-          <button type="submit" disabled={updateStaff.isPending} className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
+          <button type="submit" disabled={updateStaff.isPending} className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
             {updateStaff.isPending ? 'Saving...' : 'Save Changes'}
           </button>
         </form>

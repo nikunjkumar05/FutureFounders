@@ -18,7 +18,6 @@
     "@supabase/supabase-js": "^2.57.4",
     "@tanstack/react-query": "^5.101.0",
     "date-fns": "^4.4.0",
-    "express": "^5.2.1",
     "firebase": "^12.14.0",
     "lucide-react": "^1.17.0",
     "react": "^18.3.1",

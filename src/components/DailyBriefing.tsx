@@ -8,42 +8,42 @@ interface Props {
 }
 
 const statusColors: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  completed: 'bg-green-100 text-green-700',
+  pending: 'badge-warn',
+  in_progress: 'badge-info',
+  completed: 'badge-ok',
 };
 
 const statusLabels: Record<string, string> = {
-  pending: 'Pending',
-  in_progress: 'In Progress',
+  pending: 'Scheduled',
+  in_progress: 'In progress',
   completed: 'Completed',
 };
 
 function JobsSection({ jobs }: { jobs: BriefingData['jobs'] }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
-        <Briefcase size={18} className="text-blue-600" />
-        <h3 className="font-semibold text-slate-900 dark:text-white">Today's Jobs</h3>
-        <span className="ml-auto text-sm font-medium text-slate-500 dark:text-slate-400">{jobs.total} total</span>
+    <div className="card-base overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-surface-100 dark:border-surface-800 bg-surface-50 dark:bg-surface-800/50">
+        <Briefcase size={18} className="text-cyan-600 dark:text-cyan-400" />
+        <h3 className="font-display font-semibold text-surface-900 dark:text-surface-100">Today's jobs</h3>
+        <span className="ml-auto text-body-sm text-surface-500 dark:text-surface-400">{jobs.total} total</span>
       </div>
-      <div className="flex gap-4 px-5 py-3 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/30">
-        <span className="text-xs font-medium text-amber-600">Pending: {jobs.pending}</span>
-        <span className="text-xs font-medium text-blue-600">In Progress: {jobs.inProgress}</span>
-        <span className="text-xs font-medium text-green-600">Completed: {jobs.completed}</span>
+      <div className="flex gap-4 px-5 py-3 border-b border-surface-100 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-800/30">
+        <span className="text-xs font-display font-medium text-red-600 dark:text-red-400">Scheduled: {jobs.pending}</span>
+        <span className="text-xs font-display font-medium text-cyan-600 dark:text-cyan-400">In progress: {jobs.inProgress}</span>
+        <span className="text-xs font-display font-medium text-cyan-600 dark:text-cyan-400">Done: {jobs.completed}</span>
       </div>
       {jobs.items.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">No jobs scheduled today</p>
+        <p className="px-5 py-6 text-body-sm text-surface-400 dark:text-surface-500 text-center">No jobs scheduled today</p>
       ) : (
-        <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+        <div className="divide-y divide-surface-100 dark:divide-surface-800">
           {jobs.items.map((job: BriefingJob) => (
-            <div key={job.id} className="px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+            <div key={job.id} className="px-5 py-4 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-medium text-slate-900 dark:text-white">{job.customerName}</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{job.serviceTypeLabel}</p>
+                  <p className="font-display font-medium text-surface-900 dark:text-surface-100">{job.customerName}</p>
+                  <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-0.5">{job.serviceTypeLabel}</p>
                   {job.customerAddress && (
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1">
+                    <p className="text-body-xs text-surface-400 dark:text-surface-500 mt-0.5 flex items-center gap-1">
                       <MapPin size={10} />
                       {job.customerAddress}
                     </p>
@@ -54,11 +54,11 @@ function JobsSection({ jobs }: { jobs: BriefingData['jobs'] }) {
                     {statusLabels[job.status]}
                   </span>
                   {job.workerName && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Worker: {job.workerName}</p>
+                    <p className="text-xs text-surface-500 dark:text-surface-400 mt-1">Worker: {job.workerName}</p>
                   )}
                 </div>
               </div>
-              <div className="flex gap-3 mt-2 text-xs text-slate-400 dark:text-slate-500">
+              <div className="flex gap-3 mt-2 text-xs text-surface-400 dark:text-surface-500">
                 {job.scheduledTime && <span className="flex items-center gap-1"><Clock size={10} />{job.scheduledTime}</span>}
                 <span>Ready: {job.readinessStatus}</span>
               </div>
@@ -72,15 +72,15 @@ function JobsSection({ jobs }: { jobs: BriefingData['jobs'] }) {
 
 function WorkersSection({ workers }: { workers: BriefingData['workers'] }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
+    <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-surface-100 dark:border-surface-700/50 bg-surface-50 dark:bg-surface-900/50">
         <Users size={18} className="text-purple-600" />
-        <h3 className="font-semibold text-slate-900 dark:text-white">Workers Summary</h3>
-        <span className="ml-auto text-sm font-medium text-slate-500 dark:text-slate-400">{workers.checkedIn} / {workers.totalActive} active</span>
+        <h3 className="font-semibold text-surface-900 dark:text-white">Workers Summary</h3>
+        <span className="ml-auto text-sm font-medium text-surface-500 dark:text-surface-400">{workers.checkedIn} / {workers.totalActive} active</span>
       </div>
-      <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+      <div className="divide-y divide-surface-100 dark:divide-surface-700/50">
         {workers.items.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">No workers registered</p>
+          <p className="px-5 py-6 text-sm text-surface-400 dark:text-surface-500 text-center">No workers registered</p>
         ) : (
           workers.items.map((w: BriefingWorker) => (
             <div key={w.id} className="px-5 py-3 flex items-center justify-between">
@@ -88,13 +88,13 @@ function WorkersSection({ workers }: { workers: BriefingData['workers'] }) {
                 {w.checkedIn ? (
                   <CheckCircle2 size={16} className="text-green-500" />
                 ) : (
-                  <Circle size={16} className="text-slate-300 dark:text-slate-600" />
+                  <Circle size={16} className="text-surface-300 dark:text-surface-600" />
                 )}
-                <span className={`text-sm ${w.checkedIn ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+                <span className={`text-sm ${w.checkedIn ? 'text-surface-900 dark:text-white' : 'text-surface-500 dark:text-surface-400'}`}>
                   {w.name}
                 </span>
               </div>
-              <span className={`text-xs font-medium ${w.checkedIn ? 'text-green-600' : 'text-slate-400 dark:text-slate-500'}`}>
+              <span className={`text-xs font-medium ${w.checkedIn ? 'text-green-600' : 'text-surface-400 dark:text-surface-500'}`}>
                 {w.checkedIn ? (w.checkinTime ? `Checked in ${new Date(w.checkinTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Checked in') : 'Not checked in'}
               </span>
             </div>
@@ -107,18 +107,18 @@ function WorkersSection({ workers }: { workers: BriefingData['workers'] }) {
 
 function CustomerAlertsSection({ alerts }: { alerts: BriefingData['customerAlerts'] }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
+    <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-surface-100 dark:border-surface-700/50 bg-surface-50 dark:bg-surface-900/50">
         <AlertTriangle size={18} className="text-amber-600" />
-        <h3 className="font-semibold text-slate-900 dark:text-white">Customer Preparation Alerts</h3>
+        <h3 className="font-semibold text-surface-900 dark:text-white">Customer Preparation Alerts</h3>
       </div>
       {alerts.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">All customers confirmed</p>
+        <p className="px-5 py-6 text-sm text-surface-400 dark:text-surface-500 text-center">All customers confirmed</p>
       ) : (
-        <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+        <div className="divide-y divide-surface-100 dark:divide-surface-700/50">
           {alerts.map((a, i) => (
             <div key={i} className="px-5 py-3">
-              <p className="text-sm font-medium text-slate-900 dark:text-white">{a.customerName}</p>
+              <p className="text-sm font-medium text-surface-900 dark:text-white">{a.customerName}</p>
               <p className="text-xs text-amber-600 mt-0.5">{a.issue}</p>
             </div>
           ))}
@@ -130,18 +130,18 @@ function CustomerAlertsSection({ alerts }: { alerts: BriefingData['customerAlert
 
 function InventoryAlertsSection({ alerts }: { alerts: BriefingData['inventoryAlerts'] }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
+    <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-surface-100 dark:border-surface-700/50 bg-surface-50 dark:bg-surface-900/50">
         <Package size={18} className="text-red-600" />
-        <h3 className="font-semibold text-slate-900 dark:text-white">Inventory Alerts</h3>
+        <h3 className="font-semibold text-surface-900 dark:text-white">Inventory Alerts</h3>
       </div>
       {alerts.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">All inventory levels are healthy</p>
+        <p className="px-5 py-6 text-sm text-surface-400 dark:text-surface-500 text-center">All inventory levels are healthy</p>
       ) : (
-        <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+        <div className="divide-y divide-surface-100 dark:divide-surface-700/50">
           {alerts.map((a, i) => (
             <div key={i} className="px-5 py-3 flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-900 dark:text-white">{a.itemName}</span>
+              <span className="text-sm font-medium text-surface-900 dark:text-white">{a.itemName}</span>
               <span className="text-sm text-red-600 font-medium">{a.remaining} remaining</span>
             </div>
           ))}
@@ -153,20 +153,20 @@ function InventoryAlertsSection({ alerts }: { alerts: BriefingData['inventoryAle
 
 function RemindersSection({ reminders }: { reminders: BriefingData['reminders'] }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
+    <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-surface-100 dark:border-surface-700/50 bg-surface-50 dark:bg-surface-900/50">
         <Bell size={18} className="text-indigo-600" />
-        <h3 className="font-semibold text-slate-900 dark:text-white">Service Reminders Due</h3>
-        <span className="ml-auto text-sm font-medium text-slate-500 dark:text-slate-400">{reminders.length}</span>
+        <h3 className="font-semibold text-surface-900 dark:text-white">Service Reminders Due</h3>
+        <span className="ml-auto text-sm font-medium text-surface-500 dark:text-surface-400">{reminders.length}</span>
       </div>
       {reminders.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">No reminders due today</p>
+        <p className="px-5 py-6 text-sm text-surface-400 dark:text-surface-500 text-center">No reminders due today</p>
       ) : (
-        <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
+        <div className="divide-y divide-surface-100 dark:divide-surface-700/50">
           {reminders.map((r, i) => (
             <div key={i} className="px-5 py-3">
-              <p className="text-sm font-medium text-slate-900 dark:text-white">{r.customerName}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{r.serviceTypeLabel} — Due: {r.dueDate}</p>
+              <p className="text-sm font-medium text-surface-900 dark:text-white">{r.customerName}</p>
+              <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">{r.serviceTypeLabel} — Due: {r.dueDate}</p>
             </div>
           ))}
         </div>
@@ -177,14 +177,14 @@ function RemindersSection({ reminders }: { reminders: BriefingData['reminders'] 
 
 function SupportSection({ openTickets }: { openTickets: number }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
+    <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-surface-100 dark:border-surface-700/50 bg-surface-50 dark:bg-surface-900/50">
         <Headphones size={18} className="text-rose-600" />
-        <h3 className="font-semibold text-slate-900 dark:text-white">Support & Escalations</h3>
+        <h3 className="font-semibold text-surface-900 dark:text-white">Support & Escalations</h3>
       </div>
       <div className="px-5 py-4">
         {openTickets === 0 ? (
-          <p className="text-sm text-slate-400 dark:text-slate-500">No open support tickets</p>
+          <p className="text-sm text-surface-400 dark:text-surface-500">No open support tickets</p>
         ) : (
           <p className="text-sm font-medium text-rose-600">{openTickets} open support ticket(s)</p>
         )}
@@ -195,17 +195,17 @@ function SupportSection({ openTickets }: { openTickets: number }) {
 
 function InsightsSection({ insights }: { insights: BriefingData['insights'] }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-900/50">
+    <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-surface-100 dark:border-surface-700/50 bg-surface-50 dark:bg-surface-900/50">
         <Lightbulb size={18} className="text-amber-600" />
-        <h3 className="font-semibold text-slate-900 dark:text-white">Business Insights</h3>
+        <h3 className="font-semibold text-surface-900 dark:text-white">Business Insights</h3>
       </div>
       <div className="px-5 py-4 space-y-2">
-        <p className="text-sm text-slate-700 dark:text-slate-200">
+        <p className="text-sm text-surface-700 dark:text-surface-200">
           <span className="font-medium">Workload:</span> {insights.estimatedWorkload}
         </p>
         {insights.customersToContact > 0 && (
-          <p className="text-sm text-slate-700 dark:text-slate-200">
+          <p className="text-sm text-surface-700 dark:text-surface-200">
             <span className="font-medium">Customers to contact:</span> {insights.customersToContact}
           </p>
         )}
@@ -233,22 +233,22 @@ export default function DailyBriefing({ onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-slate-50 dark:bg-slate-900/50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[calc(100vh-4rem)] overflow-y-auto border border-slate-200 dark:border-slate-700">
-        <div className="sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 rounded-t-2xl px-6 py-4 flex items-center justify-between">
+      <div className="relative bg-surface-50 dark:bg-surface-900/50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[calc(100vh-4rem)] overflow-y-auto border border-surface-200 dark:border-surface-700">
+        <div className="sticky top-0 z-10 bg-white dark:bg-surface-800 border-b border-surface-200 dark:border-surface-700 rounded-t-2xl px-6 py-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Briefcase size={20} className="text-blue-600" />
+            <h2 className="text-lg font-bold text-surface-900 dark:text-white flex items-center gap-2">
+              <Briefcase size={20} className="text-navy-600" />
               Today's Briefing
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">
               {data?.date ? new Date(data.date + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Loading...'}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-surface-100 dark:hover:bg-surface-700 rounded-lg transition-colors"
           >
-            <X size={20} className="text-slate-400 dark:text-slate-500" />
+            <X size={20} className="text-surface-400 dark:text-surface-500" />
           </button>
         </div>
 
@@ -256,12 +256,12 @@ export default function DailyBriefing({ onClose }: Props) {
           {isLoading ? (
             <div className="space-y-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 animate-pulse">
-                  <div className="h-5 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-4" />
+                <div key={i} className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 p-6 animate-pulse">
+                  <div className="h-5 w-32 bg-surface-200 dark:bg-surface-700 rounded mb-4" />
                   <div className="space-y-3">
-                    <div className="h-4 bg-slate-100 dark:bg-slate-700 rounded" />
-                    <div className="h-4 bg-slate-100 dark:bg-slate-700 rounded w-3/4" />
-                    <div className="h-4 bg-slate-100 dark:bg-slate-700 rounded w-1/2" />
+                    <div className="h-4 bg-surface-100 dark:bg-surface-700 rounded" />
+                    <div className="h-4 bg-surface-100 dark:bg-surface-700 rounded w-3/4" />
+                    <div className="h-4 bg-surface-100 dark:bg-surface-700 rounded w-1/2" />
                   </div>
                 </div>
               ))}
@@ -277,7 +277,7 @@ export default function DailyBriefing({ onClose }: Props) {
               <InsightsSection insights={data.insights} />
             </>
           ) : (
-            <p className="text-center text-slate-400 dark:text-slate-500 py-8">Failed to load briefing data</p>
+            <p className="text-center text-surface-400 dark:text-surface-500 py-8">Failed to load briefing data</p>
           )}
         </div>
       </div>
