@@ -282,6 +282,74 @@ export interface DailyBriefing {
   insights: BriefingInsights;
 }
 
+// ─── Revenue Intelligence ────────────────────────────────────────
+
+export type ReminderStatus = 'sent' | 'responded' | 'booked' | 'ignored';
+
+export interface ReminderResponse {
+  id: string;
+  service_card_id: string;
+  merchant_id: string;
+  customer_id: string;
+  sent_at: string;
+  responded_at: string | null;
+  response: string | null;
+  status: ReminderStatus;
+  notes: string | null;
+  created_at: string;
+}
+
+export type CustomerSegment = 'ready_to_book' | 'follow_up_needed' | 'high_churn_risk' | 'unknown';
+
+export interface CustomerIntelligence {
+  id: string;
+  merchant_id: string;
+  customer_id: string;
+  segment: CustomerSegment;
+  estimated_revenue: number;
+  last_reminder_response: string | null;
+  last_contacted_at: string | null;
+  notes: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface SegmentedCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  address: string | null;
+  expectedValue: number;
+  serviceType: string;
+  serviceTypeLabel: string;
+  status: string;
+  daysOverdue: number;
+  lastServiceDate: string | null;
+}
+
+export interface ReminderAnalytics {
+  totalSent: number;
+  responses: number;
+  bookingsGenerated: number;
+  conversionRate: number;
+}
+
+export interface RevenueIntelligence {
+  potentialRevenueDueThisMonth: number;
+  customersDue: number;
+  respondedToReminder: number;
+  awaitingFollowUp: number;
+  highChurnRisk: number;
+  potentialRevenueRecovery: number;
+  segments: {
+    readyToBook: SegmentedCustomer[];
+    followUpNeeded: SegmentedCustomer[];
+    highChurnRisk: SegmentedCustomer[];
+  };
+  reminderAnalytics: ReminderAnalytics;
+  insights: string[];
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────
 
 let _itemIdCounter = 0;

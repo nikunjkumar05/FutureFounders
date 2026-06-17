@@ -18,6 +18,12 @@ import type {
   BriefingInventoryAlert,
   BriefingReminder,
   BriefingInsights,
+  ReminderResponse,
+  CustomerIntelligence,
+  RevenueIntelligence,
+  SegmentedCustomer,
+  CustomerSegment,
+  ReminderStatus,
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
 
@@ -932,6 +938,313 @@ export function useDailyBriefing() {
       return briefing;
     },
     staleTime: 60_000,
+  });
+}
+
+// ─── Revenue Intelligence ────────────────────────────────────────
+
+function estimateServiceValue(card: ServiceCardWithDetails): number {
+  const details = (card.service_details ?? {}) as Record<string, unknown>;
+
+  if (typeof details.totalCharge === 'number') return details.totalCharge;
+
+  if (Array.isArray(details.services)) {
+    const groups = details.services as Array<{ totalPrice?: number; items?: Array<{ price?: number; quantity?: number }> }>;
+    return groups.reduce((sum, g) => {
+      if (g.totalPrice) return sum + g.totalPrice;
+      if (g.items) {
+        return sum + g.items.reduce((s, i) => s + (i.price ?? 0) * (i.quantity ?? 1), 0);
+      }
+      return sum;
+    }, 0);
+  }
+
+  const tankCapacity = (details.totalCapacity as number) || (details.tankCapacity as number) || 1000;
+  const pricing: Record<string, number> = {
+    standard_cleaning: 1200,
+    deep_cleaning: 1800,
+    sofa_cleaning: 1500,
+    seats_cleaning: 1200,
+    carpet_cleaning: 2000,
+    custom_service: 1000,
+  };
+  const basePrice = pricing[card.service_type] ?? 1000;
+  if (card.service_type === 'standard_cleaning' || card.service_type === 'deep_cleaning') {
+    return Math.round(basePrice * (tankCapacity / 1000));
+  }
+  return basePrice;
+}
+
+export function useRevenueIntelligence() {
+  return useQuery({
+    queryKey: ['revenue_intelligence'],
+    queryFn: async () => {
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const [cardsRes, remindersRes, intelligenceRes] = await Promise.all([
+        supabase
+          .from('service_cards')
+          .select('*, customers(*), staff(*)')
+          .eq('merchant_id', MERCHANT_ID)
+          .order('service_date', { ascending: false }),
+        supabase
+          .from('reminder_responses')
+          .select('*')
+          .eq('merchant_id', MERCHANT_ID)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('customer_intelligence')
+          .select('*')
+          .eq('merchant_id', MERCHANT_ID),
+      ]);
+
+      const cards = (cardsRes.data ?? []) as unknown as ServiceCardWithDetails[];
+      const reminders = (remindersRes.data ?? []) as ReminderResponse[];
+      const intelligence = (intelligenceRes.data ?? []) as CustomerIntelligence[];
+
+      // Build a map of latest reminder per customer
+      const latestReminderByCustomer = new Map<string, ReminderResponse>();
+      for (const r of reminders) {
+        const existing = latestReminderByCustomer.get(r.customer_id);
+        if (!existing || new Date(r.sent_at) > new Date(existing.sent_at)) {
+          latestReminderByCustomer.set(r.customer_id, r);
+        }
+      }
+
+      const intelligenceByCustomer = new Map(intelligence.map(i => [i.customer_id, i]));
+
+      // Build a map of latest completed service per customer for revenue estimation
+      const latestCompletedByCustomer = new Map<string, ServiceCardWithDetails>();
+      for (const card of cards) {
+        if (card.job_status === 'completed') {
+          const existing = latestCompletedByCustomer.get(card.customer_id);
+          if (!existing || new Date(card.service_date) > new Date(existing.service_date)) {
+            latestCompletedByCustomer.set(card.customer_id, card);
+          }
+        }
+      }
+
+      // Customers due this month (next_service_date in current month)
+      const customersDueThisMonth = cards.filter(c => {
+        if (!c.next_service_date) return false;
+        return c.next_service_date >= monthStart && c.next_service_date <= monthEnd;
+      });
+
+      // Overdue customers
+      const overdueCustomers = cards.filter(c => {
+        if (!c.next_service_date) return false;
+        return c.next_service_date < todayStr && c.job_status !== 'completed';
+      });
+
+      // Remove duplicates by customer
+      const uniqueDueCustomers = new Map<string, ServiceCardWithDetails>();
+      for (const c of customersDueThisMonth) uniqueDueCustomers.set(c.customer_id, c);
+
+      const uniqueOverdueCustomers = new Map<string, ServiceCardWithDetails>();
+      for (const c of overdueCustomers) uniqueOverdueCustomers.set(c.customer_id, c);
+
+      // Calculate revenue due this month
+      let potentialRevenueDueThisMonth = 0;
+      const readyToBook: SegmentedCustomer[] = [];
+      const followUpNeeded: SegmentedCustomer[] = [];
+      const highChurnRisk: SegmentedCustomer[] = [];
+
+      for (const [cid, card] of uniqueDueCustomers) {
+        const value = estimateServiceValue(card);
+        // Use latest completed service value if available, otherwise estimate from current
+        const completedCard = latestCompletedByCustomer.get(cid);
+        const expectedValue = completedCard ? estimateServiceValue(completedCard) : value;
+        potentialRevenueDueThisMonth += expectedValue;
+
+        const reminder = latestReminderByCustomer.get(cid);
+        const ci = intelligenceByCustomer.get(cid);
+        const segment = ci?.segment ?? 'unknown';
+        const daysOverdue = card.next_service_date && card.next_service_date < todayStr
+          ? Math.floor((today.getTime() - new Date(card.next_service_date + 'T00:00:00').getTime()) / 86400000)
+          : 0;
+
+        const base: SegmentedCustomer = {
+          id: cid,
+          name: card.customers?.name ?? 'Unknown',
+          phone: card.customers?.phone ?? '',
+          address: card.customers?.address ?? null,
+          expectedValue,
+          serviceType: card.service_type,
+          serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
+          status: segment,
+          daysOverdue,
+          lastServiceDate: card.service_date,
+        };
+
+        if (segment === 'ready_to_book' || reminder?.status === 'responded' || reminder?.status === 'booked') {
+          readyToBook.push({ ...base, status: 'ready_to_book' });
+        } else if (segment === 'high_churn_risk' || daysOverdue > 30 || reminder?.status === 'ignored') {
+          highChurnRisk.push({ ...base, status: 'high_churn_risk' });
+        } else if (reminder?.status === 'sent' || daysOverdue > 0) {
+          followUpNeeded.push({ ...base, status: 'follow_up_needed' });
+        } else if (reminder) {
+          followUpNeeded.push({ ...base, status: 'follow_up_needed' });
+        } else {
+          readyToBook.push({ ...base, status: 'ready_to_book' });
+        }
+      }
+
+      // Also classify overdue customers not yet in due-this-month
+      for (const [cid, card] of uniqueOverdueCustomers) {
+        if (uniqueDueCustomers.has(cid)) continue;
+        const value = estimateServiceValue(card);
+        const completedCard = latestCompletedByCustomer.get(cid);
+        const expectedValue = completedCard ? estimateServiceValue(completedCard) : value;
+        const reminder = latestReminderByCustomer.get(cid);
+        const ci = intelligenceByCustomer.get(cid);
+        const segment = ci?.segment ?? 'unknown';
+        const daysOverdue = Math.floor((today.getTime() - new Date(card.next_service_date! + 'T00:00:00').getTime()) / 86400000);
+
+        const base: SegmentedCustomer = {
+          id: cid,
+          name: card.customers?.name ?? 'Unknown',
+          phone: card.customers?.phone ?? '',
+          address: card.customers?.address ?? null,
+          expectedValue,
+          serviceType: card.service_type,
+          serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
+          status: segment,
+          daysOverdue,
+          lastServiceDate: card.service_date,
+        };
+
+        if (segment === 'high_churn_risk' || daysOverdue > 30 || reminder?.status === 'ignored') {
+          highChurnRisk.push({ ...base, status: 'high_churn_risk' });
+        } else if (segment === 'ready_to_book' || reminder?.status === 'responded' || reminder?.status === 'booked') {
+          readyToBook.push({ ...base, status: 'ready_to_book' });
+        } else {
+          followUpNeeded.push({ ...base, status: 'follow_up_needed' });
+        }
+      }
+
+      // Reminder analytics
+      const totalRemindersSent = reminders.length;
+      const respondedCount = reminders.filter(r =>
+        r.status === 'responded' || r.status === 'booked'
+      ).length;
+      const bookedCount = reminders.filter(r => r.status === 'booked').length;
+      const conversionRate = totalRemindersSent > 0
+        ? Math.round((bookedCount / totalRemindersSent) * 100)
+        : 0;
+
+      // Potential revenue recovery: value from high churn risk customers
+      const potentialRevenueRecovery = highChurnRisk.reduce((sum, c) => sum + c.expectedValue, 0);
+
+      // Insights
+      const insights: string[] = [];
+      const overdueMoreThan30 = [...uniqueDueCustomers.values(), ...uniqueOverdueCustomers.values()].filter(c => {
+        if (!c.next_service_date) return false;
+        const days = Math.floor((today.getTime() - new Date(c.next_service_date + 'T00:00:00').getTime()) / 86400000);
+        return days > 30;
+      });
+      if (overdueMoreThan30.length > 0) {
+        insights.push(`${overdueMoreThan30.length} customer(s) are overdue by more than 30 days.`);
+      }
+      if (potentialRevenueRecovery > 0) {
+        insights.push(`₹${potentialRevenueRecovery.toLocaleString('en-IN')} of potential revenue is currently recoverable.`);
+      }
+      if (conversionRate > 0) {
+        insights.push(`Reminder conversion rate is at ${conversionRate}% this month.`);
+      }
+      if (readyToBook.length > 0) {
+        insights.push(`${readyToBook[0].name} is likely due for follow-up.`);
+      }
+      if (highChurnRisk.length > 0) {
+        insights.push(`${highChurnRisk.length} customer(s) at risk of churn — immediate action needed.`);
+      }
+
+      return {
+        potentialRevenueDueThisMonth,
+        customersDue: uniqueDueCustomers.size,
+        respondedToReminder: respondedCount,
+        awaitingFollowUp: followUpNeeded.length,
+        highChurnRisk: highChurnRisk.length,
+        potentialRevenueRecovery,
+        segments: {
+          readyToBook,
+          followUpNeeded,
+          highChurnRisk,
+        },
+        reminderAnalytics: {
+          totalSent: totalRemindersSent,
+          responses: respondedCount,
+          bookingsGenerated: bookedCount,
+          conversionRate,
+        },
+        insights,
+      } satisfies RevenueIntelligence;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateReminderResponse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (resp: {
+      serviceCardId: string;
+      customerId: string;
+      response?: string;
+      status: ReminderStatus;
+      notes?: string;
+    }) => {
+      const { data, error } = await supabase
+        .from('reminder_responses')
+        .insert({
+          service_card_id: resp.serviceCardId,
+          merchant_id: MERCHANT_ID,
+          customer_id: resp.customerId,
+          sent_at: new Date().toISOString(),
+          responded_at: resp.status !== 'sent' ? new Date().toISOString() : null,
+          response: resp.response ?? null,
+          status: resp.status,
+          notes: resp.notes ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['revenue_intelligence'] });
+    },
+  });
+}
+
+export function useUpdateCustomerIntelligence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ci: {
+      customerId: string;
+      segment: CustomerSegment;
+      estimatedRevenue?: number;
+      notes?: string;
+    }) => {
+      const { data, error } = await supabase
+        .from('customer_intelligence')
+        .upsert({
+          merchant_id: MERCHANT_ID,
+          customer_id: ci.customerId,
+          segment: ci.segment,
+          estimated_revenue: ci.estimatedRevenue ?? 0,
+          notes: ci.notes ?? null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'merchant_id, customer_id' })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['revenue_intelligence'] });
+    },
   });
 }
 
