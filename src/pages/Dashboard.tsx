@@ -14,6 +14,7 @@ import { Suspense, lazy, memo, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import TankRing from '../components/TankRing';
+import RevenueIntelligence from '../components/RevenueIntelligence';
 
 const DailyBriefingModal = lazy(() => import('../components/DailyBriefing'));
 
@@ -48,6 +49,16 @@ export default function Dashboard() {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'attendance' },
           () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'reminder_responses' },
+          () => qc.invalidateQueries({ queryKey: ['revenue_intelligence'] })
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'customer_intelligence' },
+          () => qc.invalidateQueries({ queryKey: ['revenue_intelligence'] })
         )
         .subscribe();
     } catch {}
@@ -160,6 +171,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <QuickActions />
         <SystemStatus />
+      </div>
+
+      {/* Revenue Intelligence */}
+      <div className="card-base p-5">
+        <RevenueIntelligence />
       </div>
 
       {showBriefing && (
