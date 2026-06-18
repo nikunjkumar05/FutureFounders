@@ -74,10 +74,13 @@ export function extractPhoneFromOpenWA(from: string): string {
   return phone;
 }
 
+const lidCache = new Map<string, string>();
+
 export async function resolveLidToPhone(
   config: OpenWAConfig,
   lidJid: string
 ): Promise<string | null> {
+  if (lidCache.has(lidJid)) return lidCache.get(lidJid)!;
   if (!config.apiKey || !config.sessionId) return null;
   try {
     const url = `${config.baseUrl}/api/sessions/${config.sessionId}/contacts/${encodeURIComponent(lidJid)}`;
@@ -87,7 +90,9 @@ export async function resolveLidToPhone(
     if (!res.ok) return null;
     const contact = await res.json();
     if (contact?.id && contact.id.includes("@c.us")) {
-      return extractPhoneFromOpenWA(contact.id);
+      const phone = extractPhoneFromOpenWA(contact.id);
+      if (phone) lidCache.set(lidJid, phone);
+      return phone;
     }
     return null;
   } catch {

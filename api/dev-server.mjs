@@ -71,7 +71,10 @@ function extractPhone(from) {
   return phone;
 }
 
+const lidCache = new Map();
+
 async function resolveLidToPhone(config, lidJid) {
+  if (lidCache.has(lidJid)) return lidCache.get(lidJid);
   if (!config.apiKey || !config.sessionId) return null;
   try {
     const url = `${config.baseUrl}/api/sessions/${config.sessionId}/contacts/${encodeURIComponent(lidJid)}`;
@@ -79,7 +82,9 @@ async function resolveLidToPhone(config, lidJid) {
     if (!res.ok) return null;
     const contact = await res.json();
     if (contact?.id && contact.id.includes('@c.us')) {
-      return extractPhone(contact.id);
+      const phone = extractPhone(contact.id);
+      if (phone) lidCache.set(lidJid, phone);
+      return phone;
     }
     return null;
   } catch {
@@ -103,10 +108,11 @@ app.get('/api/webhook', (req, res) => {
 });
 
 async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, messageBody) {
+  const t0 = Date.now();
   const mistralApiKey = process.env.MISTRAL_API_KEY ?? '';
   if (!mistralApiKey) {
     await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
-    await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: messageBody, requires_human_intervention: true, status: 'open' }) });
+    fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: messageBody, requires_human_intervention: true, status: 'open' }) }).catch(() => {});
     return 'escalated_no_key';
   }
   const sanitized = messageBody.replace(/[^a-zA-Z0-9\s?!,.]/g, '').slice(0, 500);
@@ -123,22 +129,24 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
         max_tokens: 200, temperature: 0.7,
       }),
     });
+    const t1 = Date.now();
     const aiData = await aiRes.json();
     const aiResponse = aiData?.choices?.[0]?.message?.content?.trim() ?? 'ESCALATE';
-    console.log('[AI FAQ] Response:', aiResponse);
+    console.log(`[AI FAQ] Response (${t1 - t0}ms):`, aiResponse);
 
     if (aiResponse.startsWith('ESCALATE')) {
       await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
-      await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: null, requires_human_intervention: true, status: 'open' }) });
     } else {
       await sendOpenWAMessage(openwaConfig, fromPhone, aiResponse);
-      await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: aiResponse, requires_human_intervention: false, status: 'auto_resolved' }) });
     }
+    const t2 = Date.now();
+    console.log(`[FAQ] Total: ${t2 - t0}ms (AI: ${t1 - t0}ms, Send: ${t2 - t1}ms)`);
+    fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: aiResponse, requires_human_intervention: aiResponse.startsWith('ESCALATE'), status: aiResponse.startsWith('ESCALATE') ? 'open' : 'auto_resolved' }) }).catch(() => {});
     return aiResponse.startsWith('ESCALATE') ? 'escalated' : 'resolved';
   } catch (err) {
     console.log('[AI FAQ] Error:', err.message);
     await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
-    await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, requires_human_intervention: true, status: 'open' }) });
+    fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, requires_human_intervention: true, status: 'open' }) }).catch(() => {});
     return 'error';
   }
 }
@@ -162,18 +170,19 @@ app.post('/api/webhook', async (req, res) => {
 
     console.log('[WEBHOOK] Event:', event, 'From:', fromJid, 'Body:', messageBody, 'Lat:', latitude, 'Lng:', longitude);
 
+    const t0 = Date.now();
     const openwaConfig = getOpenWAConfig();
     let phone = extractPhone(fromJid);
     let fromPhone = fromJid.split('@')[0];
     const isLid = fromJid.includes('@lid');
 
     if (isLid) {
-      console.log('[WEBHOOK] LID detected:', fromJid, '- resolving...');
+      const tLid = Date.now();
       const resolved = await resolveLidToPhone(openwaConfig, fromJid);
+      console.log(`[WEBHOOK] LID ${fromJid} → ${resolved || 'FAILED'} (${Date.now() - tLid}ms)`);
       if (resolved) {
         phone = resolved;
         fromPhone = `91${resolved}`;
-        console.log('[WEBHOOK] Resolved phone:', phone, 'fromPhone:', fromPhone);
       } else {
         console.log('[WEBHOOK] Could not resolve LID, using raw:', phone);
       }
