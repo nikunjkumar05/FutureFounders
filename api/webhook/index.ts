@@ -2,6 +2,7 @@ import {
   getOpenWAConfig,
   sendWhatsAppMessage,
   extractPhoneFromOpenWA,
+  resolveLidToPhone,
 } from "../lib/openwa.js";
 
 const corsHeaders = {
@@ -55,7 +56,13 @@ export default async function handler(req: any, res: any) {
       const messageBody = data.body ?? "";
       const location = data.location;
       const isLid = fromJid.includes("@lid");
-      const phone = isLid ? null : extractPhoneFromOpenWA(fromJid);
+      let phone = isLid ? null : extractPhoneFromOpenWA(fromJid);
+
+      if (isLid && !phone) {
+        console.log(`[webhook] LID detected: ${fromJid}, resolving to phone...`);
+        phone = await resolveLidToPhone(config, fromJid);
+        console.log(`[webhook] Resolved phone: ${phone}`);
+      }
 
       let staff = null;
       if (phone) {

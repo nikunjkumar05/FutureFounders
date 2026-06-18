@@ -71,6 +71,22 @@ function extractPhone(from) {
   return phone;
 }
 
+async function resolveLidToPhone(config, lidJid) {
+  if (!config.apiKey || !config.sessionId) return null;
+  try {
+    const url = `${config.baseUrl}/api/sessions/${config.sessionId}/contacts/${encodeURIComponent(lidJid)}`;
+    const res = await fetch(url, { headers: { 'X-API-Key': config.apiKey } });
+    if (!res.ok) return null;
+    const contact = await res.json();
+    if (contact?.id && contact.id.includes('@c.us')) {
+      return extractPhone(contact.id);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function getDistance(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -86,6 +102,47 @@ app.get('/api/webhook', (req, res) => {
   res.send('AquaTrak webhook is running');
 });
 
+async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, messageBody) {
+  const mistralApiKey = process.env.MISTRAL_API_KEY ?? '';
+  if (!mistralApiKey) {
+    await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+    await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: messageBody, requires_human_intervention: true, status: 'open' }) });
+    return 'escalated_no_key';
+  }
+  const sanitized = messageBody.replace(/[^a-zA-Z0-9\s?!,.]/g, '').slice(0, 500);
+  try {
+    const aiRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${mistralApiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.MISTRAL_MODEL ?? 'mistral-large-latest',
+        messages: [
+          { role: 'system', content: "You are a customer support assistant for AquaClean Services. We offer water tank cleaning, sofa cleaning, and car seats cleaning. You can ONLY answer questions about: 1) Tank cleaning pricing (500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800), 2) Sofa cleaning pricing (per seat: Rs.500, full sofa set: Rs.1500), 3) Car seats cleaning pricing (per seat: Rs.300, full car interior: Rs.2000), 4) Working hours (Mon-Sat, 8AM-6PM), 5) Tank capacity calculation (approximate: length x width x height in meters x 1000 = liters). For ANY other question, respond with exactly: ESCALATE. Keep answers under 50 words. Be friendly and professional." },
+          { role: 'user', content: sanitized },
+        ],
+        max_tokens: 200, temperature: 0.7,
+      }),
+    });
+    const aiData = await aiRes.json();
+    const aiResponse = aiData?.choices?.[0]?.message?.content?.trim() ?? 'ESCALATE';
+    console.log('[AI FAQ] Response:', aiResponse);
+
+    if (aiResponse.startsWith('ESCALATE')) {
+      await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+      await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: null, requires_human_intervention: true, status: 'open' }) });
+    } else {
+      await sendOpenWAMessage(openwaConfig, fromPhone, aiResponse);
+      await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: aiResponse, requires_human_intervention: false, status: 'auto_resolved' }) });
+    }
+    return aiResponse.startsWith('ESCALATE') ? 'escalated' : 'resolved';
+  } catch (err) {
+    console.log('[AI FAQ] Error:', err.message);
+    await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
+    await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, requires_human_intervention: true, status: 'open' }) });
+    return 'error';
+  }
+}
+
 // POST webhook - incoming messages (OpenWA JSON format)
 app.post('/api/webhook', async (req, res) => {
   console.log('[WEBHOOK] POST - Incoming message');
@@ -94,10 +151,9 @@ app.post('/api/webhook', async (req, res) => {
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const headers = { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}`, 'Content-Type': 'application/json' };
 
-    // OpenWA JSON payload: { event, sessionId, data: { from, body, location } }
     const event = req.body.event;
     const data = req.body.data ?? {};
-    
+
     const fromJid = data.from ?? '';
     const messageBody = data.body ?? '';
     const location = data.location ?? null;
@@ -106,30 +162,47 @@ app.post('/api/webhook', async (req, res) => {
 
     console.log('[WEBHOOK] Event:', event, 'From:', fromJid, 'Body:', messageBody, 'Lat:', latitude, 'Lng:', longitude);
 
-    // Convert JID to phone number
     const fromPhone = fromJid.split('@')[0];
     if (!fromPhone || !event?.includes('message')) {
       res.set(corsHeaders);
       return res.json({ status: 'ignored_event' });
     }
 
-    const phone = extractPhone(fromJid);
     const openwaConfig = getOpenWAConfig();
+    let phone = extractPhone(fromJid);
+    const isLid = fromJid.includes('@lid');
+
+    if (isLid) {
+      console.log('[WEBHOOK] LID detected:', fromJid, '- resolving...');
+      const resolved = await resolveLidToPhone(openwaConfig, fromJid);
+      if (resolved) {
+        phone = resolved;
+        console.log('[WEBHOOK] Resolved phone:', phone);
+      } else {
+        console.log('[WEBHOOK] Could not resolve LID, using raw:', phone);
+      }
+    }
 
     // Look up staff
     const staffRes = await fetch(`${supabaseUrl}/rest/v1/staff?phone=eq.${phone}&is_active=eq.true&select=*`, { headers });
     const staff = await staffRes.json();
-    console.log('[WEBHOOK] Staff lookup:', staff.length > 0 ? staff[0].name : 'NOT FOUND');
+    const staffMember = Array.isArray(staff) && staff.length > 0 ? staff[0] : null;
+    console.log('[WEBHOOK] Staff lookup:', staffMember ? staffMember.name : 'NOT FOUND');
 
-    if (!Array.isArray(staff) || staff.length === 0) {
-      await sendOpenWAMessage(openwaConfig, fromPhone, 'You are not registered as staff. Contact your manager.');
+    // Non-staff: location → reject, text → FAQ
+    if (!staffMember) {
+      if (latitude && longitude) {
+        await sendOpenWAMessage(openwaConfig, fromPhone, 'You are not registered as staff. Contact your manager.');
+        res.set(corsHeaders);
+        return res.json({ status: 'not_staff' });
+      }
+      console.log('[WEBHOOK] No staff found for', fromPhone, '- routing to FAQ');
+      await handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, messageBody);
       res.set(corsHeaders);
-      return res.json({ status: 'not_staff' });
+      return res.json({ status: 'processed' });
     }
 
-    const staffMember = staff[0];
-
-    // Handle location (check-in)
+    // Staff + location → check-in
     if (latitude && longitude) {
       const lat = parseFloat(latitude);
       const lng = parseFloat(longitude);
@@ -169,7 +242,7 @@ app.post('/api/webhook', async (req, res) => {
       return res.json({ status: 'processed' });
     }
 
-    // Handle text messages
+    // Staff + text "checkout"
     const text = messageBody.toLowerCase().trim();
     if (text === 'checkout') {
       const today = new Date().toISOString().slice(0, 10);
@@ -181,46 +254,12 @@ app.post('/api/webhook', async (req, res) => {
       } else {
         await sendOpenWAMessage(openwaConfig, fromPhone, 'No active check-in found for today.');
       }
-    } else {
-      // AI FAQ
-      const aiApiKey = process.env.NORTH_MINI_API_KEY ?? '';
-      if (!aiApiKey) {
-        await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
-        await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: messageBody, requires_human_intervention: true, status: 'open' }) });
-      } else {
-        const sanitized = messageBody.replace(/[^a-zA-Z0-9\s?!,.]/g, '').slice(0, 500);
-        try {
-          const aiRes = await fetch('https://api.northmini.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${aiApiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: 'north-mini',
-              messages: [
-                { role: 'system', content: "You are a customer support assistant for AquaClean Services. We offer water tank cleaning, sofa cleaning, and car seats cleaning. You can ONLY answer questions about: 1) Tank cleaning pricing (500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800), 2) Sofa cleaning pricing (per seat: Rs.500, full sofa set: Rs.1500), 3) Car seats cleaning pricing (per seat: Rs.300, full car interior: Rs.2000), 4) Working hours (Mon-Sat, 8AM-6PM), 5) Tank capacity calculation (approximate: length x width x height in meters x 1000 = liters). For ANY other question, respond with exactly: ESCALATE. Keep answers under 50 words. Be friendly and professional." },
-                { role: 'user', content: sanitized },
-              ],
-              max_tokens: 150, temperature: 0.7,
-            }),
-          });
-          const aiData = await aiRes.json();
-          const aiResponse = aiData?.choices?.[0]?.message?.content?.trim() ?? 'ESCALATE';
-          console.log('[AI FAQ] Response:', aiResponse);
-
-          if (aiResponse.startsWith('ESCALATE')) {
-            await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
-            await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: null, requires_human_intervention: true, status: 'open' }) });
-          } else {
-            await sendOpenWAMessage(openwaConfig, fromPhone, aiResponse);
-            await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: aiResponse, requires_human_intervention: false, status: 'auto_resolved' }) });
-          }
-        } catch (err) {
-          console.log('[AI FAQ] Error:', err.message);
-          await sendOpenWAMessage(openwaConfig, fromPhone, "I've connected you with our team — they'll respond within 2 hours!");
-          await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, requires_human_intervention: true, status: 'open' }) });
-        }
-      }
+      res.set(corsHeaders);
+      return res.json({ status: 'processed' });
     }
 
+    // Staff + other text → FAQ
+    await handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, messageBody);
     res.set(corsHeaders);
     res.json({ status: 'processed' });
   } catch (err) {
