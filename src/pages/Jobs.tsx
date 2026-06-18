@@ -21,6 +21,7 @@ import {
 import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup } from '../lib/types';
 import { SERVICE_TYPE_LABELS, generateItemId } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
+import ContactPicker from '../components/ContactPicker';
 
 const columns: { status: JobStatus; label: string; icon: typeof CircleDot; color: string; badge: string }[] = [
   { status: 'pending', label: 'Scheduled', icon: CircleDot, color: 'text-amber-600 dark:text-amber-400', badge: 'badge-warn' },
@@ -592,7 +593,10 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
             ) : (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Name *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-surface-600 dark:text-surface-400">Name *</label>
+                    <ContactPicker onSelect={(c) => { if (c.name) setNewCustomerName(c.name); if (c.phone) setNewCustomerPhone(c.phone); }} />
+                  </div>
                   <input value={newCustomerName} onChange={e => setNewCustomerName(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                 </div>
