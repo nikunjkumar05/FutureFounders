@@ -162,14 +162,9 @@ app.post('/api/webhook', async (req, res) => {
 
     console.log('[WEBHOOK] Event:', event, 'From:', fromJid, 'Body:', messageBody, 'Lat:', latitude, 'Lng:', longitude);
 
-    const fromPhone = fromJid.split('@')[0];
-    if (!fromPhone || !event?.includes('message')) {
-      res.set(corsHeaders);
-      return res.json({ status: 'ignored_event' });
-    }
-
     const openwaConfig = getOpenWAConfig();
     let phone = extractPhone(fromJid);
+    let fromPhone = fromJid.split('@')[0];
     const isLid = fromJid.includes('@lid');
 
     if (isLid) {
@@ -177,10 +172,16 @@ app.post('/api/webhook', async (req, res) => {
       const resolved = await resolveLidToPhone(openwaConfig, fromJid);
       if (resolved) {
         phone = resolved;
-        console.log('[WEBHOOK] Resolved phone:', phone);
+        fromPhone = `91${resolved}`;
+        console.log('[WEBHOOK] Resolved phone:', phone, 'fromPhone:', fromPhone);
       } else {
         console.log('[WEBHOOK] Could not resolve LID, using raw:', phone);
       }
+    }
+
+    if (!fromPhone || !event?.includes('message')) {
+      res.set(corsHeaders);
+      return res.json({ status: 'ignored_event' });
     }
 
     // Look up staff

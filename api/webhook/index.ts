@@ -57,11 +57,15 @@ export default async function handler(req: any, res: any) {
       const location = data.location;
       const isLid = fromJid.includes("@lid");
       let phone = isLid ? null : extractPhoneFromOpenWA(fromJid);
+      let replyTo = fromJid;
 
       if (isLid && !phone) {
         console.log(`[webhook] LID detected: ${fromJid}, resolving to phone...`);
         phone = await resolveLidToPhone(config, fromJid);
-        console.log(`[webhook] Resolved phone: ${phone}`);
+        if (phone) {
+          replyTo = `91${phone}@c.us`;
+        }
+        console.log(`[webhook] Resolved phone: ${phone}, replyTo: ${replyTo}`);
       }
 
       let staff = null;
@@ -78,10 +82,10 @@ export default async function handler(req: any, res: any) {
 
       if (!staff) {
         if (location?.latitude && location?.longitude) {
-          await replyViaOpenWA(fromJid, "You are not registered as staff. Contact your manager.");
+          await replyViaOpenWA(replyTo, "You are not registered as staff. Contact your manager.");
         } else {
           console.log(`[webhook] No staff found for ${fromJid} (phone=${phone}). Handling as FAQ.`);
-          const faqResult = await handleFAQ(fromJid, phone ?? fromJid, messageBody, supabaseUrl, headers);
+          const faqResult = await handleFAQ(replyTo, phone ?? replyTo, messageBody, supabaseUrl, headers);
           console.log(`[webhook] FAQ result:`, faqResult);
         }
         res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
@@ -102,7 +106,7 @@ export default async function handler(req: any, res: any) {
         const jobs = await jobRes.json();
 
         if (!Array.isArray(jobs) || jobs.length === 0) {
-          await replyViaOpenWA(fromJid, "No job assigned for today. Contact your manager.");
+          await replyViaOpenWA(replyTo, "No job assigned for today. Contact your manager.");
           res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
           res.end(JSON.stringify({ status: "no_job" }));
           return;
@@ -128,9 +132,9 @@ export default async function handler(req: any, res: any) {
             }),
           });
           if (verified) {
-            await replyViaOpenWA(fromJid, `Check-in confirmed at ${job.customers?.address ?? "job site"}! Have a great shift.`);
+            await replyViaOpenWA(replyTo, `Check-in confirmed at ${job.customers?.address ?? "job site"}! Have a great shift.`);
           } else {
-            await replyViaOpenWA(fromJid, `You're ${distance}m away from the job site. Please share your location once you arrive.`);
+            await replyViaOpenWA(replyTo, `You're ${distance}m away from the job site. Please share your location once you arrive.`);
           }
         } else {
           await fetch(`${supabaseUrl}/rest/v1/attendance`, {
@@ -145,7 +149,7 @@ export default async function handler(req: any, res: any) {
               notes: "Check-in — no site coordinates available",
             }),
           });
-          await replyViaOpenWA(fromJid, "Check-in recorded. No site coordinates available for verification.");
+          await replyViaOpenWA(replyTo, "Check-in recorded. No site coordinates available for verification.");
         }
       } else {
         const text = messageBody.toLowerCase().trim();
@@ -162,12 +166,12 @@ export default async function handler(req: any, res: any) {
               headers,
               body: JSON.stringify({ checkout_time: new Date().toISOString() }),
             });
-            await replyViaOpenWA(fromJid, "Checked out. Good work today!");
+            await replyViaOpenWA(replyTo, "Checked out. Good work today!");
           } else {
-            await replyViaOpenWA(fromJid, "No active check-in found for today.");
+            await replyViaOpenWA(replyTo, "No active check-in found for today.");
           }
         } else {
-          await handleFAQ(fromJid, phone ?? fromJid, messageBody, supabaseUrl, headers);
+          await handleFAQ(replyTo, phone ?? replyTo, messageBody, supabaseUrl, headers);
         }
       }
 
