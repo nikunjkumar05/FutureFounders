@@ -23,6 +23,7 @@ import {
   useDeleteCustomer,
 } from '../lib/queries';
 import { TableSkeleton } from '../components/LoadingSkeleton';
+import ContactPicker from '../components/ContactPicker';
 import type { Customer, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
 import { SERVICE_TYPE_LABELS, getServicesFromDetails } from '../lib/types';
 
@@ -565,6 +566,11 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const addCustomer = useAddCustomer();
 
+  const handleSelectContact = (contact: { name: string; phone: string }) => {
+    if (contact.name) setName(contact.name);
+    if (contact.phone) setPhone(contact.phone);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone) return;
@@ -597,7 +603,10 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Name *</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400">Name *</label>
+              <ContactPicker onSelect={handleSelectContact} />
+            </div>
             <input value={name} onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
           </div>
