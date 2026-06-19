@@ -131,13 +131,33 @@ export interface ServiceCard {
   staff?: Staff;
 }
 
+export type WageType = 'daily' | 'weekly' | 'monthly';
+
+export const WAGE_TYPE_LABELS: Record<WageType, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+};
+
 export interface Staff {
   id: string;
   merchant_id: string;
   name: string;
   phone: string;
   daily_wage_inr: number;
+  wage_type: WageType;
+  wage_amount: number;
   is_active: boolean;
+  created_at: string;
+}
+
+export interface Advance {
+  id: string;
+  staff_id: string;
+  merchant_id: string;
+  amount: number;
+  date: string;
+  reason: string | null;
   created_at: string;
 }
 

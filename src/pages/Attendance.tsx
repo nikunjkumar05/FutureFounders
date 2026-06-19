@@ -21,10 +21,16 @@ import {
   useAddStaff,
   useUpdateStaff,
   useDeleteStaff,
+  useAdvances,
+  useStaffMonthlyAdvances,
+  useAddAdvance,
+  useUpdateAdvance,
+  useDeleteAdvance,
 } from '../lib/queries';
 import { format } from 'date-fns';
 import ContactPicker from '../components/ContactPicker';
-import type { Staff } from '../lib/types';
+import type { Staff, WageType, Advance } from '../lib/types';
+import { WAGE_TYPE_LABELS } from '../lib/types';
 
 export default function Attendance() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
@@ -35,6 +41,7 @@ export default function Attendance() {
   const [expandedStaff, setExpandedStaff] = useState<string | null>(null);
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [editStaff, setEditStaff] = useState<Staff | null>(null);
+  const [advancesStaff, setAdvancesStaff] = useState<string | null>(null);
 
   if (staffLoading || attLoading) {
     return (
@@ -115,7 +122,12 @@ export default function Attendance() {
                         <p className="font-display font-medium text-surface-900 dark:text-surface-100 text-sm">
                           {s.name}
                         </p>
-                        <p className="font-mono text-body-xs text-surface-500 dark:text-surface-400">{s.phone}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="font-mono text-body-xs text-surface-500 dark:text-surface-400">{s.phone}</p>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-navy-50 dark:bg-navy-900/30 text-navy-600 dark:text-navy-400 font-medium">
+                            {WAGE_TYPE_LABELS[s.wage_type ?? 'daily']} · ₹{((s.wage_amount || s.daily_wage_inr)).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -142,6 +154,17 @@ export default function Attendance() {
                           </button>
                         )}
                         <button
+                          onClick={() =>
+                            setAdvancesStaff(
+                              advancesStaff === s.id ? null : s.id
+                            )
+                          }
+                          className="btn-ghost !py-1.5 !text-xs"
+                          title="Advances"
+                        >
+                          ₹ Advances
+                        </button>
+                        <button
                           onClick={() => setEditStaff(s)}
                           className="btn-ghost p-1.5"
                           title="Edit crew member"
@@ -159,6 +182,9 @@ export default function Attendance() {
                       staffName={s.name}
                       onDone={() => setExpandedStaff(null)}
                     />
+                  )}
+                  {advancesStaff === s.id && (
+                    <AdvanceManagement staffId={s.id} staffName={s.name} />
                   )}
                 </div>
               );
@@ -340,6 +366,192 @@ function CheckInModal({
   );
 }
 
+function AdvanceManagement({ staffId, staffName }: { staffId: string; staffName: string }) {
+  const { data: advances, isLoading } = useAdvances(staffId);
+  const addAdvance = useAddAdvance();
+  const updateAdvance = useUpdateAdvance();
+  const deleteAdvance = useDeleteAdvance();
+
+  const [newAmount, setNewAmount] = useState('');
+  const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newReason, setNewReason] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editReason, setEditReason] = useState('');
+
+  const handleAdd = () => {
+    const amount = parseInt(newAmount);
+    if (!newAmount || isNaN(amount) || amount <= 0) return;
+    addAdvance.mutate(
+      { staffId, amount, date: newDate, reason: newReason || undefined },
+      { onSuccess: () => { setNewAmount(''); setNewReason(''); } }
+    );
+  };
+
+  const startEdit = (adv: Advance) => {
+    setEditId(adv.id);
+    setEditAmount(String(adv.amount));
+    setEditDate(adv.date);
+    setEditReason(adv.reason ?? '');
+  };
+
+  const handleEdit = () => {
+    const amount = parseInt(editAmount);
+    if (!editId || !editAmount || isNaN(amount) || amount <= 0) return;
+    updateAdvance.mutate(
+      { id: editId, staffId, amount, date: editDate, reason: editReason || undefined },
+      { onSuccess: () => setEditId(null) }
+    );
+  };
+
+  const totalAdvances = (advances ?? []).reduce((sum, a) => sum + a.amount, 0);
+
+  return (
+    <div className="px-4 pb-3 pl-16">
+      <div className="bg-surface-50 dark:bg-surface-700/50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-semibold text-surface-700 dark:text-surface-200 uppercase tracking-wider">
+            Advance Payments — {staffName}
+          </h3>
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">
+            Total: ₹{totalAdvances.toLocaleString()}
+          </span>
+        </div>
+
+        {/* Add advance form */}
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="w-24">
+            <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Amount</label>
+            <input
+              type="number"
+              value={newAmount}
+              onChange={(e) => setNewAmount(e.target.value)}
+              placeholder="₹"
+              className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 dark:bg-surface-700 dark:text-white"
+            />
+          </div>
+          <div className="w-32">
+            <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Date</label>
+            <input
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 dark:bg-surface-700 dark:text-white"
+            />
+          </div>
+          <div className="flex-1 min-w-[120px]">
+            <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Reason</label>
+            <input
+              value={newReason}
+              onChange={(e) => setNewReason(e.target.value)}
+              placeholder="Optional reason..."
+              className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 dark:bg-surface-700 dark:text-white"
+            />
+          </div>
+          <button
+            onClick={handleAdd}
+            disabled={addAdvance.isPending}
+            className="px-3 py-1.5 bg-navy-600 text-white rounded-lg text-xs font-medium hover:bg-navy-700 transition-colors disabled:opacity-50"
+          >
+            {addAdvance.isPending ? 'Adding...' : 'Add'}
+          </button>
+        </div>
+
+        {/* Advances table */}
+        {isLoading ? (
+          <p className="text-xs text-surface-400 dark:text-surface-500">Loading...</p>
+        ) : !advances || advances.length === 0 ? (
+          <p className="text-xs text-surface-400 dark:text-surface-500">No advance payments recorded.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-surface-200 dark:border-surface-600">
+                  <th className="text-left px-2 py-1 font-semibold text-surface-500 dark:text-surface-400 uppercase">Date</th>
+                  <th className="text-left px-2 py-1 font-semibold text-surface-500 dark:text-surface-400 uppercase">Amount</th>
+                  <th className="text-left px-2 py-1 font-semibold text-surface-500 dark:text-surface-400 uppercase">Reason</th>
+                  <th className="text-right px-2 py-1 font-semibold text-surface-500 dark:text-surface-400 uppercase">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-100 dark:divide-surface-700/50">
+                {advances.map((adv) => (
+                  <tr key={adv.id} className="hover:bg-surface-100/50 dark:hover:bg-surface-700/30">
+                    {editId === adv.id ? (
+                      <>
+                        <td className="px-2 py-1">
+                          <input
+                            type="date"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="w-full px-1.5 py-1 rounded border border-surface-200 dark:border-surface-600 text-xs dark:bg-surface-700 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-2 py-1">
+                          <input
+                            type="number"
+                            value={editAmount}
+                            onChange={(e) => setEditAmount(e.target.value)}
+                            className="w-20 px-1.5 py-1 rounded border border-surface-200 dark:border-surface-600 text-xs dark:bg-surface-700 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-2 py-1">
+                          <input
+                            value={editReason}
+                            onChange={(e) => setEditReason(e.target.value)}
+                            className="w-full px-1.5 py-1 rounded border border-surface-200 dark:border-surface-600 text-xs dark:bg-surface-700 dark:text-white"
+                          />
+                        </td>
+                        <td className="px-2 py-1 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={handleEdit}
+                              disabled={updateAdvance.isPending}
+                              className="text-[10px] font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-1.5 py-0.5 rounded"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditId(null)}
+                              className="text-[10px] text-surface-400 hover:text-surface-600 px-1"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-2 py-1 text-surface-700 dark:text-surface-200">{format(new Date(adv.date), 'dd MMM yyyy')}</td>
+                        <td className="px-2 py-1 font-medium text-surface-900 dark:text-white">₹{adv.amount.toLocaleString()}</td>
+                        <td className="px-2 py-1 text-surface-500 dark:text-surface-400">{adv.reason ?? '—'}</td>
+                        <td className="px-2 py-1 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => startEdit(adv)} className="text-[10px] text-navy-600 dark:text-navy-400 hover:text-navy-800 px-1">
+                              <Pencil size={10} />
+                            </button>
+                            <button
+                              onClick={() => deleteAdvance.mutate({ id: adv.id, staffId })}
+                              disabled={deleteAdvance.isPending}
+                              className="text-[10px] text-red-500 hover:text-red-700 px-1 disabled:opacity-50"
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WageCalculator({ staff }: { staff: Staff[] }) {
   const month = format(new Date(), 'yyyy-MM');
   const { data: exportData, refetch: fetchExport } = useMonthlyAttendanceExport(month);
@@ -359,7 +571,8 @@ function WageCalculator({ staff }: { staff: Staff[] }) {
         Date: r.date,
         'Check In': r.checkin_time ? format(new Date(r.checkin_time), 'HH:mm') : '',
         'Check Out': r.checkout_time ? format(new Date(r.checkout_time), 'HH:mm') : '',
-        'Daily Wage': r.staff?.daily_wage_inr ?? 0,
+        'Wage Type': r.staff?.wage_type ?? 'daily',
+        'Wage Amount': r.staff?.wage_amount ?? r.staff?.daily_wage_inr ?? 0,
       }));
 
       const headers = Object.keys(csvRows[0]);
@@ -401,9 +614,12 @@ function WageCalculator({ staff }: { staff: Staff[] }) {
           <thead>
             <tr className="border-b border-surface-100 dark:border-surface-700/50">
               <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Staff</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Daily Wage</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Wage Type</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Base Wage</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Present Days</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Est. Payout</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Gross Earnings</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Advances</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase">Net Payable</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-surface-100 dark:divide-surface-700/50">
@@ -419,15 +635,37 @@ function WageCalculator({ staff }: { staff: Staff[] }) {
 
 function WageRow({ staff, month }: { staff: Staff; month: string }) {
   const { data: monthlyAtt } = useMonthlyAttendance(staff.id, month);
+  const { data: monthlyAdvances } = useStaffMonthlyAdvances(staff.id, month);
   const presentDays = monthlyAtt?.length ?? 0;
-  const payout = presentDays * staff.daily_wage_inr;
+  const totalAdvances = (monthlyAdvances ?? []).reduce((sum, a) => sum + a.amount, 0);
+
+  const wageType: WageType = staff.wage_type ?? 'daily';
+  const wageAmount = staff.wage_amount || staff.daily_wage_inr;
+
+  let grossEarnings = 0;
+  if (wageType === 'daily') {
+    grossEarnings = presentDays * wageAmount;
+  } else if (wageType === 'weekly') {
+    grossEarnings = Math.floor((presentDays / 7) * wageAmount);
+  } else {
+    grossEarnings = wageAmount;
+  }
+
+  const netPayable = Math.max(0, grossEarnings - totalAdvances);
 
   return (
     <tr className="hover:bg-surface-50 dark:hover:bg-surface-700/50">
       <td className="px-3 py-2 font-medium text-surface-900 dark:text-white">{staff.name}</td>
-      <td className="px-3 py-2 text-surface-600 dark:text-surface-300">₹{staff.daily_wage_inr.toLocaleString()}</td>
+      <td className="px-3 py-2">
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-navy-50 dark:bg-navy-900/30 text-navy-600 dark:text-navy-400 font-medium">
+          {WAGE_TYPE_LABELS[wageType]}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-surface-600 dark:text-surface-300">₹{wageAmount.toLocaleString()}</td>
       <td className="px-3 py-2 text-surface-600 dark:text-surface-300">{presentDays}</td>
-      <td className="px-3 py-2 font-semibold text-cyan-700">₹{payout.toLocaleString()}</td>
+      <td className="px-3 py-2 text-surface-600 dark:text-surface-300">₹{grossEarnings.toLocaleString()}</td>
+      <td className="px-3 py-2 text-red-600 dark:text-red-400">₹{totalAdvances.toLocaleString()}</td>
+      <td className="px-3 py-2 font-semibold text-cyan-700">₹{netPayable.toLocaleString()}</td>
     </tr>
   );
 }
@@ -435,8 +673,15 @@ function WageRow({ staff, month }: { staff: Staff; month: string }) {
 function AddStaffModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [dailyWage, setDailyWage] = useState('500');
+  const [wageType, setWageType] = useState<WageType>('daily');
+  const [wageAmount, setWageAmount] = useState('500');
   const addStaff = useAddStaff();
+
+  const wageTypePlaceholder: Record<WageType, string> = {
+    daily: 'Daily wage amount (e.g. 500)',
+    weekly: 'Weekly wage amount (e.g. 4000)',
+    monthly: 'Monthly salary (e.g. 18000)',
+  };
 
   const handleSelectContact = (contact: { name: string; phone: string }) => {
     if (contact.name) setName(contact.name);
@@ -447,7 +692,7 @@ function AddStaffModal({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     if (!name || !phone) return;
     addStaff.mutate(
-      { name, phone, dailyWage: parseInt(dailyWage) || 500 },
+      { name, phone, wageType, wageAmount: parseInt(wageAmount) || 500 },
       { onSuccess: onClose }
     );
   };
@@ -472,8 +717,35 @@ function AddStaffModal({ onClose }: { onClose: () => void }) {
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number" className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Daily Wage (₹)</label>
-            <input type="number" value={dailyWage} onChange={(e) => setDailyWage(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Wage Type</label>
+            <div className="flex gap-2">
+              {(['daily', 'weekly', 'monthly'] as WageType[]).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => { setWageType(type); setWageAmount(type === 'daily' ? '500' : type === 'weekly' ? '4000' : '18000'); }}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    wageType === type
+                      ? 'bg-navy-600 text-white border-navy-600'
+                      : 'border-surface-200 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:border-navy-400'
+                  }`}
+                >
+                  {WAGE_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
+              Wage Amount (₹) — {WAGE_TYPE_LABELS[wageType]}
+            </label>
+            <input
+              type="number"
+              value={wageAmount}
+              onChange={(e) => setWageAmount(e.target.value)}
+              placeholder={wageTypePlaceholder[wageType]}
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white"
+            />
           </div>
           <button type="submit" disabled={addStaff.isPending} className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
             {addStaff.isPending ? 'Adding...' : 'Add Staff'}
@@ -487,14 +759,15 @@ function AddStaffModal({ onClose }: { onClose: () => void }) {
 function EditStaffModal({ staff, onClose }: { staff: Staff; onClose: () => void }) {
   const [name, setName] = useState(staff.name);
   const [phone, setPhone] = useState(staff.phone);
-  const [dailyWage, setDailyWage] = useState(String(staff.daily_wage_inr));
+  const [wageType, setWageType] = useState<WageType>(staff.wage_type || 'daily');
+  const [wageAmount, setWageAmount] = useState(String(staff.wage_amount || staff.daily_wage_inr));
   const [isActive, setIsActive] = useState(staff.is_active);
   const updateStaff = useUpdateStaff();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     updateStaff.mutate(
-      { id: staff.id, name, phone, dailyWage: parseInt(dailyWage) || 500, isActive },
+      { id: staff.id, name, phone, wageType, wageAmount: parseInt(wageAmount) || 500, isActive },
       { onSuccess: onClose }
     );
   };
@@ -516,10 +789,36 @@ function EditStaffModal({ staff, onClose }: { staff: Staff; onClose: () => void 
             <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" required />
           </div>
           <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Daily Wage (₹)</label>
-            <input type="number" value={dailyWage} onChange={(e) => setDailyWage(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white" />
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Wage Type</label>
+            <div className="flex gap-2">
+              {(['daily', 'weekly', 'monthly'] as WageType[]).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setWageType(type)}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    wageType === type
+                      ? 'bg-navy-600 text-white border-navy-600'
+                      : 'border-surface-200 dark:border-surface-600 text-surface-600 dark:text-surface-300 hover:border-navy-400'
+                  }`}
+                >
+                  {WAGE_TYPE_LABELS[type]}
+                </button>
+              ))}
+            </div>
           </div>
-        <label className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-300">
+          <div>
+            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">
+              Wage Amount (₹) — {WAGE_TYPE_LABELS[wageType]}
+            </label>
+            <input
+              type="number"
+              value={wageAmount}
+              onChange={(e) => setWageAmount(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 dark:bg-surface-700 dark:text-white"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-300">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded border-surface-300 dark:border-surface-600" />
             Active staff member
           </label>
