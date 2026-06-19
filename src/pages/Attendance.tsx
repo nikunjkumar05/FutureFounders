@@ -795,7 +795,7 @@ function EditStaffModal({ staff, onClose }: { staff: Staff; onClose: () => void 
                 <button
                   key={type}
                   type="button"
-                  onClick={() => setWageType(type)}
+                  onClick={() => { setWageType(type); setWageAmount(type === 'daily' ? '500' : type === 'weekly' ? '4000' : '18000'); }}
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
                     wageType === type
                       ? 'bg-navy-600 text-white border-navy-600'
