@@ -6,6 +6,7 @@ import type {
   Staff,
   Attendance,
   AttendanceWithStaff,
+  Advance,
   Inventory,
   StockAlert,
   SupportTicket,
@@ -24,6 +25,7 @@ import type {
   SegmentedCustomer,
   CustomerSegment,
   ReminderStatus,
+  WageType,
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
 
@@ -478,13 +480,13 @@ export function useMonthlyAttendanceExport(month: string) {
       const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
       const { data, error } = await supabase
         .from('attendance')
-        .select('*, staff(name, daily_wage_inr)')
+        .select('*, staff(name, daily_wage_inr, wage_type, wage_amount)')
         .eq('merchant_id', MERCHANT_ID)
         .gte('date', startDate)
         .lte('date', endDate)
         .order('date', { ascending: true });
       if (error) throw error;
-      return data as (Attendance & { staff: Pick<Staff, 'name' | 'daily_wage_inr'> })[];
+      return data as (Attendance & { staff: Pick<Staff, 'name' | 'daily_wage_inr' | 'wage_type' | 'wage_amount'> })[];
     },
     enabled: !!month,
   });
@@ -637,14 +639,16 @@ export function useDeleteJob() {
 export function useAddStaff() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (s: { name: string; phone: string; dailyWage: number }) => {
+    mutationFn: async (s: { name: string; phone: string; wageType: WageType; wageAmount: number }) => {
       const { data, error } = await supabase
         .from('staff')
         .insert({
           merchant_id: MERCHANT_ID,
           name: s.name,
           phone: s.phone,
-          daily_wage_inr: s.dailyWage,
+          wage_type: s.wageType,
+          wage_amount: s.wageAmount,
+          daily_wage_inr: s.wageType === 'daily' ? s.wageAmount : 0,
           is_active: true,
         })
         .select()
@@ -659,13 +663,15 @@ export function useAddStaff() {
 export function useUpdateStaff() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (s: { id: string; name: string; phone: string; dailyWage: number; isActive: boolean }) => {
+    mutationFn: async (s: { id: string; name: string; phone: string; wageType: WageType; wageAmount: number; isActive: boolean }) => {
       const { data, error } = await supabase
         .from('staff')
         .update({
           name: s.name,
           phone: s.phone,
-          daily_wage_inr: s.dailyWage,
+          wage_type: s.wageType,
+          wage_amount: s.wageAmount,
+          daily_wage_inr: s.wageType === 'daily' ? s.wageAmount : 0,
           is_active: s.isActive,
         })
         .eq('id', s.id)
@@ -675,6 +681,107 @@ export function useUpdateStaff() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
+  });
+}
+
+// Advances
+export function useAdvances(staffId: string) {
+  return useQuery({
+    queryKey: ['advances', staffId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('advances')
+        .select('*')
+        .eq('staff_id', staffId)
+        .order('date', { ascending: false });
+      if (error) throw error;
+      return data as Advance[];
+    },
+    enabled: !!staffId,
+  });
+}
+
+export function useStaffMonthlyAdvances(staffId: string, month: string) {
+  return useQuery({
+    queryKey: ['advances_monthly', staffId, month],
+    queryFn: async () => {
+      const [year, mon] = month.split('-').map(Number);
+      const lastDay = new Date(year, mon, 0).getDate();
+      const startDate = `${month}-01`;
+      const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+      const { data, error } = await supabase
+        .from('advances')
+        .select('*')
+        .eq('staff_id', staffId)
+        .gte('date', startDate)
+        .lte('date', endDate);
+      if (error) throw error;
+      return data as Advance[];
+    },
+    enabled: !!staffId && !!month,
+  });
+}
+
+export function useAddAdvance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (adv: { staffId: string; amount: number; date: string; reason?: string }) => {
+      const { data, error } = await supabase
+        .from('advances')
+        .insert({
+          staff_id: adv.staffId,
+          merchant_id: MERCHANT_ID,
+          amount: adv.amount,
+          date: adv.date,
+          reason: adv.reason ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['advances', variables.staffId] });
+      qc.invalidateQueries({ queryKey: ['advances_monthly', variables.staffId] });
+    },
+  });
+}
+
+export function useUpdateAdvance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (adv: { id: string; staffId: string; amount: number; date: string; reason?: string }) => {
+      const { data, error } = await supabase
+        .from('advances')
+        .update({
+          amount: adv.amount,
+          date: adv.date,
+          reason: adv.reason ?? null,
+        })
+        .eq('id', adv.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['advances', variables.staffId] });
+      qc.invalidateQueries({ queryKey: ['advances_monthly', variables.staffId] });
+    },
+  });
+}
+
+export function useDeleteAdvance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, staffId }: { id: string; staffId: string }) => {
+      const { error } = await supabase.from('advances').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['advances', variables.staffId] });
+      qc.invalidateQueries({ queryKey: ['advances_monthly', variables.staffId] });
+    },
   });
 }
 

@@ -18,8 +18,8 @@ import {
   Eye,
   IndianRupee,
 } from 'lucide-react';
-import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup } from '../lib/types';
-import { SERVICE_TYPE_LABELS, generateItemId } from '../lib/types';
+import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, WageType } from '../lib/types';
+import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, generateItemId } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import ContactPicker from '../components/ContactPicker';
 
@@ -293,7 +293,7 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
               <div className="flex items-center gap-2">
                 <User size={14} className="text-surface-400 dark:text-surface-500" />
                 <span className="text-sm font-display font-medium text-surface-900 dark:text-surface-100">{card.staff.name}</span>
-                <span className="font-mono text-xs text-surface-500 dark:text-surface-400">₹{card.staff.daily_wage_inr}/day</span>
+                <span className="font-mono text-xs text-surface-500 dark:text-surface-400">{WAGE_TYPE_LABELS[card.staff.wage_type ?? 'daily']} · ₹{(card.staff.wage_amount || card.staff.daily_wage_inr).toLocaleString()}</span>
               </div>
             ) : <span className="text-body-sm text-surface-400 dark:text-surface-500">Unassigned</span>}
           </div>
@@ -806,7 +806,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                 <button key={s.id} onClick={() => setTechnicianId(s.id)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${technicianId === s.id ? 'bg-navy-50 text-navy-700 border border-navy-200' : 'hover:bg-surface-50 dark:hover:bg-surface-700/50 border border-transparent'}`}>
                   <span className="font-medium">{s.name}</span>
-                  <span className="text-surface-400 dark:text-surface-500 ml-2">₹{s.daily_wage_inr}/day</span>
+                  <span className="text-surface-400 dark:text-surface-500 ml-2">{WAGE_TYPE_LABELS[s.wage_type ?? 'daily']} · ₹{(s.wage_amount || s.daily_wage_inr).toLocaleString()}</span>
                 </button>
               ))}
             </div>
