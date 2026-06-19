@@ -693,6 +693,7 @@ export function useAdvances(staffId: string) {
         .from('advances')
         .select('*')
         .eq('staff_id', staffId)
+        .eq('merchant_id', MERCHANT_ID)
         .order('date', { ascending: false });
       if (error) throw error;
       return data as Advance[];
@@ -713,6 +714,7 @@ export function useStaffMonthlyAdvances(staffId: string, month: string) {
         .from('advances')
         .select('*')
         .eq('staff_id', staffId)
+        .eq('merchant_id', MERCHANT_ID)
         .gte('date', startDate)
         .lte('date', endDate);
       if (error) throw error;

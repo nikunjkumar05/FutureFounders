@@ -381,9 +381,10 @@ function AdvanceManagement({ staffId, staffName }: { staffId: string; staffName:
   const [editReason, setEditReason] = useState('');
 
   const handleAdd = () => {
-    if (!newAmount || parseInt(newAmount) <= 0) return;
+    const amount = parseInt(newAmount);
+    if (!newAmount || isNaN(amount) || amount <= 0) return;
     addAdvance.mutate(
-      { staffId, amount: parseInt(newAmount), date: newDate, reason: newReason || undefined },
+      { staffId, amount, date: newDate, reason: newReason || undefined },
       { onSuccess: () => { setNewAmount(''); setNewReason(''); } }
     );
   };
@@ -396,9 +397,10 @@ function AdvanceManagement({ staffId, staffName }: { staffId: string; staffName:
   };
 
   const handleEdit = () => {
-    if (!editId || !editAmount || parseInt(editAmount) <= 0) return;
+    const amount = parseInt(editAmount);
+    if (!editId || !editAmount || isNaN(amount) || amount <= 0) return;
     updateAdvance.mutate(
-      { id: editId, staffId, amount: parseInt(editAmount), date: editDate, reason: editReason || undefined },
+      { id: editId, staffId, amount, date: editDate, reason: editReason || undefined },
       { onSuccess: () => setEditId(null) }
     );
   };
@@ -530,7 +532,8 @@ function AdvanceManagement({ staffId, staffName }: { staffId: string; staffName:
                             </button>
                             <button
                               onClick={() => deleteAdvance.mutate({ id: adv.id, staffId })}
-                              className="text-[10px] text-red-500 hover:text-red-700 px-1"
+                              disabled={deleteAdvance.isPending}
+                              className="text-[10px] text-red-500 hover:text-red-700 px-1 disabled:opacity-50"
                             >
                               <Trash2 size={10} />
                             </button>
@@ -643,8 +646,7 @@ function WageRow({ staff, month }: { staff: Staff; month: string }) {
   if (wageType === 'daily') {
     grossEarnings = presentDays * wageAmount;
   } else if (wageType === 'weekly') {
-    const completedWeeks = Math.floor(presentDays / 7);
-    grossEarnings = completedWeeks * wageAmount;
+    grossEarnings = Math.floor((presentDays / 7) * wageAmount);
   } else {
     grossEarnings = wageAmount;
   }

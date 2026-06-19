@@ -18,10 +18,11 @@ ALTER TABLE staff
   ADD COLUMN IF NOT EXISTS wage_type text NOT NULL DEFAULT 'daily',
   ADD COLUMN IF NOT EXISTS wage_amount integer NOT NULL DEFAULT 500;
 
--- Backfill: set existing staff to daily with their current daily_wage_inr
+-- Backfill: preserve existing daily_wage_inr as wage_amount for all staff
+-- The ADD COLUMN DEFAULT already set wage_amount=500, so we must overwrite unconditionally
 UPDATE staff
   SET wage_type = 'daily', wage_amount = daily_wage_inr
-  WHERE wage_type IS NULL OR wage_amount IS NULL;
+  WHERE wage_type = 'daily' AND wage_amount != daily_wage_inr;
 
 -- ============================================================
 -- 2. Create advances table
