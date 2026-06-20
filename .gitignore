@@ -22,3 +22,6 @@ dist-ssr
 *.sw?
 .env
 .vercel
+
+# skills
+.agents/skills/

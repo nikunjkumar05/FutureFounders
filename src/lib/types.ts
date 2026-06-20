@@ -227,6 +227,18 @@ export interface SupportTicket {
   created_at: string;
 }
 
+export interface JobServiceRow {
+  id: string;
+  service_card_id: string;
+  service_type: ServiceType;
+  quantity: number;
+  capacity_or_variant: string | null;
+  price: number;
+  notes: string | null;
+  service_details: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface ServiceCardWithDetails extends Omit<ServiceCard, 'staff'> {
   customers: Customer;
   staff: Staff | null;
@@ -405,4 +417,46 @@ export function getTotalCharge(details: Record<string, unknown>): number {
     return details.totalCharge as number;
   }
   return 0;
+}
+
+export function groupsToJobServices(serviceCardId: string, groups: ServiceGroup[]): Array<{
+  service_card_id: string;
+  service_type: ServiceType;
+  price: number;
+  service_details: Record<string, unknown>;
+}> {
+  const rows: Array<{
+    service_card_id: string;
+    service_type: ServiceType;
+    price: number;
+    service_details: Record<string, unknown>;
+  }> = [];
+
+  for (const group of groups) {
+    for (const item of group.items) {
+      let capacity_or_variant: string | null = null;
+      if (group.serviceType === 'standard_cleaning' || group.serviceType === 'deep_cleaning') {
+        capacity_or_variant = item.capacity ? `${item.capacity}L` : null;
+      } else if (group.serviceType === 'sofa_cleaning') {
+        capacity_or_variant = item.sofaType ?? null;
+      } else if (group.serviceType === 'carpet_cleaning') {
+        capacity_or_variant = item.carpetArea ? `${item.carpetArea} sq ft` : null;
+      } else if (group.serviceType === 'custom_service') {
+        capacity_or_variant = item.serviceName ?? null;
+      }
+
+      rows.push({
+        service_card_id: serviceCardId,
+        service_type: group.serviceType,
+        price: item.price || 0,
+        service_details: {
+          quantity: item.quantity || 1,
+          capacity_or_variant,
+          notes: item.notes ?? null,
+        },
+      });
+    }
+  }
+
+  return rows;
 }

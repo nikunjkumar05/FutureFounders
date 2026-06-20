@@ -385,26 +385,46 @@ function buildTriggerCompatDetails(groups: ServiceGroup[]): Record<string, unkno
     totalCharge: groups.reduce((sum, g) => sum + (g.totalPrice || getGroupTotal(g)), 0),
   };
 
-  const primary = groups[0];
-  if (primary) {
-    if (primary.serviceType === 'standard_cleaning' || primary.serviceType === 'deep_cleaning') {
-      const totalCapacity = primary.items.reduce((sum, item) => sum + ((item.capacity ?? 1000) * (item.quantity ?? 1)), 0);
-      const totalTanks = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-      const avgCapacity = totalTanks > 0 ? Math.round(totalCapacity / totalTanks) : 1000;
-      details.tankCount = totalTanks;
-      details.tankCapacity = avgCapacity;
-      details.totalCapacity = totalCapacity;
-    } else if (primary.serviceType === 'sofa_cleaning') {
-      details.sofaCount = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-      details.sofaType = primary.items[0]?.sofaType ?? 'Standard';
-    } else if (primary.serviceType === 'seats_cleaning') {
-      details.seatCount = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-    } else if (primary.serviceType === 'carpet_cleaning') {
-      details.carpetArea = primary.items.reduce((sum, item) => sum + ((item.carpetArea ?? 0) * (item.quantity ?? 1)), 0);
+  const allTankGroups = groups.filter(g => g.serviceType === 'standard_cleaning' || g.serviceType === 'deep_cleaning');
+  if (allTankGroups.length > 0) {
+    let totalCapacity = 0;
+    let totalTanks = 0;
+    for (const g of allTankGroups) {
+      for (const item of g.items) {
+        const cap = item.capacity ?? 1000;
+        const qty = item.quantity ?? 1;
+        totalCapacity += cap * qty;
+        totalTanks += qty;
+      }
     }
+    details.tankCount = totalTanks;
+    details.tankCapacity = totalTanks > 0 ? Math.round(totalCapacity / totalTanks) : 1000;
+    details.totalCapacity = totalCapacity;
   }
 
-  details.serviceType = primary?.serviceType ?? 'standard_cleaning';
+  const allSofaGroups = groups.filter(g => g.serviceType === 'sofa_cleaning');
+  if (allSofaGroups.length > 0) {
+    details.sofaCount = allSofaGroups.reduce((sum, g) => {
+      return sum + g.items.reduce((s, item) => s + (item.quantity ?? 1), 0);
+    }, 0);
+    details.sofaType = allSofaGroups[0]?.items[0]?.sofaType ?? 'Standard';
+  }
+
+  const allSeatGroups = groups.filter(g => g.serviceType === 'seats_cleaning');
+  if (allSeatGroups.length > 0) {
+    details.seatCount = allSeatGroups.reduce((sum, g) => {
+      return sum + g.items.reduce((s, item) => s + (item.quantity ?? 1), 0);
+    }, 0);
+  }
+
+  const allCarpetGroups = groups.filter(g => g.serviceType === 'carpet_cleaning');
+  if (allCarpetGroups.length > 0) {
+    details.carpetArea = allCarpetGroups.reduce((sum, g) => {
+      return sum + g.items.reduce((s, item) => s + ((item.carpetArea ?? 0) * (item.quantity ?? 1)), 0);
+    }, 0);
+  }
+
+  details.serviceType = groups[0]?.serviceType ?? 'standard_cleaning';
   return details;
 }
 
@@ -417,7 +437,7 @@ function ServiceItemFields({ group, item, itemIdx, onUpdate, onRemove, canRemove
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-surface-500 dark:text-surface-400">Item {itemIdx + 1}</span>
         {canRemove && (
-          <button onClick={onRemove} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={12} /></button>
+          <button type="button" onClick={onRemove} className="text-red-400 hover:text-red-600 transition-colors"><Trash2 size={12} /></button>
         )}
       </div>
 
@@ -651,6 +671,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         customerId,
         serviceType: primaryGroup.serviceType,
         serviceDetails: buildTriggerCompatDetails(serviceGroups),
+        serviceGroups,
         serviceDate,
         technicianId: technicianId || undefined,
         notes: jobNotes || undefined,
@@ -986,6 +1007,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
         customerId,
         serviceType: primaryServiceType,
         serviceDetails,
+        serviceGroups,
         serviceDate,
         technicianId: technicianId || undefined,
         notes: notes || undefined,
@@ -1013,7 +1035,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                   <span className="text-[10px] text-surface-400 dark:text-surface-500">({group.items.length} item{group.items.length > 1 ? 's' : ''})</span>
                 )}
               </div>
-              <button onClick={() => removeServiceGroup(groupIdx)}
+              <button type="button" onClick={() => removeServiceGroup(groupIdx)}
                 className="text-red-400 hover:text-red-600 transition-colors">
                 <Trash2 size={14} />
               </button>
@@ -1033,7 +1055,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
               ))}
             </div>
 
-            <button onClick={() => addServiceItem(groupIdx)}
+            <button type="button" onClick={() => addServiceItem(groupIdx)}
               className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-navy-600 bg-navy-50 hover:bg-navy-100 py-2 rounded-lg transition-colors">
               <Plus size={12} /> Add Another Item
             </button>
@@ -1051,18 +1073,18 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
               <div className="space-y-1.5">
                 <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Add service type</label>
                 {availableTypes.map(opt => (
-                  <button key={opt.value} onClick={() => addServiceType(opt.value)}
+                  <button key={opt.value} type="button" onClick={() => addServiceType(opt.value)}
                     className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-surface-50 dark:hover:bg-surface-700/50 border border-surface-200 dark:border-surface-700 transition-colors">
                     <span className="text-surface-900 dark:text-white">{opt.label}</span>
                   </button>
                 ))}
-                <button onClick={() => setShowAddService(false)}
+                <button type="button" onClick={() => setShowAddService(false)}
                   className="text-xs text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">
                   Cancel
                 </button>
               </div>
             ) : (
-              <button onClick={() => setShowAddService(true)}
+              <button type="button" onClick={() => setShowAddService(true)}
                 className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-navy-600 border-2 border-dashed border-navy-300 hover:border-navy-500 hover:bg-navy-50/50 py-3 rounded-lg transition-colors">
                 <Plus size={14} /> Add Service
               </button>

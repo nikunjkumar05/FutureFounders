@@ -27,7 +27,8 @@ import type {
   ReminderStatus,
   WageType,
 } from './types';
-import { SERVICE_TYPE_LABELS } from './types';
+import { SERVICE_TYPE_LABELS, groupsToJobServices } from './types';
+import type { ServiceGroup } from './types';
 
 const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
@@ -100,6 +101,7 @@ export function useCreateJob() {
       customerId: string;
       serviceType: ServiceType;
       serviceDetails: Record<string, unknown>;
+      serviceGroups: ServiceGroup[];
       serviceDate: string;
       technicianId?: string;
       notes?: string;
@@ -107,6 +109,10 @@ export function useCreateJob() {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
       ).toISOString().slice(0, 10);
+
+      const totalCharge = job.serviceGroups.reduce((sum, g) => {
+        return sum + g.items.reduce((s, item) => s + ((item.price ?? 0) * (item.quantity ?? 0)), 0);
+      }, 0);
 
       const payload: Record<string, unknown> = {
         customer_id: job.customerId,
@@ -117,6 +123,7 @@ export function useCreateJob() {
         next_service_date: nextDate,
         technician_id: job.technicianId ?? null,
         notes: job.notes ?? null,
+        total_charge: totalCharge,
       };
 
       const { data, error } = await supabase
@@ -128,11 +135,24 @@ export function useCreateJob() {
         console.error('Create job error:', error);
         throw new Error(error.message || 'Failed to create job in database');
       }
+
+      const cardId = (data as Record<string, unknown>).id as string;
+      const serviceRows = groupsToJobServices(cardId, job.serviceGroups);
+      if (serviceRows.length > 0) {
+        const { error: svcErr } = await supabase
+          .from('job_services')
+          .insert(serviceRows);
+        if (svcErr) {
+          throw new Error('Failed to save job services: ' + svcErr.message);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      qc.invalidateQueries({ queryKey: ['job_services'] });
     },
   });
 }
@@ -584,6 +604,7 @@ export function useUpdateJob() {
       customerId: string;
       serviceType: ServiceType;
       serviceDetails: Record<string, unknown>;
+      serviceGroups: ServiceGroup[];
       serviceDate: string;
       technicianId?: string;
       notes?: string;
@@ -591,6 +612,10 @@ export function useUpdateJob() {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
       ).toISOString().slice(0, 10);
+
+      const totalCharge = job.serviceGroups.reduce((sum, g) => {
+        return sum + g.items.reduce((s, item) => s + ((item.price ?? 0) * (item.quantity ?? 0)), 0);
+      }, 0);
 
       const payload: Record<string, unknown> = {
         customer_id: job.customerId,
@@ -600,6 +625,7 @@ export function useUpdateJob() {
         next_service_date: nextDate,
         technician_id: job.technicianId ?? null,
         notes: job.notes ?? null,
+        total_charge: totalCharge,
       };
 
       const { data, error } = await supabase
@@ -612,12 +638,49 @@ export function useUpdateJob() {
         console.error('Update job error:', error);
         throw new Error(error.message || 'Failed to update job');
       }
+
+      // Sync job_services: delete old, insert new
+      const { error: delErr } = await supabase
+        .from('job_services')
+        .delete()
+        .eq('service_card_id', job.id);
+      if (delErr) {
+        throw new Error('Failed to clear old job services: ' + delErr.message);
+      }
+
+      const serviceRows = groupsToJobServices(job.id, job.serviceGroups);
+      if (serviceRows.length > 0) {
+        const { error: insErr } = await supabase
+          .from('job_services')
+          .insert(serviceRows);
+        if (insErr) {
+          throw new Error('Failed to save job services: ' + insErr.message);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      qc.invalidateQueries({ queryKey: ['job_services'] });
     },
+  });
+}
+
+export function useJobServices(cardId: string) {
+  return useQuery({
+    queryKey: ['job_services', cardId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('job_services')
+        .select('*')
+        .eq('service_card_id', cardId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data as import('./types').JobServiceRow[];
+    },
+    enabled: !!cardId,
   });
 }
 
