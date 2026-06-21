@@ -147,7 +147,10 @@ export function useCreateJob() {
           }))
         );
         const { error: jsErr } = await supabase.from('job_services').insert(jobServiceRows);
-        if (jsErr) console.error('Insert job_services error:', jsErr);
+        if (jsErr) {
+          await supabase.from('service_cards').delete().eq('id', cardId);
+          throw new Error('Failed to save service details: ' + jsErr.message);
+        }
       }
 
       return data;
@@ -641,7 +644,7 @@ export function useUpdateJob() {
           .from('job_services')
           .delete()
           .eq('service_card_id', job.id);
-        if (delErr) console.error('Delete old job_services error:', delErr);
+        if (delErr) throw new Error('Failed to remove old service details: ' + delErr.message);
 
         const jobServiceRows = job.services.flatMap(g =>
           g.items.map(item => ({
@@ -655,7 +658,7 @@ export function useUpdateJob() {
         );
         if (jobServiceRows.length > 0) {
           const { error: insErr } = await supabase.from('job_services').insert(jobServiceRows);
-          if (insErr) console.error('Insert job_services error:', insErr);
+          if (insErr) throw new Error('Failed to save service details: ' + insErr.message);
         }
       }
 

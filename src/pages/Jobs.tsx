@@ -467,39 +467,6 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
 
   const totalCharge = serviceGroups.reduce((sum, g) => sum + (g.totalPrice || getGroupTotal(g)), 0);
 
-  const buildTriggerCompatDetails = (groups: ServiceGroup[]): Record<string, unknown> => {
-    const details: Record<string, unknown> = {
-      services: groups.map(g => ({
-        serviceType: g.serviceType,
-        items: g.items,
-        totalPrice: g.totalPrice || getGroupTotal(g),
-      })),
-      totalCharge: groups.reduce((sum, g) => sum + (g.totalPrice || getGroupTotal(g)), 0),
-    };
-
-    const primary = groups[0];
-    if (primary) {
-      if (primary.serviceType === 'standard_cleaning' || primary.serviceType === 'deep_cleaning') {
-        const totalCapacity = primary.items.reduce((sum, item) => sum + ((item.capacity ?? 1000) * (item.quantity ?? 1)), 0);
-        const totalTanks = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-        const avgCapacity = totalTanks > 0 ? Math.round(totalCapacity / totalTanks) : 1000;
-        details.tankCount = totalTanks;
-        details.tankCapacity = avgCapacity;
-        details.totalCapacity = totalCapacity;
-      } else if (primary.serviceType === 'sofa_cleaning') {
-        details.sofaCount = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-        details.sofaType = primary.items[0]?.sofaType ?? 'Standard';
-      } else if (primary.serviceType === 'seats_cleaning') {
-        details.seatCount = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-      } else if (primary.serviceType === 'carpet_cleaning') {
-        details.carpetArea = primary.items.reduce((sum, item) => sum + ((item.carpetArea ?? 0) * (item.quantity ?? 1)), 0);
-      }
-    }
-
-    details.serviceType = primary?.serviceType ?? 'standard_cleaning';
-    return details;
-  };
-
   const handleCreate = async () => {
     setError('');
     setSubmitting(true);
@@ -547,7 +514,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
       const result = await createJob.mutateAsync({
         customerId,
         serviceType: primaryGroup.serviceType,
-        serviceDetails: buildTriggerCompatDetails(serviceGroups),
+        serviceDetails: buildServiceDetails(serviceGroups),
         serviceDate,
         technicianId: technicianId || undefined,
         notes: jobNotes || undefined,
@@ -1146,7 +1113,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Type</label>
                               <select value={item.sofaType ?? 'Standard'} onChange={e => updateServiceItem(groupIdx, itemIdx, { sofaType: e.target.value })}
                                 className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white">
-                                <option value="Standard">Seater</option>
+                                <option value="Standard">Standard</option>
                                 <option value="L-Shape">L-Shape</option>
                                 <option value="Sectional">Sectional</option>
                                 <option value="Recliner">Recliner</option>

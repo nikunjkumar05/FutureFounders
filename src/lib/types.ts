@@ -391,7 +391,11 @@ export function getServicesFromDetails(details: Record<string, unknown>): Servic
     id: generateItemId(),
     quantity: 1,
     price: 0,
-    ...(details as Record<string, unknown>),
+    capacity: details.tankCapacity as number | undefined,
+    sofaType: details.sofaType as string | undefined,
+    carpetArea: details.carpetArea as number | undefined,
+    serviceName: details.serviceName as string | undefined,
+    notes: details.notes as string | undefined,
   }];
   return [{
     serviceType: st,
