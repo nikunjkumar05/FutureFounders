@@ -12,6 +12,8 @@ import type {
   SupportTicket,
   JobStatus,
   ServiceType,
+  ServiceGroup,
+  JobServiceRow,
   DailyBriefing,
   BriefingJob,
   BriefingWorker,
@@ -103,6 +105,7 @@ export function useCreateJob() {
       serviceDate: string;
       technicianId?: string;
       notes?: string;
+      services?: ServiceGroup[];
     }) => {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
@@ -128,6 +131,25 @@ export function useCreateJob() {
         console.error('Create job error:', error);
         throw new Error(error.message || 'Failed to create job in database');
       }
+
+      const card = data as Record<string, unknown>;
+      const cardId = card.id as string;
+
+      if (job.services && job.services.length > 0) {
+        const jobServiceRows = job.services.flatMap(g =>
+          g.items.map(item => ({
+            service_card_id: cardId,
+            service_type: g.serviceType,
+            quantity: item.quantity,
+            capacity_or_variant: item.capacity != null ? String(item.capacity) : item.sofaType ?? item.serviceName ?? null,
+            price: item.price,
+            notes: item.notes ?? null,
+          }))
+        );
+        const { error: jsErr } = await supabase.from('job_services').insert(jobServiceRows);
+        if (jsErr) console.error('Insert job_services error:', jsErr);
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -587,6 +609,7 @@ export function useUpdateJob() {
       serviceDate: string;
       technicianId?: string;
       notes?: string;
+      services?: ServiceGroup[];
     }) => {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
@@ -612,6 +635,30 @@ export function useUpdateJob() {
         console.error('Update job error:', error);
         throw new Error(error.message || 'Failed to update job');
       }
+
+      if (job.services && job.services.length > 0) {
+        const { error: delErr } = await supabase
+          .from('job_services')
+          .delete()
+          .eq('service_card_id', job.id);
+        if (delErr) console.error('Delete old job_services error:', delErr);
+
+        const jobServiceRows = job.services.flatMap(g =>
+          g.items.map(item => ({
+            service_card_id: job.id,
+            service_type: g.serviceType,
+            quantity: item.quantity,
+            capacity_or_variant: item.capacity != null ? String(item.capacity) : item.sofaType ?? item.serviceName ?? null,
+            price: item.price,
+            notes: item.notes ?? null,
+          }))
+        );
+        if (jobServiceRows.length > 0) {
+          const { error: insErr } = await supabase.from('job_services').insert(jobServiceRows);
+          if (insErr) console.error('Insert job_services error:', insErr);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {

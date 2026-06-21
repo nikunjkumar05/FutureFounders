@@ -406,3 +406,54 @@ export function getTotalCharge(details: Record<string, unknown>): number {
   }
   return 0;
 }
+
+// ─── job_services DB row ─────────────────────────────────────────
+
+export interface JobServiceRow {
+  id: string;
+  service_card_id: string;
+  service_type: string;
+  quantity: number;
+  capacity_or_variant: string | null;
+  price: number;
+  notes: string | null;
+  created_at: string;
+}
+
+// ─── Build service_details JSON from ServiceGroup[] ──────────────
+
+export function buildServiceDetails(groups: ServiceGroup[]): Record<string, unknown> {
+  const details: Record<string, unknown> = {
+    services: groups.map(g => ({
+      serviceType: g.serviceType,
+      items: g.items,
+      totalPrice: g.items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+    })),
+    totalCharge: groups.reduce((sum, g) => sum + g.items.reduce((s, item) => s + (item.price * item.quantity), 0), 0),
+  };
+
+  const primary = groups[0];
+  if (primary) {
+    if (primary.serviceType === 'standard_cleaning' || primary.serviceType === 'deep_cleaning') {
+      const totalCapacity = primary.items.reduce((sum, item) => sum + ((item.capacity ?? 1000) * (item.quantity ?? 1)), 0);
+      const totalTanks = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
+      details.tankCount = totalTanks;
+      details.tankCapacity = totalTanks > 0 ? Math.round(totalCapacity / totalTanks) : 1000;
+      details.totalCapacity = totalCapacity;
+    } else if (primary.serviceType === 'sofa_cleaning') {
+      details.sofaCount = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
+      details.sofaType = primary.items[0]?.sofaType ?? 'Standard';
+    } else if (primary.serviceType === 'seats_cleaning') {
+      details.seatCount = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
+    } else if (primary.serviceType === 'carpet_cleaning') {
+      details.carpetArea = primary.items.reduce((sum, item) => sum + ((item.carpetArea ?? 0) * (item.quantity ?? 1)), 0);
+    }
+  }
+
+  details.serviceType = primary?.serviceType ?? 'standard_cleaning';
+  return details;
+}
+
+export function getGroupTotal(group: ServiceGroup): number {
+  return group.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+}
