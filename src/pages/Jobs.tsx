@@ -19,7 +19,7 @@ import {
   IndianRupee,
 } from 'lucide-react';
 import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, WageType } from '../lib/types';
-import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, generateItemId } from '../lib/types';
+import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, generateItemId, buildServiceDetails, getGroupTotal } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import ContactPicker from '../components/ContactPicker';
 
@@ -467,39 +467,6 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
 
   const totalCharge = serviceGroups.reduce((sum, g) => sum + (g.totalPrice || getGroupTotal(g)), 0);
 
-  const buildTriggerCompatDetails = (groups: ServiceGroup[]): Record<string, unknown> => {
-    const details: Record<string, unknown> = {
-      services: groups.map(g => ({
-        serviceType: g.serviceType,
-        items: g.items,
-        totalPrice: g.totalPrice || getGroupTotal(g),
-      })),
-      totalCharge: groups.reduce((sum, g) => sum + (g.totalPrice || getGroupTotal(g)), 0),
-    };
-
-    const primary = groups[0];
-    if (primary) {
-      if (primary.serviceType === 'standard_cleaning' || primary.serviceType === 'deep_cleaning') {
-        const totalCapacity = primary.items.reduce((sum, item) => sum + ((item.capacity ?? 1000) * (item.quantity ?? 1)), 0);
-        const totalTanks = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-        const avgCapacity = totalTanks > 0 ? Math.round(totalCapacity / totalTanks) : 1000;
-        details.tankCount = totalTanks;
-        details.tankCapacity = avgCapacity;
-        details.totalCapacity = totalCapacity;
-      } else if (primary.serviceType === 'sofa_cleaning') {
-        details.sofaCount = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-        details.sofaType = primary.items[0]?.sofaType ?? 'Standard';
-      } else if (primary.serviceType === 'seats_cleaning') {
-        details.seatCount = primary.items.reduce((sum, item) => sum + (item.quantity ?? 1), 0);
-      } else if (primary.serviceType === 'carpet_cleaning') {
-        details.carpetArea = primary.items.reduce((sum, item) => sum + ((item.carpetArea ?? 0) * (item.quantity ?? 1)), 0);
-      }
-    }
-
-    details.serviceType = primary?.serviceType ?? 'standard_cleaning';
-    return details;
-  };
-
   const handleCreate = async () => {
     setError('');
     setSubmitting(true);
@@ -547,10 +514,11 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
       const result = await createJob.mutateAsync({
         customerId,
         serviceType: primaryGroup.serviceType,
-        serviceDetails: buildTriggerCompatDetails(serviceGroups),
+        serviceDetails: buildServiceDetails(serviceGroups),
         serviceDate,
         technicianId: technicianId || undefined,
         notes: jobNotes || undefined,
+        services: serviceGroups,
       });
 
       if (!result) {
@@ -914,33 +882,121 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
 
 // ─── Edit Job Modal ──────────────────────────────────────────────
 
+function parseCardToServiceGroups(card: ServiceCardWithDetails): ServiceGroup[] {
+  const d = card.service_details as Record<string, unknown>;
+  if (d && Array.isArray(d.services)) {
+    return (d.services as ServiceGroup[]).map(g => ({
+      ...g,
+      items: g.items.map(item => ({
+        ...item,
+        price: item.price ?? 0,
+      })),
+      totalPrice: g.totalPrice ?? 0,
+    }));
+  }
+  const items: ServiceItem[] = [{
+    id: generateItemId(),
+    quantity: 1,
+    price: 0,
+    capacity: d?.tankCapacity as number | undefined,
+    sofaType: d?.sofaType as string | undefined,
+    carpetArea: d?.carpetArea as number | undefined,
+    serviceName: d?.serviceName as string | undefined,
+    notes: d?.notes as string | undefined,
+  }];
+  return [{ serviceType: card.service_type as ServiceType, items, totalPrice: 0 }];
+}
+
+function createDefaultEditItem(st: ServiceType): ServiceItem {
+  const base: ServiceItem = { id: generateItemId(), quantity: 1, price: 0 };
+  switch (st) {
+    case 'standard_cleaning':
+    case 'deep_cleaning':
+      return { ...base, capacity: 1000 };
+    case 'sofa_cleaning':
+      return { ...base, sofaType: 'Standard' };
+    case 'seats_cleaning':
+      return base;
+    case 'carpet_cleaning':
+      return { ...base, carpetArea: 100 };
+    case 'custom_service':
+      return { ...base, serviceName: '' };
+    default:
+      return base;
+  }
+}
+
 function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose: () => void }) {
   const { data: customers } = useCustomers();
   const { data: staff } = useStaff();
   const updateJob = useUpdateJob();
 
   const [customerId, setCustomerId] = useState(card.customer_id);
-  const [serviceType, setServiceType] = useState<ServiceType>(card.service_type as ServiceType);
+  const [serviceGroups, setServiceGroups] = useState<ServiceGroup[]>(() => parseCardToServiceGroups(card));
   const [serviceDate, setServiceDate] = useState(card.service_date);
   const [technicianId, setTechnicianId] = useState(card.technician_id ?? '');
   const [notes, setNotes] = useState(card.notes ?? '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showAddService, setShowAddService] = useState(false);
+
+  const addServiceItem = (groupIdx: number) => {
+    setServiceGroups(prev => prev.map((g, i) => {
+      if (i !== groupIdx) return g;
+      return { ...g, items: [...g.items, createDefaultEditItem(g.serviceType)] };
+    }));
+  };
+
+  const removeServiceItem = (groupIdx: number, itemIdx: number) => {
+    setServiceGroups(prev => prev.map((g, i) => {
+      if (i !== groupIdx) return g;
+      if (g.items.length <= 1) return g;
+      return { ...g, items: g.items.filter((_, j) => j !== itemIdx) };
+    }));
+  };
+
+  const updateServiceItem = (groupIdx: number, itemIdx: number, updates: Partial<ServiceItem>) => {
+    setServiceGroups(prev => prev.map((g, i) => {
+      if (i !== groupIdx) return g;
+      const newItems = g.items.map((item, j) => j === itemIdx ? { ...item, ...updates } : item);
+      const totalPrice = newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      return { ...g, items: newItems, totalPrice };
+    }));
+  };
+
+  const addServiceGroup = (st: ServiceType) => {
+    setServiceGroups(prev => [...prev, {
+      serviceType: st,
+      items: [createDefaultEditItem(st)],
+      totalPrice: 0,
+    }]);
+    setShowAddService(false);
+  };
+
+  const removeServiceGroup = (groupIdx: number) => {
+    setServiceGroups(prev => prev.filter((_, i) => i !== groupIdx));
+  };
+
+  const totalCharge = serviceGroups.reduce((sum, g) => sum + getGroupTotal(g), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerId) { setError('Please select a customer'); return; }
+    if (serviceGroups.length === 0) { setError('Please add at least one service'); return; }
     setError('');
     setSubmitting(true);
     try {
+      const details = buildServiceDetails(serviceGroups);
+      const primaryType = serviceGroups[0].serviceType;
       await updateJob.mutateAsync({
         id: card.id,
         customerId,
-        serviceType,
-        serviceDetails: card.service_details,
+        serviceType: primaryType,
+        serviceDetails: details,
         serviceDate,
         technicianId: technicianId || undefined,
         notes: notes || undefined,
+        services: serviceGroups,
       });
       onClose();
     } catch (err) {
@@ -950,14 +1006,20 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
     }
   };
 
+  const selectedServiceTypes = serviceGroups.map(g => g.serviceType);
+  const availableServiceTypes = serviceOptions.filter(opt => !selectedServiceTypes.includes(opt.value));
+
   return (
     <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-navy-900 rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto border border-surface-200 dark:border-surface-700">
+      <div className="bg-white dark:bg-navy-900 rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto border border-surface-200 dark:border-surface-700">
         <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-700">
-          <h2 className="text-display-sm font-display text-surface-900 dark:text-surface-100">Edit job</h2>
+          <div>
+            <h2 className="text-display-sm font-display text-surface-900 dark:text-surface-100">Edit job</h2>
+            <p className="text-body-xs text-surface-500 dark:text-surface-400 mt-0.5">Modify services and job details</p>
+          </div>
           <button onClick={onClose} className="btn-ghost p-2"><X size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-5">
           <div>
             <label className="block text-xs font-display font-medium text-surface-600 dark:text-surface-400 mb-1.5">Customer</label>
             <select value={customerId} onChange={e => setCustomerId(e.target.value)} className="input-base" required>
@@ -965,12 +1027,200 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
               {customers?.map(c => <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>)}
             </select>
           </div>
+
           <div>
-            <label className="block text-xs font-display font-medium text-surface-600 dark:text-surface-400 mb-1.5">Service type</label>
-            <select value={serviceType} onChange={e => setServiceType(e.target.value as ServiceType)} className="input-base">
-              {serviceOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-            </select>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">Services ({serviceGroups.length})</h3>
+              {availableServiceTypes.length > 0 && (
+                <button type="button" onClick={() => setShowAddService(true)}
+                  className="text-xs font-medium text-navy-600 dark:text-navy-400 hover:text-navy-700 flex items-center gap-1">
+                  <Plus size={12} /> Add Service
+                </button>
+              )}
+            </div>
+
+            {showAddService && (
+              <div className="mb-3 p-3 border border-navy-200 dark:border-navy-700 bg-navy-50 dark:bg-navy-900/50 rounded-xl">
+                <p className="text-xs font-medium text-surface-600 dark:text-surface-400 mb-2">Select service type to add:</p>
+                <div className="space-y-1">
+                  {availableServiceTypes.map(opt => (
+                    <button key={opt.value} type="button" onClick={() => addServiceGroup(opt.value)}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs hover:bg-navy-100 dark:hover:bg-navy-800 transition-colors text-surface-700 dark:text-surface-200">
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setShowAddService(false)}
+                  className="text-xs text-surface-400 hover:text-surface-600 mt-1">Cancel</button>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {serviceGroups.map((group, groupIdx) => (
+                <div key={groupIdx} className="border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between bg-surface-50 dark:bg-surface-800/50 px-3 py-2">
+                    <span className="text-sm font-display font-semibold text-surface-900 dark:text-surface-100">
+                      {SERVICE_TYPE_LABELS[group.serviceType as ServiceType] ?? group.serviceType}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-mono font-medium text-cyan-600 dark:text-cyan-400">₹{getGroupTotal(group).toLocaleString('en-IN')}</span>
+                      <button type="button" onClick={() => removeServiceGroup(groupIdx)}
+                        className="text-surface-400 hover:text-red-500 transition-colors p-1"><Trash2 size={12} /></button>
+                    </div>
+                  </div>
+                  <div className="p-3 space-y-2">
+                    {group.items.map((item, itemIdx) => (
+                      <div key={item.id} className="bg-surface-50 dark:bg-surface-900/50 rounded-lg p-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 uppercase">Item {itemIdx + 1}</span>
+                          {group.items.length > 1 && (
+                            <button type="button" onClick={() => removeServiceItem(groupIdx, itemIdx)}
+                              className="text-red-400 hover:text-red-600 transition-colors"><X size={12} /></button>
+                          )}
+                        </div>
+
+                        {(group.serviceType === 'standard_cleaning' || group.serviceType === 'deep_cleaning') && (
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Capacity</label>
+                              <select value={item.capacity ?? 1000} onChange={e => updateServiceItem(groupIdx, itemIdx, { capacity: parseInt(e.target.value) })}
+                                className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white">
+                                <option value={500}>500L</option>
+                                <option value={1000}>1000L</option>
+                                <option value={1500}>1500L</option>
+                                <option value={2000}>2000L</option>
+                                <option value={3000}>3000L</option>
+                                <option value={5000}>5000L</option>
+                                <option value={10000}>10000L</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
+                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                                className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Price</label>
+                              <input type="number" min={0} value={item.price || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { price: parseInt(e.target.value) || 0 })}
+                                placeholder="0" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                          </div>
+                        )}
+
+                        {group.serviceType === 'sofa_cleaning' && (
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Type</label>
+                              <select value={item.sofaType ?? 'Standard'} onChange={e => updateServiceItem(groupIdx, itemIdx, { sofaType: e.target.value })}
+                                className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white">
+                                <option value="Standard">Standard</option>
+                                <option value="L-Shape">L-Shape</option>
+                                <option value="Sectional">Sectional</option>
+                                <option value="Recliner">Recliner</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
+                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                                className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Price</label>
+                              <input type="number" min={0} value={item.price || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { price: parseInt(e.target.value) || 0 })}
+                                placeholder="0" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                          </div>
+                        )}
+
+                        {group.serviceType === 'seats_cleaning' && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
+                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                                className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Price</label>
+                              <input type="number" min={0} value={item.price || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { price: parseInt(e.target.value) || 0 })}
+                                placeholder="0" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                          </div>
+                        )}
+
+                        {group.serviceType === 'carpet_cleaning' && (
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Area</label>
+                              <input type="number" min={1} value={item.carpetArea ?? 100} onChange={e => updateServiceItem(groupIdx, itemIdx, { carpetArea: parseInt(e.target.value) || 100 })}
+                                className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
+                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                                className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Price</label>
+                              <input type="number" min={0} value={item.price || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { price: parseInt(e.target.value) || 0 })}
+                                placeholder="0" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                          </div>
+                        )}
+
+                        {group.serviceType === 'custom_service' && (
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="col-span-1">
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Name</label>
+                              <input value={item.serviceName ?? ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { serviceName: e.target.value })}
+                                placeholder="e.g. Window" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
+                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                                className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Price</label>
+                              <input type="number" min={0} value={item.price || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { price: parseInt(e.target.value) || 0 })}
+                                placeholder="0" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Notes (optional)</label>
+                          <input value={item.notes ?? ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { notes: e.target.value })}
+                            placeholder="Item notes" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
+                        </div>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => addServiceItem(groupIdx)}
+                      className="w-full flex items-center justify-center gap-1 text-xs font-medium text-navy-600 dark:text-navy-400 hover:text-navy-700 py-1.5 rounded-lg border border-dashed border-surface-300 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+                      <Plus size={12} /> Add Item
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {serviceGroups.length === 0 && (
+              <div className="border-2 border-dashed border-surface-200 dark:border-surface-700 rounded-xl p-6 text-center">
+                <p className="text-xs text-surface-400 dark:text-surface-500 mb-2">No services added yet</p>
+                {availableServiceTypes.length > 0 && (
+                  <button type="button" onClick={() => setShowAddService(true)}
+                    className="text-xs font-medium text-navy-600 dark:text-navy-400">+ Add a service</button>
+                )}
+              </div>
+            )}
+
+            {totalCharge > 0 && (
+              <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-3 flex items-center justify-between mt-3">
+                <span className="text-sm font-display font-semibold text-cyan-700 dark:text-cyan-300">Total</span>
+                <span className="font-mono text-lg font-bold text-cyan-700 dark:text-cyan-300">₹{totalCharge.toLocaleString('en-IN')}</span>
+              </div>
+            )}
           </div>
+
           <div>
             <label className="block text-xs font-display font-medium text-surface-600 dark:text-surface-400 mb-1.5">Service date</label>
             <input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)} className="input-base" />
