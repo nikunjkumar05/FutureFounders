@@ -112,53 +112,33 @@ function getTotalChargeFromCard(card: ServiceCardWithDetails): number {
   return 0;
 }
 
-function getServiceSummary(svc: ServiceGroup): string {
-  const items = svc.items ?? [];
-  if (items.length === 0) return 'No items';
-  const parts = items.map((item) => {
-    const qty = item.quantity || 1;
-    const prefix = qty > 1 ? `${qty}× ` : '';
-    switch (svc.serviceType) {
-      case 'standard_cleaning':
-      case 'deep_cleaning':
-        return `${prefix}${item.capacity ?? 0}L`;
-      case 'sofa_cleaning':
-        return `${prefix}${item.sofaType ?? 'Standard'}`;
-      case 'seats_cleaning':
-        return `${prefix}Seat`;
-      case 'carpet_cleaning':
-        return `${prefix}${item.carpetArea ?? 0} sq ft`;
-      case 'custom_service':
-        return `${prefix}${item.serviceName ?? 'Service'}`;
-      default:
-        return `${prefix}Item`;
-    }
-  });
-  return parts.join(' + ');
-}
-
 function formatItemDetail(item: ServiceItem, serviceType: ServiceType): string {
-  const qty = item.quantity || 1;
   switch (serviceType) {
     case 'standard_cleaning':
-    case 'deep_cleaning': {
-      const cap = item.capacity ?? 0;
-      const total = cap * qty;
-      return qty > 1 ? `${qty}× ${cap}L = ${total}L` : `${cap}L`;
-    }
+    case 'deep_cleaning':
+      return `${item.capacity ?? 0}L Tank`;
     case 'sofa_cleaning':
-      return qty > 1 ? `${qty}× ${item.sofaType ?? 'Standard'}` : (item.sofaType ?? 'Standard');
+      return `${item.sofaType ?? 'Standard'} Sofa`;
     case 'seats_cleaning':
-      return qty > 1 ? `${qty}× Seat` : 'Seat';
-    case 'carpet_cleaning': {
-      const area = item.carpetArea ?? 0;
-      return qty > 1 ? `${qty}× ${area} sq ft = ${area * qty} sq ft` : `${area} sq ft`;
-    }
+      return 'Seat';
+    case 'carpet_cleaning':
+      return `${item.carpetArea ?? 0} sq ft`;
     case 'custom_service':
       return `${item.serviceName ?? 'Service'}${item.notes ? ` — ${item.notes}` : ''}`;
     default:
       return '';
   }
+}
+
+function getServiceSummary(svc: ServiceGroup): string {
+  const items = svc.items ?? [];
+  if (items.length === 0) return 'No items';
+  const parts = items.map((item) => {
+    const label = formatItemDetail(item, svc.serviceType);
+    const qty = item.quantity || 1;
+    return qty > 1 ? `${label} × ${qty}` : label;
+  });
+  return parts.join(' + ');
 }
 
 // ─── Job Card ───────────────────────────────────────────────────
@@ -310,8 +290,11 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
                   <div className="space-y-1">
                     {svc.items.map((item, itemIdx) => (
                       <div key={itemIdx} className="flex items-center justify-between text-xs text-surface-600 dark:text-surface-300 bg-surface-50 dark:bg-surface-800/50 rounded-lg px-2.5 py-1.5">
-                        <span>{formatItemDetail(item, svc.serviceType)} × {item.quantity}</span>
-                        {item.price > 0 && <span className="font-mono text-cyan-600 dark:text-cyan-400 font-medium">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
+                        <div>
+                          <span className="text-surface-700 dark:text-surface-200">{formatItemDetail(item, svc.serviceType)}</span>
+                          <span className="text-surface-400 ml-2">Qty: {item.quantity}{item.price > 0 ? ` · ₹${item.price.toLocaleString('en-IN')}/unit` : ''}</span>
+                        </div>
+                        {item.price > 0 && <span className="font-mono text-cyan-600 dark:text-cyan-400 font-medium ml-2">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
                       </div>
                     ))}
                   </div>
@@ -833,8 +816,11 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                     <div className="space-y-0.5">
                       {svc.items.map((item, itemIdx) => (
                         <div key={itemIdx} className="flex items-center justify-between text-xs text-surface-600 dark:text-surface-300">
-                          <span>{formatItemDetail(item, svc.serviceType)} × {item.quantity}</span>
-                          {item.price > 0 && <span className="text-green-600">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
+                          <div>
+                            <span>{formatItemDetail(item, svc.serviceType)}</span>
+                            <span className="text-surface-400 ml-2">Qty: {item.quantity}{item.price > 0 ? ` · ₹${item.price.toLocaleString('en-IN')}/unit` : ''}</span>
+                          </div>
+                          {item.price > 0 && <span className="text-green-600 ml-2">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
                         </div>
                       ))}
                     </div>
