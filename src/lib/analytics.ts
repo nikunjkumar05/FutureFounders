@@ -1,23 +1,23 @@
 import posthog from 'posthog-js';
 
-function isDev(): boolean {
-  return import.meta.env.DEV;
-}
+const DEV_ALLOWED = import.meta.env.VITE_ENABLE_ANALYTICS_DEV === 'true';
 
-function getBlockedEmail(): string | null {
+function getBlockedEmails(): string[] {
   try {
     const raw = import.meta.env.VITE_ANALYTICS_BLOCKED_EMAILS as string | undefined;
-    if (!raw) return null;
-    return raw.toLowerCase();
+    if (!raw) return [];
+    return raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   } catch {
-    return null;
+    return [];
   }
 }
 
-function shouldTrackUser(): boolean {
-  if (isDev()) return false;
-  const blocked = getBlockedEmail();
-  if (blocked) return false;
+function shouldTrackUser(email?: string | null): boolean {
+  if (!DEV_ALLOWED && import.meta.env.DEV) return false;
+  const blocked = getBlockedEmails();
+  if (blocked.length > 0 && email) {
+    if (blocked.includes(email.toLowerCase())) return false;
+  }
   return true;
 }
 
@@ -47,7 +47,7 @@ function trackEvent(event: AnalyticsEvent, properties?: AnalyticsProperties): vo
   posthog.capture(event, {
     $set: { last_event: event, last_event_at: new Date().toISOString() },
     ...properties,
-    environment: 'production',
+    environment: import.meta.env.DEV ? 'development' : 'production',
     timestamp: new Date().toISOString(),
   });
 }
