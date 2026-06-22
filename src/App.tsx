@@ -1,10 +1,11 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
+import posthog from 'posthog-js';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Customers = lazy(() => import('./pages/Customers'));
@@ -23,6 +24,14 @@ const queryClient = new QueryClient({
   },
 });
 
+function PageviewTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    posthog.capture('$pageview', { $current_url: window.location.href });
+  }, [location]);
+  return null;
+}
+
 function PageLoader() {
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex items-center justify-center">
@@ -36,6 +45,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
+          <PageviewTracker />
           <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>
