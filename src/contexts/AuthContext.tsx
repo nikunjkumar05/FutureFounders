@@ -8,6 +8,7 @@ import {
   User,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
+import posthog from 'posthog-js';
 
 interface AuthContextType {
   user: User | null;
@@ -28,6 +29,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
+      if (firebaseUser) {
+        posthog.identify(firebaseUser.uid, {
+          email: firebaseUser.email,
+          name: firebaseUser.displayName,
+        });
+      } else {
+        posthog.reset();
+      }
     });
     return unsubscribe;
   }, []);

@@ -18,6 +18,7 @@ import {
   useCustomers,
   useServiceCards,
   useMarkReminderSent,
+  useCreateReminderResponse,
   useAddCustomer,
   useUpdateCustomer,
   useDeleteCustomer,
@@ -167,6 +168,7 @@ function CustomerRow({
   onViewHistory: () => void;
 }) {
   const markReminder = useMarkReminderSent();
+  const createReminderResponse = useCreateReminderResponse();
   const reminderSent = !!latestCard?.reminder_sent_at;
 
   const handleSendReminder = () => {
@@ -185,6 +187,11 @@ function CustomerRow({
       `https://wa.me/91${customer.phone}?text=${encodeURIComponent(template)}`
     );
     markReminder.mutate({ cardId: latestCard.id });
+    createReminderResponse.mutate({
+      serviceCardId: latestCard.id,
+      customerId: customer.id,
+      status: 'sent',
+    });
   };
 
   return (
