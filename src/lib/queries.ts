@@ -532,6 +532,40 @@ export function useMonthlyAttendanceExport(month: string) {
   });
 }
 
+export async function checkDuplicateCustomer({
+  name,
+  phone,
+  excludeId,
+}: {
+  name: string;
+  phone: string;
+  excludeId?: string;
+}): Promise<Customer | null> {
+  const trimmedName = name.trim();
+  const trimmedPhone = phone.trim();
+
+  let query = supabase
+    .from('customers')
+    .select('*')
+    .eq('merchant_id', MERCHANT_ID)
+    .eq('phone', trimmedPhone);
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const existing = data as Customer;
+  if (existing.name.trim().toLowerCase() === trimmedName.toLowerCase()) {
+    return existing;
+  }
+
+  return null;
+}
+
 // Add customer
 export function useAddCustomer() {
   const qc = useQueryClient();
@@ -543,15 +577,18 @@ export function useAddCustomer() {
       notes?: string | null;
       latitude?: number | null;
       longitude?: number | null;
+      skipPhoneCheck?: boolean;
     }) => {
-      const { data: existing } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('merchant_id', MERCHANT_ID)
-        .eq('phone', customer.phone)
-        .maybeSingle();
-      if (existing) {
-        throw new Error('A customer with this phone number already exists');
+      if (!customer.skipPhoneCheck) {
+        const { data: existing } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('phone', customer.phone)
+          .maybeSingle();
+        if (existing) {
+          throw new Error('A customer with this phone number already exists');
+        }
       }
       const { data, error } = await supabase
         .from('customers')
