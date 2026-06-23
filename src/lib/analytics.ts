@@ -38,7 +38,10 @@ type AnalyticsEvent =
   | 'inventory_item_deleted'
   | 'stock_consumed'
   | 'reminder_sent'
-  | 'reminder_response_received';
+  | 'reminder_response_received'
+  | 'duplicate_customer_detected'
+  | 'duplicate_customer_creation_confirmed'
+  | 'duplicate_customer_creation_cancelled';
 
 type AnalyticsProperties = Record<string, string | number | boolean | null | undefined>;
 

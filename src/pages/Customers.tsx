@@ -22,7 +22,9 @@ import {
   useAddCustomer,
   useUpdateCustomer,
   useDeleteCustomer,
+  checkDuplicateCustomer,
 } from '../lib/queries';
+import { trackEvent } from '../lib/analytics';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import ContactPicker from '../components/ContactPicker';
 import type { Customer, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
@@ -444,6 +446,7 @@ function EditCustomerModal({
   const [notes, setNotes] = useState(customer.notes ?? '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null);
   const updateCustomer = useUpdateCustomer();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -453,6 +456,13 @@ function EditCustomerModal({
     setSubmitting(true);
 
     try {
+      const dup = await checkDuplicateCustomer({ name, phone, excludeId: customer.id });
+      if (dup) {
+        setDuplicateCustomer(dup);
+        trackEvent('duplicate_customer_detected', { customer_name: name, customer_phone: phone, context: 'edit' });
+        return;
+      }
+
       await updateCustomer.mutateAsync({
         id: customer.id,
         name,
@@ -468,46 +478,80 @@ function EditCustomerModal({
     }
   };
 
+  const handleCreateAnyway = async () => {
+    setDuplicateCustomer(null);
+    setSubmitting(true);
+    try {
+      await updateCustomer.mutateAsync({
+        id: customer.id,
+        name,
+        phone,
+        address: address || null,
+        notes: notes || null,
+      });
+      trackEvent('duplicate_customer_creation_confirmed', { customer_name: name, customer_phone: phone, context: 'edit' });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update customer');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelDuplicate = () => {
+    trackEvent('duplicate_customer_creation_cancelled', { customer_name: name, customer_phone: phone, context: 'edit' });
+    setDuplicateCustomer(null);
+  };
+
   return (
-    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Edit Customer</h2>
-          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
-            <X size={20} />
-          </button>
+    <>
+      <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-md shadow-xl">
+          <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
+            <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Edit Customer</h2>
+            <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
+              <X size={20} />
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Name *</label>
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Phone *</label>
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number"
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Address</label>
+              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, area, city..."
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Notes / Landmark</label>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Nearby landmark, directions, special instructions..."
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none" />
+            </div>
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
+            )}
+            <button type="submit" disabled={submitting}
+              className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
+              {submitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </form>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Name *</label>
-            <input value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Phone *</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number"
-              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Address</label>
-            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, area, city..."
-              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Notes / Landmark</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Nearby landmark, directions, special instructions..."
-              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none" />
-          </div>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
-          )}
-          <button type="submit" disabled={submitting}
-            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
-            {submitting ? 'Saving...' : 'Save Changes'}
-          </button>
-        </form>
       </div>
-    </div>
+      {duplicateCustomer && (
+        <DuplicateWarningModal
+          customer={duplicateCustomer}
+          onCancel={handleCancelDuplicate}
+          onConfirm={handleCreateAnyway}
+        />
+      )}
+    </>
   );
 }
 
@@ -564,6 +608,50 @@ function DeleteConfirmModal({
   );
 }
 
+function DuplicateWarningModal({
+  customer,
+  onCancel,
+  onConfirm,
+}: {
+  customer: Customer;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-sm shadow-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Possible Duplicate Customer</h2>
+          <button onClick={onCancel} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
+            <X size={20} />
+          </button>
+        </div>
+        <p className="text-sm text-surface-600 dark:text-surface-300 mb-3">
+          A customer with the same name and phone number already exists.
+        </p>
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 mb-4">
+          <p className="text-xs font-medium text-surface-500 dark:text-surface-400 mb-1">Existing customer</p>
+          <p className="text-sm font-medium text-surface-900 dark:text-white">Name: {customer.name}</p>
+          <p className="text-sm text-surface-700 dark:text-surface-200">Phone: {customer.phone}</p>
+        </div>
+        <p className="text-sm text-surface-600 dark:text-surface-300 mb-4">
+          Do you still want to create another customer?
+        </p>
+        <div className="flex gap-2 justify-end">
+          <button onClick={onCancel}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-600 transition-colors">
+            Cancel
+          </button>
+          <button onClick={onConfirm}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors">
+            Create Anyway
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -571,6 +659,7 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null);
   const addCustomer = useAddCustomer();
 
   const handleSelectContact = (contact: { name: string; phone: string }) => {
@@ -585,6 +674,13 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
     setSubmitting(true);
 
     try {
+      const dup = await checkDuplicateCustomer({ name, phone });
+      if (dup) {
+        setDuplicateCustomer(dup);
+        trackEvent('duplicate_customer_detected', { customer_name: name, customer_phone: phone });
+        return;
+      }
+
       await addCustomer.mutateAsync({
         name,
         phone,
@@ -599,48 +695,82 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleCreateAnyway = async () => {
+    setDuplicateCustomer(null);
+    setSubmitting(true);
+    try {
+      await addCustomer.mutateAsync({
+        name,
+        phone,
+        address: address || null,
+        notes: notes || null,
+        skipPhoneCheck: true,
+      });
+      trackEvent('duplicate_customer_creation_confirmed', { customer_name: name, customer_phone: phone });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : JSON.stringify(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelDuplicate = () => {
+    trackEvent('duplicate_customer_creation_cancelled', { customer_name: name, customer_phone: phone });
+    setDuplicateCustomer(null);
+  };
+
   return (
-    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Add Customer</h2>
-          <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
-            <X size={20} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400">Name *</label>
-              <ContactPicker onSelect={handleSelectContact} />
+    <>
+      <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-md shadow-xl">
+          <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-600/50">
+            <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Add Customer</h2>
+            <button onClick={onClose} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
+              <X size={20} />
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} className="p-5 space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-surface-600 dark:text-surface-400">Name *</label>
+                <ContactPicker onSelect={handleSelectContact} />
+              </div>
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
             </div>
-            <input value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Phone *</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number"
-              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Address</label>
-            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, area, city..."
-              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Notes / Landmark</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Nearby landmark, directions, special instructions..."
-              className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none" />
-          </div>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
-          )}
-          <button type="submit" disabled={submitting}
-            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
-            {submitting ? 'Adding...' : 'Add Customer'}
-          </button>
-        </form>
+            <div>
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Phone *</label>
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10-digit number"
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" required />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Address</label>
+              <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Street, area, city..."
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-surface-600 dark:text-surface-400 mb-1">Notes / Landmark</label>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Nearby landmark, directions, special instructions..."
+                className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none" />
+            </div>
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
+            )}
+            <button type="submit" disabled={submitting}
+              className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
+              {submitting ? 'Adding...' : 'Add Customer'}
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+      {duplicateCustomer && (
+        <DuplicateWarningModal
+          customer={duplicateCustomer}
+          onCancel={handleCancelDuplicate}
+          onConfirm={handleCreateAnyway}
+        />
+      )}
+    </>
   );
 }
