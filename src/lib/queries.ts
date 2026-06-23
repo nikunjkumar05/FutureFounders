@@ -30,6 +30,7 @@ import type {
   WageType,
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
+import { trackEvent } from './analytics';
 
 const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
@@ -87,9 +88,12 @@ export function useUpdateJobStatus() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      if (variables.status === 'completed') {
+        trackEvent('job_completed', { job_id: variables.id });
+      }
     },
   });
 }
@@ -155,9 +159,20 @@ export function useCreateJob() {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      const card = data as Record<string, unknown>;
+      const serviceCount = variables.services?.length ?? 1;
+      const totalAmount = variables.services?.reduce(
+        (sum, g) => sum + g.items.reduce((s, item) => s + (item.price * item.quantity), 0), 0
+      ) ?? 0;
+      trackEvent('job_created', {
+        job_id: card.id as string,
+        customer_id: variables.customerId,
+        service_count: serviceCount,
+        total_amount: totalAmount,
+      });
     },
   });
 }
@@ -554,7 +569,11 @@ export function useAddCustomer() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      const c = data as Record<string, unknown>;
+      trackEvent('customer_created', { customer_id: c.id as string });
+    },
   });
 }
 
@@ -586,7 +605,10 @@ export function useUpdateCustomer() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      trackEvent('customer_updated', { customer_id: variables.id });
+    },
   });
 }
 
@@ -597,7 +619,10 @@ export function useDeleteCustomer() {
       const { error } = await supabase.from('customers').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      trackEvent('customer_deleted', { customer_id: variables.id });
+    },
   });
 }
 
@@ -664,9 +689,10 @@ export function useUpdateJob() {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      trackEvent('job_updated', { job_id: variables.id });
     },
   });
 }
@@ -678,9 +704,10 @@ export function useDeleteJob() {
       const { error } = await supabase.from('service_cards').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+      trackEvent('job_deleted', { job_id: variables.id });
     },
   });
 }
@@ -706,7 +733,11 @@ export function useAddStaff() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['staff'] });
+      const s = data as Record<string, unknown>;
+      trackEvent('worker_created', { worker_id: s.id as string });
+    },
   });
 }
 
@@ -730,7 +761,10 @@ export function useUpdateStaff() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['staff'] });
+      trackEvent('worker_updated', { worker_id: variables.id });
+    },
   });
 }
 
@@ -795,6 +829,10 @@ export function useAddAdvance() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['advances', variables.staffId] });
       qc.invalidateQueries({ queryKey: ['advances_monthly', variables.staffId] });
+      trackEvent('advance_paid', {
+        worker_id: variables.staffId,
+        advance_amount: variables.amount,
+      });
     },
   });
 }
@@ -844,7 +882,10 @@ export function useDeleteStaff() {
       const { error } = await supabase.from('staff').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['staff'] }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['staff'] });
+      trackEvent('worker_deleted', { worker_id: variables.id });
+    },
   });
 }
 
@@ -872,7 +913,11 @@ export function useAddInventory() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory'] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      const item = data as Record<string, unknown>;
+      trackEvent('inventory_item_added', { item_id: item.id as string, quantity: item.current_stock as number });
+    },
   });
 }
 
@@ -900,7 +945,10 @@ export function useUpdateInventory() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory'] }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      trackEvent('inventory_item_updated', { item_id: variables.id });
+    },
   });
 }
 
@@ -914,7 +962,10 @@ export function useDeleteInventory() {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['inventory'] }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['inventory'] });
+      trackEvent('inventory_item_deleted', { item_id: variables.id });
+    },
   });
 }
 
@@ -1371,8 +1422,21 @@ export function useCreateReminderResponse() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['revenue_intelligence'] });
+      if (variables.status === 'sent') {
+        trackEvent('reminder_sent', {
+          customer_id: variables.customerId,
+          service_card_id: variables.serviceCardId,
+          status: variables.status,
+        });
+      } else {
+        trackEvent('reminder_response_received', {
+          customer_id: variables.customerId,
+          service_card_id: variables.serviceCardId,
+          status: variables.status,
+        });
+      }
     },
   });
 }
