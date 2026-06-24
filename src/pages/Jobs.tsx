@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback } from '../lib/queries';
 import { format } from 'date-fns';
@@ -17,6 +17,7 @@ import {
   Trash2,
   Eye,
   IndianRupee,
+  Search,
 } from 'lucide-react';
 import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, WageType } from '../lib/types';
 import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, generateItemId, buildServiceDetails, getGroupTotal } from '../lib/types';
@@ -35,12 +36,23 @@ export default function Jobs() {
   const [editingJob, setEditingJob] = useState<ServiceCardWithDetails | null>(null);
   const [deletingJob, setDeletingJob] = useState<ServiceCardWithDetails | null>(null);
   const [viewingJob, setViewingJob] = useState<ServiceCardWithDetails | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   if (isLoading) return <TableSkeleton rows={5} cols={4} />;
 
+  const filteredCards = useMemo(() => {
+    if (!searchQuery.trim()) return allCards;
+    const q = searchQuery.toLowerCase();
+    return allCards?.filter((card) => {
+      const name = card.customers?.name?.toLowerCase() ?? '';
+      const phone = card.customers?.phone ?? '';
+      return name.includes(q) || phone.includes(q);
+    });
+  }, [allCards, searchQuery]);
+
   const grouped = new Map<JobStatus, ServiceCardWithDetails[]>();
   columns.forEach((c) => grouped.set(c.status, []));
-  allCards?.forEach((card) => {
+  filteredCards?.forEach((card) => {
     const list = grouped.get(card.job_status) ?? [];
     list.push(card);
     grouped.set(card.job_status, list);
@@ -61,6 +73,18 @@ export default function Jobs() {
         >
           <Plus size={16} /> Schedule cleaning
         </button>
+      </div>
+
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 dark:text-surface-500" />
+        <input
+          type="search"
+          placeholder="Search by customer name or phone number"
+          aria-label="Search jobs by customer name or phone number"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="input-base pl-9"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -363,6 +387,13 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   const [newCustomerPhone, setNewCustomerPhone] = useState('');
   const [newCustomerAddress, setNewCustomerAddress] = useState('');
   const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers;
+    const q = customerSearch.toLowerCase();
+    return customers?.filter((c) => c.name.toLowerCase().includes(q) || (c.phone ?? '').includes(customerSearch));
+  }, [customers, customerSearch]);
 
   // Step 2: Multi-service type selection
   const [selectedServiceTypes, setSelectedServiceTypes] = useState<ServiceType[]>([]);
@@ -527,16 +558,31 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
             <h3 className="text-sm font-semibold text-surface-900 dark:text-white">Select Customer</h3>
             {!showNewCustomer ? (
               <>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400 dark:text-surface-500" />
+                  <input
+                    type="search"
+                    placeholder="Search customer by name or phone number"
+                    aria-label="Search customer by name or phone number"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white"
+                  />
+                </div>
                 <div className="max-h-48 overflow-y-auto space-y-1">
-                  {customers?.map((c) => (
-                    <button key={c.id} onClick={() => setSelectedCustomerId(c.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                        selectedCustomerId === c.id ? 'bg-navy-50 text-navy-700 border border-navy-200' : 'hover:bg-surface-50 dark:hover:bg-surface-700/50 border border-transparent'
-                      }`}>
-                      <span className="font-medium">{c.name}</span>
-                      <span className="text-surface-400 dark:text-surface-500 ml-2">{c.phone}</span>
-                    </button>
-                  ))}
+                  {filteredCustomers?.length === 0 ? (
+                    <p className="text-sm text-surface-400 dark:text-surface-500 text-center py-4">No customers found</p>
+                  ) : (
+                    filteredCustomers?.map((c) => (
+                      <button key={c.id} onClick={() => setSelectedCustomerId(c.id)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                          selectedCustomerId === c.id ? 'bg-navy-50 text-navy-700 border border-navy-200' : 'hover:bg-surface-50 dark:hover:bg-surface-700/50 border border-transparent'
+                        }`}>
+                        <span className="font-medium">{c.name}</span>
+                        <span className="text-surface-400 dark:text-surface-500 ml-2">{c.phone}</span>
+                      </button>
+                    ))
+                  )}
                 </div>
                 <button onClick={() => { setShowNewCustomer(true); setSelectedCustomerId(''); }}
                   className="text-xs text-navy-600 hover:text-navy-700 font-medium">+ Create New Customer</button>
