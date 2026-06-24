@@ -178,7 +178,7 @@ function CustomerRow({
     if (!latestCard || reminderSent) return;
     const type = latestCard.service_type as ServiceType;
     const messages: Record<string, string> = {
-      standard_cleaning: `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+      standard_cleaning: `Namaste ${customer.name}! Aapke paani ki tanki ki safai ka samay aa gaya hai. Gande tank se bimariyan failti hain. Aaj hi safai book karein! Reply YES to confirm or call 9876543210. — AquaClean Services`,
       deep_cleaning: `Hi ${customer.name}! It's time for your deep cleaning service. Our intensive cleaning removes all buildup and bacteria. Book now! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
       sofa_cleaning: `Hi ${customer.name}! It's time for your sofa cleaning service. Keep your furniture fresh and hygienic! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
       seats_cleaning: `Hi ${customer.name}! It's time for your seats cleaning service. Enjoy a fresh and clean ride! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,

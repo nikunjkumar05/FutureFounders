@@ -1,13 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Package, X, AlertTriangle, Pencil, Trash2 } from 'lucide-react';
 import { useInventory, useAddInventory, useUpdateInventory, useDeleteInventory, useStockAlerts, useResolveAlert, useResolvedAlerts } from '../lib/queries';
 import { CardSkeleton } from '../components/LoadingSkeleton';
 import type { Inventory } from '../lib/types';
+import { trackEvent } from '../lib/analytics';
 
 export default function Inventory() {
   const { data: inventory, isLoading } = useInventory();
   const { data: alerts } = useStockAlerts();
   const { data: reorderedIds } = useResolvedAlerts();
+
+  useEffect(() => {
+    trackEvent('inventory_checked');
+  }, []);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editItem, setEditItem] = useState<Inventory | null>(null);
   const [showAlertHistory, setShowAlertHistory] = useState(false);

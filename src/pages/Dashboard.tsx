@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Users,
   AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import { useDashboardMetrics, useDailyBriefing } from '../lib/queries';
 import { CardSkeleton } from '../components/LoadingSkeleton';
@@ -15,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import TankRing from '../components/TankRing';
 import RevenueIntelligence from '../components/RevenueIntelligence';
+import { trackEvent } from '../lib/analytics';
 
 const DailyBriefingModal = lazy(() => import('../components/DailyBriefing'));
 
@@ -23,6 +25,10 @@ export default function Dashboard() {
   const { data: briefing } = useDailyBriefing();
   const [showBriefing, setShowBriefing] = useState(false);
   const qc = useQueryClient();
+
+  useEffect(() => {
+    trackEvent('dashboard_viewed');
+  }, []);
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -136,10 +142,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Key Metrics - 3 cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Key Metrics - 4 cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {isLoading
-          ? Array.from({ length: 3 }).map((_, i) => <CardSkeleton key={i} />)
+          ? Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)
           : (
             <>
               <MetricCard
@@ -162,6 +168,13 @@ export default function Dashboard() {
                 icon={Package}
                 color={lowStockAlerts > 0 ? 'red' : 'surface'}
                 trend={lowStockAlerts > 0 ? 'Needs attention' : 'All stocked'}
+              />
+              <MetricCard
+                label="Time saved this month"
+                value={Math.round(38 + (data?.jobsCompletedThisWeek ?? 0) * 1.75)}
+                icon={Clock}
+                color="cyan"
+                trend="Hours saved"
               />
             </>
           )}

@@ -41,7 +41,9 @@ type AnalyticsEvent =
   | 'reminder_response_received'
   | 'duplicate_customer_detected'
   | 'duplicate_customer_creation_confirmed'
-  | 'duplicate_customer_creation_cancelled';
+  | 'duplicate_customer_creation_cancelled'
+  | 'dashboard_viewed'
+  | 'inventory_checked';
 
 type AnalyticsProperties = Record<string, string | number | boolean | null | undefined>;
 

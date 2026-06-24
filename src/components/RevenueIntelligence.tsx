@@ -100,6 +100,33 @@ export default function RevenueIntelligence() {
         ))}
       </div>
 
+      {/* Monthly Revenue Forecast Widget */}
+      <div className="card-base p-4 border border-surface-200 dark:border-surface-700 bg-gradient-to-r from-navy-50/50 to-cyan-50/50 dark:from-navy-950/20 dark:to-cyan-950/20">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp size={16} className="text-cyan-500" />
+          <h3 className="text-xs font-display font-semibold text-navy-900 dark:text-surface-100 uppercase tracking-wide">
+            Monthly Revenue Forecast
+          </h3>
+        </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-surface-700 dark:text-surface-300 font-medium">
+              This month: <span className="text-navy-900 dark:text-white font-bold">{data.forecast?.jobsCount || 0} jobs due</span> = <span className="text-cyan-600 dark:text-cyan-400 font-bold">{formatINR(data.forecast?.expected || 0)} expected</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-xs font-medium">
+            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              Confirmed: {formatINR(data.forecast?.confirmed || 0)}
+            </span>
+            <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              At Risk: {formatINR(data.forecast?.atRisk || 0)}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Reminder Analytics */}
       <div className="card-base p-4">
         <div className="flex items-center gap-2 mb-3">
@@ -217,7 +244,15 @@ function AnalyticTile({ label, value }: { label: string; value: string | number 
   );
 }
 
-function CustomerRow({ customer, icon }: { customer: { name: string; phone: string; expectedValue: number; daysOverdue: number; serviceTypeLabel: string }; icon: React.ReactNode }) {
+function CustomerRow({ customer, icon }: { customer: SegmentedCustomer; icon: React.ReactNode }) {
+  const score = customer.healthScore ?? 100;
+  const healthColor =
+    score >= 80
+      ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20'
+      : score >= 50
+      ? 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20'
+      : 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/20';
+
   return (
     <div className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
       <div className="flex items-center gap-2.5 min-w-0">
@@ -236,7 +271,10 @@ function CustomerRow({ customer, icon }: { customer: { name: string; phone: stri
           </p>
         </div>
       </div>
-      <div className="text-right shrink-0 ml-3">
+      <div className="flex items-center gap-3 shrink-0 ml-3">
+        <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${healthColor}`}>
+          Health: {score}
+        </div>
         <p className="text-sm font-semibold text-navy-900 dark:text-surface-100">
           {formatINR(customer.expectedValue)}
         </p>

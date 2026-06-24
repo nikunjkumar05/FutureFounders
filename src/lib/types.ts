@@ -352,6 +352,7 @@ export interface SegmentedCustomer {
   status: string;
   daysOverdue: number;
   lastServiceDate: string | null;
+  healthScore: number;
 }
 
 export interface ReminderAnalytics {
@@ -374,6 +375,12 @@ export interface RevenueIntelligence {
     highChurnRisk: SegmentedCustomer[];
   };
   reminderAnalytics: ReminderAnalytics;
+  forecast: {
+    jobsCount: number;
+    expected: number;
+    confirmed: number;
+    atRisk: number;
+  };
   insights: string[];
 }
 

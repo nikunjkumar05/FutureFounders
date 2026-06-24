@@ -14,7 +14,6 @@ import type {
   JobStatus,
   ServiceType,
   ServiceGroup,
-  JobServiceRow,
   DailyBriefing,
   BriefingJob,
   BriefingWorker,
@@ -911,7 +910,7 @@ export function useUpdateAdvance() {
 export function useDeleteAdvance() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, staffId }: { id: string; staffId: string }) => {
+    mutationFn: async ({ id, staffId: _staffId }: { id: string; staffId: string }) => {
       const { error } = await supabase.from('advances').delete().eq('id', id);
       if (error) throw error;
     },
@@ -1301,7 +1300,6 @@ export function useRevenueIntelligence() {
 
       const uniqueOverdueCustomers = new Map<string, ServiceCardWithDetails>();
       for (const c of overdueCustomers) uniqueOverdueCustomers.set(c.customer_id, c);
-
       // Calculate revenue due this month
       let potentialRevenueDueThisMonth = 0;
       const readyToBook: SegmentedCustomer[] = [];
@@ -1310,7 +1308,6 @@ export function useRevenueIntelligence() {
 
       for (const [cid, card] of uniqueDueCustomers) {
         const value = estimateServiceValue(card);
-        // Use latest completed service value if available, otherwise estimate from current
         const completedCard = latestCompletedByCustomer.get(cid);
         const expectedValue = completedCard ? estimateServiceValue(completedCard) : value;
         potentialRevenueDueThisMonth += expectedValue;
@@ -1321,6 +1318,20 @@ export function useRevenueIntelligence() {
         const daysOverdue = card.next_service_date && card.next_service_date < todayStr
           ? Math.floor((today.getTime() - new Date(card.next_service_date + 'T00:00:00').getTime()) / 86400000)
           : 0;
+
+        let healthScore = 100;
+        healthScore -= Math.min(daysOverdue * 1.5, 60);
+        if (reminder?.status === 'ignored') {
+          healthScore -= 20;
+        } else if (reminder?.status === 'sent') {
+          healthScore -= 10;
+        }
+        const details = (card.service_details || {}) as any;
+        const capacity = (details.tankCapacity || details.totalCapacity || 1000) as number;
+        if (capacity > 1000) {
+          healthScore -= 10;
+        }
+        healthScore = Math.max(0, Math.round(healthScore));
 
         const base: SegmentedCustomer = {
           id: cid,
@@ -1333,6 +1344,7 @@ export function useRevenueIntelligence() {
           status: segment,
           daysOverdue,
           lastServiceDate: card.service_date,
+          healthScore,
         };
 
         if (segment === 'ready_to_book' || reminder?.status === 'responded' || reminder?.status === 'booked') {
@@ -1359,6 +1371,20 @@ export function useRevenueIntelligence() {
         const segment = ci?.segment ?? 'unknown';
         const daysOverdue = Math.floor((today.getTime() - new Date(card.next_service_date! + 'T00:00:00').getTime()) / 86400000);
 
+        let healthScore = 100;
+        healthScore -= Math.min(daysOverdue * 1.5, 60);
+        if (reminder?.status === 'ignored') {
+          healthScore -= 20;
+        } else if (reminder?.status === 'sent') {
+          healthScore -= 10;
+        }
+        const details = (card.service_details || {}) as any;
+        const capacity = (details.tankCapacity || details.totalCapacity || 1000) as number;
+        if (capacity > 1000) {
+          healthScore -= 10;
+        }
+        healthScore = Math.max(0, Math.round(healthScore));
+
         const base: SegmentedCustomer = {
           id: cid,
           name: card.customers?.name ?? 'Unknown',
@@ -1370,6 +1396,7 @@ export function useRevenueIntelligence() {
           status: segment,
           daysOverdue,
           lastServiceDate: card.service_date,
+          healthScore,
         };
 
         if (segment === 'high_churn_risk' || daysOverdue > 30 || reminder?.status === 'ignored') {
@@ -1380,6 +1407,55 @@ export function useRevenueIntelligence() {
           followUpNeeded.push({ ...base, status: 'follow_up_needed' });
         }
       }
+
+      // Calculate forecast
+      let additionalExpected = 0;
+      let additionalConfirmed = 0;
+      let additionalAtRisk = 0;
+
+      for (const card of cards) {
+        if (card.service_date >= monthStart && card.service_date <= monthEnd) {
+          if (!uniqueDueCustomers.has(card.customer_id)) {
+            const val = estimateServiceValue(card);
+            additionalExpected += val;
+            if (card.job_status === 'completed' || card.job_status === 'in_progress') {
+              additionalConfirmed += val;
+            } else if (card.job_status === 'pending' && card.service_date < todayStr) {
+              additionalAtRisk += val;
+            }
+          }
+        }
+      }
+
+      const expectedRevenue = potentialRevenueDueThisMonth + additionalExpected;
+      const confirmedRevenue = readyToBook.reduce((sum, c) => {
+        const reminder = latestReminderByCustomer.get(c.id);
+        if (reminder?.status === 'booked' || reminder?.status === 'responded') {
+          return sum + c.expectedValue;
+        }
+        const hasCompletedThisMonth = cards.some(card => 
+          card.customer_id === c.id && 
+          card.job_status === 'completed' && 
+          card.service_date >= monthStart && 
+          card.service_date <= monthEnd
+        );
+        if (hasCompletedThisMonth) {
+          return sum + c.expectedValue;
+        }
+        return sum;
+      }, 0) + additionalConfirmed;
+
+      const atRiskRevenue = highChurnRisk.reduce((sum, c) => sum + c.expectedValue, 0) + additionalAtRisk;
+
+      const additionalUniqueCustomers = new Set<string>();
+      for (const card of cards) {
+        if (card.service_date >= monthStart && card.service_date <= monthEnd) {
+          if (!uniqueDueCustomers.has(card.customer_id)) {
+            additionalUniqueCustomers.add(card.customer_id);
+          }
+        }
+      }
+      const jobsDueThisMonthCount = uniqueDueCustomers.size + additionalUniqueCustomers.size;
 
       // Reminder analytics
       const totalRemindersSent = reminders.length;
@@ -1434,6 +1510,12 @@ export function useRevenueIntelligence() {
           responses: respondedCount,
           bookingsGenerated: bookedCount,
           conversionRate,
+        },
+        forecast: {
+          jobsCount: jobsDueThisMonthCount,
+          expected: expectedRevenue,
+          confirmed: confirmedRevenue,
+          atRisk: atRiskRevenue,
         },
         insights,
       } satisfies RevenueIntelligence;

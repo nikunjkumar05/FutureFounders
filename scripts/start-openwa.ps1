@@ -36,47 +36,41 @@ if (-not $healthy) {
     exit 1
 }
 
-# 3. Start cloudflared tunnel
-Write-Host "[3/6] Starting cloudflared tunnel..." -ForegroundColor Yellow
-# Kill any existing cloudflared
-Get-Process -Name cloudflared -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# 3. Start ngrok tunnel
+Write-Host "[3/6] Starting ngrok tunnel..." -ForegroundColor Yellow
+# Kill any existing ngrok
+Get-Process -Name ngrok -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-# Clear old log files before starting
-Set-Content -Path "C:\Users\sange\AppData\Local\Temp\opencode\cf.log" -Value ""
-Set-Content -Path "C:\Users\sange\AppData\Local\Temp\opencode\cf-err.log" -Value ""
-
-$cfExe = "C:\Users\sange\AppData\Local\Temp\opencode\cloudflared.exe"
-if (-not (Test-Path $cfExe)) {
-    Write-Host "  Downloading cloudflared..." -ForegroundColor DarkGray
-    $ProgressPreference = 'SilentlyContinue'
-    Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile $cfExe -UseBasicParsing
+$ngrokExe = "C:\Users\sange\AppData\Local\Microsoft\WindowsApps\ngrok.exe"
+if (-not (Test-Path $ngrokExe)) {
+    Write-Host "  ERROR: ngrok.exe not found at $ngrokExe" -ForegroundColor Red
+    exit 1
 }
+Start-Process -NoNewWindow -FilePath $ngrokExe -ArgumentList "http","2785"
 
-Start-Process -NoNewWindow -FilePath $cfExe -ArgumentList "tunnel","--url","http://localhost:2785","--no-autoupdate","--protocol","http2" -RedirectStandardOutput "C:\Users\sange\AppData\Local\Temp\opencode\cf.log" -RedirectStandardError "C:\Users\sange\AppData\Local\Temp\opencode\cf-err.log"
-
-# 4. Extract tunnel URL (retry up to 30s)
+# 4. Extract tunnel URL
 Write-Host "[4/6] Extracting tunnel URL..." -ForegroundColor Yellow
 $tunnelUrl = ""
-$cfRetry = 0
-while (-not $tunnelUrl -and $cfRetry -lt 10) {
+$ngrokRetry = 0
+while (-not $tunnelUrl -and $ngrokRetry -lt 10) {
     Start-Sleep -Seconds 3
-    $cfErr = Get-Content "C:\Users\sange\AppData\Local\Temp\opencode\cf-err.log" -ErrorAction SilentlyContinue
-    foreach ($line in $cfErr) {
-        if ($line -match "https://[a-z0-9-]+\.trycloudflare\.com") {
-            $tunnelUrl = $matches[0]
-            break
+    try {
+        $tunnelsRaw = curl.exe -s "http://127.0.0.1:4040/api/tunnels" 2>$null
+        $tunnelsJson = $tunnelsRaw | ConvertFrom-Json
+        if ($tunnelsJson -and $tunnelsJson.tunnels -and $tunnelsJson.tunnels.Length -gt 0) {
+            $tunnelUrl = $tunnelsJson.tunnels[0].public_url
         }
-    }
+    } catch {}
     if (-not $tunnelUrl) {
-        $cfRetry++
-        Write-Host "  Waiting for tunnel... ($cfRetry/10)" -ForegroundColor DarkGray
+        $ngrokRetry++
+        Write-Host "  Waiting for tunnel... ($ngrokRetry/10)" -ForegroundColor DarkGray
     }
 }
 
 if (-not $tunnelUrl) {
-    Write-Host "  ERROR: Could not create tunnel. Check your internet connection." -ForegroundColor Red
-    Write-Host "  Log: C:\Users\sange\AppData\Local\Temp\opencode\cf-err.log" -ForegroundColor DarkGray
+    Write-Host "  ERROR: Could not create tunnel. Make sure ngrok authtoken is configured." -ForegroundColor Red
+    Write-Host "  Run 'ngrok config add-authtoken <your-token>' in terminal first." -ForegroundColor DarkGray
     exit 1
 }
 
@@ -137,14 +131,24 @@ if (-not $vercelToken) {
     exit 1
 }
 
+function Run-Vercel {
+    if (Get-Command vercel -ErrorAction SilentlyContinue) {
+        & vercel @args
+    } elseif (Test-Path "node_modules\.bin\vercel.cmd") {
+        & "node_modules\.bin\vercel.cmd" @args
+    } else {
+        npx -y vercel @args
+    }
+}
+
 $ErrorActionPreference = "SilentlyContinue"
-npx vercel env rm OPENWA_API_URL production --yes --token $vercelToken
-npx vercel env rm OPENWA_SESSION_ID production --yes --token $vercelToken
+cmd.exe /c "echo y | npx vercel env rm OPENWA_API_URL production --token $vercelToken" 2>$null
+cmd.exe /c "echo y | npx vercel env rm OPENWA_SESSION_ID production --token $vercelToken" 2>$null
 if ($sessionId) {
-    npx vercel env add OPENWA_SESSION_ID production --token $vercelToken --value $sessionId
+    cmd.exe /c "echo $sessionId | npx vercel env add OPENWA_SESSION_ID production --token $vercelToken" 2>$null
     Write-Host "  Updated OPENWA_SESSION_ID: $sessionId" -ForegroundColor Green
 }
-npx vercel env add OPENWA_API_URL production --token $vercelToken --value $tunnelUrl
+cmd.exe /c "echo $tunnelUrl | npx vercel env add OPENWA_API_URL production --token $vercelToken" 2>$null
 Write-Host "  Updated OPENWA_API_URL: $tunnelUrl" -ForegroundColor Green
 $ErrorActionPreference = "Stop"
 Pop-Location
@@ -176,4 +180,4 @@ Write-Host " Session: $sessionId" -ForegroundColor White
 Write-Host " Production: https://futurefounders-ruddy.vercel.app/api/webhook" -ForegroundColor White
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Send a WhatsApp message to 919358549335 to test!" -ForegroundColor Yellow
+Write-Host "Send a WhatsApp message to 919214775938 to test!" -ForegroundColor Yellow

@@ -70,7 +70,7 @@ export default async function handler(req: any, res: any) {
           continue;
         }
 
-        const reminderMessage = `Hi ${customer.name}! It's been 6 months since your water tank cleaning with us. Dirty tanks breed bacteria — your family's health matters! Book your cleaning today. Reply YES to confirm or call us at 9876543210. — AquaClean Services`;
+        const reminderMessage = `Namaste ${customer.name}! Aapke paani ki tanki ki safai ka samay aa gaya hai. Gande tank se bimariyan failti hain. Aaj hi safai book karein! Reply YES to confirm or call 9876543210. — AquaClean Services`;
 
         const result = await sendWhatsAppMessage(
           openwaConfig,
