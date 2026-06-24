@@ -41,6 +41,8 @@ export async function sendWhatsAppMessage(
   console.log(`[openwa] Sending to ${url} chatId=${chatId}`);
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -49,7 +51,9 @@ export async function sendWhatsAppMessage(
         "ngrok-skip-browser-warning": "true",
       },
       body: JSON.stringify({ chatId, text: body }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!res.ok) {
       const errorText = await res.text();
@@ -85,9 +89,13 @@ export async function resolveLidToPhone(
   if (!config.apiKey || !config.sessionId) return null;
   try {
     const url = `${config.baseUrl}/api/sessions/${config.sessionId}/contacts/${encodeURIComponent(lidJid)}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(url, {
       headers: { "X-API-Key": config.apiKey, "ngrok-skip-browser-warning": "true" },
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     if (!res.ok) return null;
     const contact = await res.json();
     if (contact?.id && contact.id.includes("@c.us")) {
@@ -96,7 +104,8 @@ export async function resolveLidToPhone(
       return phone;
     }
     return null;
-  } catch {
+  } catch (err: any) {
+    console.error(`[openwa] resolveLidToPhone error: ${err?.message ?? err}`);
     return null;
   }
 }
