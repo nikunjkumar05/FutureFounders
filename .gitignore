@@ -10,7 +10,7 @@ node_modules
 dist
 dist-ssr
 *.local
-
+AquaTrak_Score85_Strategy.pdf
 .vscode/*
 !.vscode/extensions.json
 .idea
