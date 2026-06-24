@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
-import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback } from '../lib/queries';
+import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback, useAddCustomer, checkDuplicateCustomer } from '../lib/queries';
 import { format } from 'date-fns';
 import {
   Clock,
@@ -19,10 +18,12 @@ import {
   IndianRupee,
   Search,
 } from 'lucide-react';
-import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, WageType } from '../lib/types';
+import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, DuplicateCheckResult } from '../lib/types';
 import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, generateItemId, buildServiceDetails, getGroupTotal } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import ContactPicker from '../components/ContactPicker';
+import DuplicateWarningModal from '../components/DuplicateWarningModal';
+import { trackEvent } from '../lib/analytics';
 
 const columns: { status: JobStatus; label: string; icon: typeof CircleDot; color: string; badge: string }[] = [
   { status: 'pending', label: 'Scheduled', icon: CircleDot, color: 'text-amber-600 dark:text-amber-400', badge: 'badge-warn' },
@@ -376,10 +377,12 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   const { data: customers } = useCustomers();
   const { data: staff } = useStaff();
   const createJob = useCreateJob();
+  const addCustomer = useAddCustomer();
 
   const [step, setStep] = useState<CreateStep>('select_customer');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null);
 
   // Step 1: Customer
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -481,64 +484,63 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
 
   const totalCharge = serviceGroups.reduce((sum, g) => sum + (g.totalPrice || getGroupTotal(g)), 0);
 
+  const doCreateCustomer = async (): Promise<string> => {
+    if (!showNewCustomer) return selectedCustomerId;
+    const result = await addCustomer.mutateAsync({
+      name: newCustomerName,
+      phone: newCustomerPhone,
+      address: newCustomerAddress || null,
+    });
+    return result.id;
+  };
+
+  const doCreateJob = async (customerId: string) => {
+    if (!customerId) {
+      throw new Error('Please select or create a customer');
+    }
+
+    if (serviceGroups.length === 0) {
+      throw new Error('Please select at least one service');
+    }
+
+    const primaryGroup = serviceGroups[0];
+
+    const result = await createJob.mutateAsync({
+      customerId,
+      serviceType: primaryGroup.serviceType,
+      serviceDetails: buildServiceDetails(serviceGroups),
+      serviceDate,
+      technicianId: technicianId || undefined,
+      notes: jobNotes || undefined,
+      services: serviceGroups,
+    });
+
+    if (!result) {
+      throw new Error('Job was not created — no response from server');
+    }
+  };
+
   const handleCreate = async () => {
     setError('');
     setSubmitting(true);
 
     try {
-      let customerId = selectedCustomerId;
-
       if (showNewCustomer) {
         if (!newCustomerName || !newCustomerPhone) {
           setError('Customer name and phone are required');
           setSubmitting(false);
           return;
         }
-        const { data: newCust, error: custErr } = await supabase
-          .from('customers')
-          .insert({
-            merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-            name: newCustomerName,
-            phone: newCustomerPhone,
-            address: newCustomerAddress || null,
-          })
-          .select()
-          .single();
-        if (custErr) {
-          console.error('Create customer error:', custErr);
-          throw new Error(`Failed to create customer: ${custErr.message}`);
+        const dup = await checkDuplicateCustomer({ name: newCustomerName, phone: newCustomerPhone });
+        if (dup) {
+          setDuplicateResult(dup);
+          trackEvent('duplicate_customer_detected', { customer_name: newCustomerName, customer_phone: newCustomerPhone, context: 'schedule' });
+          return;
         }
-        customerId = (newCust as Record<string, unknown>).id as string;
       }
 
-      if (!customerId) {
-        setError('Please select or create a customer');
-        setSubmitting(false);
-        return;
-      }
-
-      if (serviceGroups.length === 0) {
-        setError('Please select at least one service');
-        setSubmitting(false);
-        return;
-      }
-
-      const primaryGroup = serviceGroups[0];
-
-      const result = await createJob.mutateAsync({
-        customerId,
-        serviceType: primaryGroup.serviceType,
-        serviceDetails: buildServiceDetails(serviceGroups),
-        serviceDate,
-        technicianId: technicianId || undefined,
-        notes: jobNotes || undefined,
-        services: serviceGroups,
-      });
-
-      if (!result) {
-        throw new Error('Job was not created — no response from server');
-      }
-
+      const customerId = await doCreateCustomer();
+      await doCreateJob(customerId);
       onClose();
     } catch (err) {
       console.error('Job creation failed:', err);
@@ -546,6 +548,27 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCreateAnyway = async () => {
+    setDuplicateResult(null);
+    setSubmitting(true);
+    try {
+      const customerId = await doCreateCustomer();
+      await doCreateJob(customerId);
+      trackEvent('duplicate_customer_creation_confirmed', { customer_name: newCustomerName, customer_phone: newCustomerPhone, context: 'schedule' });
+      onClose();
+    } catch (err) {
+      console.error('Job creation failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create job. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelDuplicate = () => {
+    trackEvent('duplicate_customer_creation_cancelled', { customer_name: newCustomerName, customer_phone: newCustomerPhone, context: 'schedule' });
+    setDuplicateResult(null);
   };
 
   const stepOrder: CreateStep[] = ['select_customer', 'select_service', 'service_details', 'assign_worker', 'schedule', 'review'];
@@ -897,18 +920,28 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-navy-900 rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto border border-surface-200 dark:border-surface-700">
-        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-700">
-          <div>
-            <h2 className="text-display-sm font-display text-surface-900 dark:text-surface-100">Schedule cleaning</h2>
-            <p className="text-body-xs text-surface-500 dark:text-surface-400">Step {stepOrder.indexOf(step) + 1} of 6</p>
+    <>
+      <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-navy-900 rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto border border-surface-200 dark:border-surface-700">
+          <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-700">
+            <div>
+              <h2 className="text-display-sm font-display text-surface-900 dark:text-surface-100">Schedule cleaning</h2>
+              <p className="text-body-xs text-surface-500 dark:text-surface-400">Step {stepOrder.indexOf(step) + 1} of 6</p>
+            </div>
+            <button onClick={onClose} className="btn-ghost p-2"><X size={20} /></button>
           </div>
-          <button onClick={onClose} className="btn-ghost p-2"><X size={20} /></button>
+          <div className="p-5">{renderStep()}</div>
         </div>
-        <div className="p-5">{renderStep()}</div>
       </div>
-    </div>
+      {duplicateResult && (
+        <DuplicateWarningModal
+          customer={duplicateResult.customer}
+          matchType={duplicateResult.type}
+          onCancel={handleCancelDuplicate}
+          onConfirm={handleCreateAnyway}
+        />
+      )}
+    </>
   );
 }
 

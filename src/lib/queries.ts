@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
 import type {
   Customer,
+  DuplicateCheckResult,
   ServiceCardWithDetails,
   Staff,
   Attendance,
@@ -540,27 +541,48 @@ export async function checkDuplicateCustomer({
   name: string;
   phone: string;
   excludeId?: string;
-}): Promise<Customer | null> {
+}): Promise<DuplicateCheckResult | null> {
   const trimmedName = name.trim();
   const trimmedPhone = phone.trim();
 
-  let query = supabase
+  let phoneQuery = supabase
     .from('customers')
     .select('*')
     .eq('merchant_id', MERCHANT_ID)
     .eq('phone', trimmedPhone);
 
   if (excludeId) {
-    query = query.neq('id', excludeId);
+    phoneQuery = phoneQuery.neq('id', excludeId);
   }
 
-  const { data, error } = await query.maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
+  const { data: phoneMatches, error: phoneErr } = await phoneQuery;
+  if (phoneErr) throw phoneErr;
 
-  const existing = data as Customer;
-  if (existing.name.trim().toLowerCase() === trimmedName.toLowerCase()) {
-    return existing;
+  if (phoneMatches && phoneMatches.length > 0) {
+    for (const existing of phoneMatches) {
+      const c = existing as Customer;
+      if (c.name.trim().toLowerCase() === trimmedName.toLowerCase()) {
+        return { type: 'exact', customer: c };
+      }
+    }
+    return { type: 'phone_only', customer: phoneMatches[0] as Customer };
+  }
+
+  let nameQuery = supabase
+    .from('customers')
+    .select('*')
+    .eq('merchant_id', MERCHANT_ID)
+    .ilike('name', trimmedName);
+
+  if (excludeId) {
+    nameQuery = nameQuery.neq('id', excludeId);
+  }
+
+  const { data: nameMatches, error: nameErr } = await nameQuery;
+  if (nameErr) throw nameErr;
+
+  if (nameMatches && nameMatches.length > 0) {
+    return { type: 'name_only', customer: nameMatches[0] as Customer };
   }
 
   return null;
@@ -577,19 +599,7 @@ export function useAddCustomer() {
       notes?: string | null;
       latitude?: number | null;
       longitude?: number | null;
-      skipPhoneCheck?: boolean;
     }) => {
-      if (!customer.skipPhoneCheck) {
-        const { data: existing } = await supabase
-          .from('customers')
-          .select('id')
-          .eq('merchant_id', MERCHANT_ID)
-          .eq('phone', customer.phone)
-          .maybeSingle();
-        if (existing) {
-          throw new Error('A customer with this phone number already exists');
-        }
-      }
       const { data, error } = await supabase
         .from('customers')
         .insert({

@@ -27,7 +27,8 @@ import {
 import { trackEvent } from '../lib/analytics';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import ContactPicker from '../components/ContactPicker';
-import type { Customer, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
+import DuplicateWarningModal from '../components/DuplicateWarningModal';
+import type { Customer, DuplicateCheckResult, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
 import { SERVICE_TYPE_LABELS, getServicesFromDetails } from '../lib/types';
 
 export default function Customers() {
@@ -446,7 +447,7 @@ function EditCustomerModal({
   const [notes, setNotes] = useState(customer.notes ?? '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null);
+  const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null);
   const updateCustomer = useUpdateCustomer();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -458,7 +459,7 @@ function EditCustomerModal({
     try {
       const dup = await checkDuplicateCustomer({ name, phone, excludeId: customer.id });
       if (dup) {
-        setDuplicateCustomer(dup);
+        setDuplicateResult(dup);
         trackEvent('duplicate_customer_detected', { customer_name: name, customer_phone: phone, context: 'edit' });
         return;
       }
@@ -479,7 +480,7 @@ function EditCustomerModal({
   };
 
   const handleCreateAnyway = async () => {
-    setDuplicateCustomer(null);
+    setDuplicateResult(null);
     setSubmitting(true);
     try {
       await updateCustomer.mutateAsync({
@@ -500,7 +501,7 @@ function EditCustomerModal({
 
   const handleCancelDuplicate = () => {
     trackEvent('duplicate_customer_creation_cancelled', { customer_name: name, customer_phone: phone, context: 'edit' });
-    setDuplicateCustomer(null);
+    setDuplicateResult(null);
   };
 
   return (
@@ -544,9 +545,10 @@ function EditCustomerModal({
           </form>
         </div>
       </div>
-      {duplicateCustomer && (
+      {duplicateResult && (
         <DuplicateWarningModal
-          customer={duplicateCustomer}
+          customer={duplicateResult.customer}
+          matchType={duplicateResult.type}
           onCancel={handleCancelDuplicate}
           onConfirm={handleCreateAnyway}
         />
@@ -608,50 +610,6 @@ function DeleteConfirmModal({
   );
 }
 
-function DuplicateWarningModal({
-  customer,
-  onCancel,
-  onConfirm,
-}: {
-  customer: Customer;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-sm shadow-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Possible Duplicate Customer</h2>
-          <button onClick={onCancel} className="text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:hover:text-surface-300">
-            <X size={20} />
-          </button>
-        </div>
-        <p className="text-sm text-surface-600 dark:text-surface-300 mb-3">
-          A customer with the same name and phone number already exists.
-        </p>
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 mb-4">
-          <p className="text-xs font-medium text-surface-500 dark:text-surface-400 mb-1">Existing customer</p>
-          <p className="text-sm font-medium text-surface-900 dark:text-white">Name: {customer.name}</p>
-          <p className="text-sm text-surface-700 dark:text-surface-200">Phone: {customer.phone}</p>
-        </div>
-        <p className="text-sm text-surface-600 dark:text-surface-300 mb-4">
-          Do you still want to create another customer?
-        </p>
-        <div className="flex gap-2 justify-end">
-          <button onClick={onCancel}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-600 transition-colors">
-            Cancel
-          </button>
-          <button onClick={onConfirm}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors">
-            Create Anyway
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -659,7 +617,7 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null);
+  const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null);
   const addCustomer = useAddCustomer();
 
   const handleSelectContact = (contact: { name: string; phone: string }) => {
@@ -676,7 +634,7 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
     try {
       const dup = await checkDuplicateCustomer({ name, phone });
       if (dup) {
-        setDuplicateCustomer(dup);
+        setDuplicateResult(dup);
         trackEvent('duplicate_customer_detected', { customer_name: name, customer_phone: phone });
         return;
       }
@@ -696,7 +654,7 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
   };
 
   const handleCreateAnyway = async () => {
-    setDuplicateCustomer(null);
+    setDuplicateResult(null);
     setSubmitting(true);
     try {
       await addCustomer.mutateAsync({
@@ -704,7 +662,6 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
         phone,
         address: address || null,
         notes: notes || null,
-        skipPhoneCheck: true,
       });
       trackEvent('duplicate_customer_creation_confirmed', { customer_name: name, customer_phone: phone });
       onClose();
@@ -717,7 +674,7 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
 
   const handleCancelDuplicate = () => {
     trackEvent('duplicate_customer_creation_cancelled', { customer_name: name, customer_phone: phone });
-    setDuplicateCustomer(null);
+    setDuplicateResult(null);
   };
 
   return (
@@ -764,9 +721,10 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
           </form>
         </div>
       </div>
-      {duplicateCustomer && (
+      {duplicateResult && (
         <DuplicateWarningModal
-          customer={duplicateCustomer}
+          customer={duplicateResult.customer}
+          matchType={duplicateResult.type}
           onCancel={handleCancelDuplicate}
           onConfirm={handleCreateAnyway}
         />
