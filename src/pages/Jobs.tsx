@@ -38,8 +38,6 @@ export default function Jobs() {
   const [viewingJob, setViewingJob] = useState<ServiceCardWithDetails | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  if (isLoading) return <TableSkeleton rows={5} cols={4} />;
-
   const filteredCards = useMemo(() => {
     if (!searchQuery.trim()) return allCards;
     const q = searchQuery.toLowerCase();
@@ -49,6 +47,8 @@ export default function Jobs() {
       return name.includes(q) || phone.includes(q);
     });
   }, [allCards, searchQuery]);
+
+  if (isLoading) return <TableSkeleton rows={5} cols={4} />;
 
   const grouped = new Map<JobStatus, ServiceCardWithDetails[]>();
   columns.forEach((c) => grouped.set(c.status, []));
