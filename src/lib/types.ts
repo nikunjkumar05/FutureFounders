@@ -112,6 +112,13 @@ export interface Customer {
   created_at: string;
 }
 
+export type DuplicateMatchType = 'exact' | 'phone_only' | 'name_only';
+
+export interface DuplicateCheckResult {
+  type: DuplicateMatchType;
+  customer: Customer;
+}
+
 export interface ServiceCard {
   id: string;
   customer_id: string;
