@@ -41,10 +41,14 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
-      res.end(JSON.stringify({ status: "accepted" }));
+      try {
+        await processMessage(payload);
+      } catch (err: any) {
+        console.error("[webhook] processMessage error:", err?.message ?? err);
+      }
 
-      processMessage(payload).catch((err) => console.error("[webhook] Background error:", err));
+      res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
+      res.end(JSON.stringify({ status: "processed" }));
       return;
     } catch (err: any) {
       console.error("Webhook parse error:", err);
@@ -78,13 +82,8 @@ async function processMessage(payload: any) {
   let phone = isLid ? null : extractPhoneFromOpenWA(fromJid);
   let replyTo = fromJid;
 
-  if (isLid && !phone) {
-    console.log(`[webhook] LID detected: ${fromJid}, resolving to phone...`);
-    phone = await resolveLidToPhone(config, fromJid);
-    if (phone) {
-      replyTo = `91${phone}@c.us`;
-    }
-    console.log(`[webhook] Resolved phone: ${phone}, replyTo: ${replyTo}`);
+  if (isLid) {
+    console.log(`[webhook] LID detected: ${fromJid}, using LID directly as replyTo`);
   }
 
   let staff = null;
