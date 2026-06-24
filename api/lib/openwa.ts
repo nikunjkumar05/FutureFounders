@@ -46,6 +46,7 @@ export async function sendWhatsAppMessage(
       headers: {
         "X-API-Key": config.apiKey,
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
       },
       body: JSON.stringify({ chatId, text: body }),
     });
@@ -85,7 +86,7 @@ export async function resolveLidToPhone(
   try {
     const url = `${config.baseUrl}/api/sessions/${config.sessionId}/contacts/${encodeURIComponent(lidJid)}`;
     const res = await fetch(url, {
-      headers: { "X-API-Key": config.apiKey },
+      headers: { "X-API-Key": config.apiKey, "ngrok-skip-browser-warning": "true" },
     });
     if (!res.ok) return null;
     const contact = await res.json();
