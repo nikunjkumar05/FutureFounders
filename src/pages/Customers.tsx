@@ -51,7 +51,7 @@ export default function Customers() {
         <div>
           <h1 className="text-display-lg font-display text-surface-900 dark:text-surface-100">Properties</h1>
           <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
-            Manage your customer base and view service history
+            {search ? `Showing ${filtered?.length ?? 0} of ${customers?.length ?? 0} customers` : `${customers?.length ?? 0} customers`}
           </p>
         </div>
         <button
