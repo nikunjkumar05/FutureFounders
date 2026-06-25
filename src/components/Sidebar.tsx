@@ -18,10 +18,10 @@ import { useTheme } from '../contexts/ThemeContext';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/jobs', icon: Kanban, label: 'Schedule' },
-  { to: '/customers', icon: Users, label: 'Properties' },
-  { to: '/inventory', icon: Package, label: 'Supplies' },
-  { to: '/attendance', icon: Clock, label: 'Shifts' },
+  { to: '/jobs', icon: Kanban, label: 'Jobs' },
+  { to: '/customers', icon: Users, label: 'Customers' },
+  { to: '/inventory', icon: Package, label: 'Inventory' },
+  { to: '/attendance', icon: Clock, label: 'Employees' },
   { to: '/tickets', icon: Headphones, label: 'Messages' },
 ];
 
