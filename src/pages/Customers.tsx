@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   Search,
   Plus,
-  Phone,
   MapPin,
   Bell,
   Check,
@@ -30,6 +29,7 @@ import ContactPicker from '../components/ContactPicker';
 import DuplicateWarningModal from '../components/DuplicateWarningModal';
 import type { Customer, DuplicateCheckResult, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
 import { SERVICE_TYPE_LABELS, getServicesFromDetails } from '../lib/types';
+import { PhoneLink } from '../components/PhoneLink';
 
 export default function Customers() {
   const { data: customers, isLoading } = useCustomers();
@@ -216,10 +216,7 @@ function CustomerRow({
         </div>
       </td>
       <td className="px-4 py-3">
-        <span className="font-mono text-surface-600 dark:text-surface-300 flex items-center gap-1 text-xs">
-          <Phone size={12} />
-          {customer.phone}
-        </span>
+        <PhoneLink phone={customer.phone} />
       </td>
       <td className="px-4 py-3">
         {customer.address ? (
