@@ -65,6 +65,7 @@ export interface ServiceItem {
   quantity: number;
   price: number;
   capacity?: number;
+  capacityMode?: 'predefined' | 'custom';
   sofaType?: string;
   carpetArea?: number;
   serviceName?: string;
