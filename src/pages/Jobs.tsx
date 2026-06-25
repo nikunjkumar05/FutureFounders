@@ -570,6 +570,16 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         return;
       }
 
+      const invalidCap = serviceGroups.some(g =>
+        (g.serviceType === 'standard_cleaning' || g.serviceType === 'deep_cleaning') &&
+        g.items.some(item => item.capacity === -1 || (item.capacity != null && item.capacity < 1))
+      );
+      if (invalidCap) {
+        setError('Please set a valid capacity for all tank cleaning items');
+        setSubmitting(false);
+        return;
+      }
+
       const primaryGroup = serviceGroups[0];
 
       const result = await createJob.mutateAsync({
@@ -705,7 +715,11 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <div className="space-y-3">
-              {group.items.map((item, itemIdx) => (
+              {group.items.map((item, itemIdx) => {
+                const predefinedCaps = [500, 1000, 1500, 2000, 3000, 5000, 10000];
+                const cap = item.capacity ?? 1000;
+                const isCustom = item.capacityMode === 'custom' || (item.capacityMode == null && (cap === -1 || !predefinedCaps.includes(cap)));
+                return (
                 <div key={item.id} className="bg-surface-50 dark:bg-surface-900/50 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-surface-500 dark:text-surface-400">Item {itemIdx + 1}</span>
@@ -719,22 +733,46 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Capacity (L)</label>
-                        <select value={item.capacity ?? 1000} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { capacity: parseInt(e.target.value) })}
+                        <select value={isCustom ? -1 : cap} onChange={e => {
+                          const v = parseInt(e.target.value);
+                          if (v === -1) {
+                            updateServiceItem(currentServiceIdx, itemIdx, { capacity: -1, capacityMode: 'custom' });
+                          } else {
+                            updateServiceItem(currentServiceIdx, itemIdx, { capacity: v, capacityMode: 'predefined' });
+                          }
+                        }}
                           className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white">
-                          <option value={500}>500L</option>
-                          <option value={1000}>1000L</option>
-                          <option value={1500}>1500L</option>
-                          <option value={2000}>2000L</option>
-                          <option value={3000}>3000L</option>
-                          <option value={5000}>5000L</option>
-                          <option value={10000}>10000L</option>
+                          {predefinedCaps.map(c => <option key={c} value={c}>{c}L</option>)}
+                          <option disabled>──────────</option>
+                          <option value={-1}>Custom...</option>
                         </select>
+                        {isCustom && (
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            placeholder="Enter capacity in liters (e.g. 1100)"
+                            value={cap === -1 ? '' : cap}
+                            onChange={e => {
+                              const v = e.target.value;
+                              if (v === '') {
+                                updateServiceItem(currentServiceIdx, itemIdx, { capacity: -1, capacityMode: 'custom' });
+                              } else {
+                                const num = parseInt(v);
+                                if (!isNaN(num) && num >= 1) {
+                                  updateServiceItem(currentServiceIdx, itemIdx, { capacity: num, capacityMode: 'custom' });
+                                }
+                              }
+                            }}
+                            className="mt-1.5 w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white"
+                          />
+                        )}
                       </div>
                       <div>
                         <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Quantity</label>
                         <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
                           className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
-                    </div>
+                      </div>
                     </div>
                   )}
 
@@ -809,7 +847,8 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                       placeholder="0" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
 
             <button onClick={() => addServiceItem(currentServiceIdx)}
@@ -1062,6 +1101,11 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
     e.preventDefault();
     if (!customerId) { setError('Please select a customer'); return; }
     if (serviceGroups.length === 0) { setError('Please add at least one service'); return; }
+    const invalidCap = serviceGroups.some(g =>
+      (g.serviceType === 'standard_cleaning' || g.serviceType === 'deep_cleaning') &&
+      g.items.some(item => item.capacity === -1 || (item.capacity != null && item.capacity < 1))
+    );
+    if (invalidCap) { setError('Please set a valid capacity for all tank cleaning items'); return; }
     setError('');
     setSubmitting(true);
     try {
@@ -1148,7 +1192,11 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                     </div>
                   </div>
                   <div className="p-3 space-y-2">
-                    {group.items.map((item, itemIdx) => (
+                    {group.items.map((item, itemIdx) => {
+                      const predefinedCaps = [500, 1000, 1500, 2000, 3000, 5000, 10000];
+                      const cap = item.capacity ?? 1000;
+                      const isCustom = item.capacityMode === 'custom' || (item.capacityMode == null && (cap === -1 || !predefinedCaps.includes(cap)));
+                      return (
                       <div key={item.id} className="bg-surface-50 dark:bg-surface-900/50 rounded-lg p-2.5 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 uppercase">Item {itemIdx + 1}</span>
@@ -1162,16 +1210,40 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                           <div className="grid grid-cols-3 gap-2">
                             <div>
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Capacity</label>
-                              <select value={item.capacity ?? 1000} onChange={e => updateServiceItem(groupIdx, itemIdx, { capacity: parseInt(e.target.value) })}
+                              <select value={isCustom ? -1 : cap} onChange={e => {
+                                const v = parseInt(e.target.value);
+                                if (v === -1) {
+                                  updateServiceItem(groupIdx, itemIdx, { capacity: -1, capacityMode: 'custom' });
+                                } else {
+                                  updateServiceItem(groupIdx, itemIdx, { capacity: v, capacityMode: 'predefined' });
+                                }
+                              }}
                                 className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white">
-                                <option value={500}>500L</option>
-                                <option value={1000}>1000L</option>
-                                <option value={1500}>1500L</option>
-                                <option value={2000}>2000L</option>
-                                <option value={3000}>3000L</option>
-                                <option value={5000}>5000L</option>
-                                <option value={10000}>10000L</option>
+                                {predefinedCaps.map(c => <option key={c} value={c}>{c}L</option>)}
+                                <option disabled>──────────</option>
+                                <option value={-1}>Custom...</option>
                               </select>
+                              {isCustom && (
+                                <input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  placeholder="Enter capacity in liters (e.g. 1100)"
+                                  value={cap === -1 ? '' : cap}
+                                  onChange={e => {
+                                    const v = e.target.value;
+                                    if (v === '') {
+                                      updateServiceItem(groupIdx, itemIdx, { capacity: -1, capacityMode: 'custom' });
+                                    } else {
+                                      const num = parseInt(v);
+                                      if (!isNaN(num) && num >= 1) {
+                                        updateServiceItem(groupIdx, itemIdx, { capacity: num, capacityMode: 'custom' });
+                                      }
+                                    }
+                                  }}
+                                  className="mt-1.5 w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white"
+                                />
+                              )}
                             </div>
                             <div>
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
@@ -1272,8 +1344,9 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                             placeholder="Item notes" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
                         </div>
                       </div>
-                    ))}
-                    <button type="button" onClick={() => addServiceItem(groupIdx)}
+                      );
+                      })}
+                      <button type="button" onClick={() => addServiceItem(groupIdx)}
                       className="w-full flex items-center justify-center gap-1 text-xs font-medium text-navy-600 dark:text-navy-400 hover:text-navy-700 py-1.5 rounded-lg border border-dashed border-surface-300 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
                       <Plus size={12} /> Add Item
                     </button>
