@@ -24,6 +24,8 @@ import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, Servi
 import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, generateItemId, buildServiceDetails, getGroupTotal } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import ContactPicker from '../components/ContactPicker';
+import TimeFilter from '../components/TimeFilter';
+import { type TimePeriod, isInRange, groupByMonthYear } from '../lib/timeUtils';
 
 const columns: { status: JobStatus; label: string; icon: typeof CircleDot; color: string; badge: string }[] = [
   { status: 'pending', label: 'Scheduled', icon: CircleDot, color: 'text-amber-600 dark:text-amber-400', badge: 'badge-warn' },
@@ -38,6 +40,7 @@ export default function Jobs() {
   const [deletingJob, setDeletingJob] = useState<ServiceCardWithDetails | null>(null);
   const [viewingJob, setViewingJob] = useState<ServiceCardWithDetails | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [completedPeriod, setCompletedPeriod] = useState<TimePeriod>('month');
 
   const filteredCards = useMemo(() => {
     if (!searchQuery.trim()) return allCards;
@@ -96,6 +99,11 @@ export default function Jobs() {
     grouped.set(card.job_status, list);
   });
 
+  const completedCards = grouped.get('completed') ?? [];
+  const filteredCompleted = completedCards.filter(card => isInRange(card.service_date, completedPeriod));
+  const completedGroups = groupByMonthYear(filteredCompleted, card => card.service_date);
+  const showingCompletedFilter = completedPeriod !== 'all' || searchQuery.trim() !== '';
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -136,6 +144,45 @@ export default function Jobs() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {columns.map(({ status, label, icon: Icon, color, badge }) => {
+          if (status === 'completed') {
+            return (
+              <div key={status} className="flex flex-col">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle2 size={16} className={color} />
+                  <h2 className="text-sm font-display font-semibold text-surface-900 dark:text-surface-100">{label}</h2>
+                  <span className={badge}>{completedCards.length}</span>
+                </div>
+                <div className="mb-3">
+                  <TimeFilter value={completedPeriod} onChange={setCompletedPeriod} />
+                </div>
+                <p className="text-xs text-surface-500 dark:text-surface-400 mb-3">
+                  {showingCompletedFilter
+                    ? `Showing ${filteredCompleted.length} of ${completedCards.length} completed jobs`
+                    : `${completedCards.length} completed jobs`}
+                </p>
+                <div className="space-y-4 flex-1 min-h-[200px]">
+                  {filteredCompleted.length === 0 ? (
+                    <div className="border-2 border-dashed border-surface-200 dark:border-surface-700 rounded-2xl p-8 text-center">
+                      <p className="text-body-sm text-surface-400 dark:text-surface-500">No completed jobs found</p>
+                    </div>
+                  ) : (
+                    [...completedGroups.entries()].map(([monthYear, cards]) => (
+                      <div key={monthYear}>
+                        <h3 className="text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-2">
+                          {monthYear}
+                        </h3>
+                        <div className="space-y-3">
+                          {cards.map((card) => (
+                            <JobCard key={card.id} card={card} onEdit={() => setEditingJob(card)} onDelete={() => setDeletingJob(card)} onView={() => setViewingJob(card)} />
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          }
           const cards = grouped.get(status) ?? [];
           return (
             <div key={status} className="flex flex-col">
