@@ -1,4 +1,4 @@
-# Operation Overflow App — Water Tank Cleaning Operations Platform
+# AquaTrak App — Water Tank Cleaning Operations Platform
 ### App Link : https://futurefounders-ruddy.vercel.app/
 Lean SMB operations platform for water tank cleaning businesses. Built for the OKCredit Future Founder Hackathon.
 
@@ -68,7 +68,7 @@ Fill in your Supabase project URL and anon key (these are safe for client-side u
 Open your Supabase dashboard → SQL Editor and paste the contents of:
 
 ```
-supabase/migrations/20260606162111_operation-overflow-app_schema.sql
+supabase/migrations/20260606162111_aquatrak_schema.sql
 ```
 
 This creates all tables, indexes, RLS policies, the inventory trigger, and seed data.

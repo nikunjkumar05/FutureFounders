@@ -73,7 +73,7 @@ export default function Sidebar() {
             {!collapsed && (
               <div className="min-w-0">
                 <h1 className="font-display font-bold text-navy-900 dark:text-surface-100 text-sm truncate">
-                  Operation Waterflow
+                  AquaTrak
                 </h1>
                 <p className="text-xs text-surface-500 dark:text-surface-400 truncate">
                   Tank cleaning ops

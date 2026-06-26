@@ -22,6 +22,54 @@ function formatINR(n: number): string {
 export default function RevenueIntelligence() {
   const { data, isLoading } = useRevenueIntelligence();
 
+  const metrics = useMemo(() => {
+    if (!data) return [];
+    return [
+      {
+        label: 'Potential Revenue Due',
+        value: formatINR(data.potentialRevenueDueThisMonth),
+        icon: DollarSign,
+        color: 'emerald',
+        sub: 'This month',
+      },
+      {
+        label: 'Customers Due',
+        value: data.customersDue,
+        icon: Users,
+        color: 'cyan',
+        sub: 'Ready for booking',
+      },
+      {
+        label: 'Responded',
+        value: data.respondedToReminder,
+        icon: MessageSquare,
+        color: 'blue',
+        sub: 'Replied to reminders',
+      },
+      {
+        label: 'Awaiting Follow-Up',
+        value: data.awaitingFollowUp,
+        icon: Clock,
+        color: 'amber',
+        sub: 'Reminder sent, no reply',
+      },
+      {
+        label: 'High Churn Risk',
+        value: data.highChurnRisk,
+        icon: AlertTriangle,
+        color: 'red',
+        sub: 'Overdue & unresponsive',
+      },
+      {
+        label: 'Recoverable Revenue',
+        value: formatINR(data.potentialRevenueRecovery),
+        icon: TrendingUp,
+        color: 'rose',
+        sub: 'At-risk customers',
+      },
+    ];
+  }, [data]);
+
   if (isLoading) {
     return (
       <div className="card-base p-5 space-y-4">
@@ -36,51 +84,6 @@ export default function RevenueIntelligence() {
   }
 
   if (!data) return null;
-
-  const metrics = useMemo(() => [
-    {
-      label: 'Potential Revenue Due',
-      value: formatINR(data.potentialRevenueDueThisMonth),
-      icon: DollarSign,
-      color: 'emerald',
-      sub: 'This month',
-    },
-    {
-      label: 'Customers Due',
-      value: data.customersDue,
-      icon: Users,
-      color: 'cyan',
-      sub: 'Ready for booking',
-    },
-    {
-      label: 'Responded',
-      value: data.respondedToReminder,
-      icon: MessageSquare,
-      color: 'blue',
-      sub: 'Replied to reminders',
-    },
-    {
-      label: 'Awaiting Follow-Up',
-      value: data.awaitingFollowUp,
-      icon: Clock,
-      color: 'amber',
-      sub: 'Reminder sent, no reply',
-    },
-    {
-      label: 'High Churn Risk',
-      value: data.highChurnRisk,
-      icon: AlertTriangle,
-      color: 'red',
-      sub: 'Overdue & unresponsive',
-    },
-    {
-      label: 'Recoverable Revenue',
-      value: formatINR(data.potentialRevenueRecovery),
-      icon: TrendingUp,
-      color: 'rose',
-      sub: 'At-risk customers',
-    },
-  ], [data]);
 
   return (
     <div className="space-y-5">

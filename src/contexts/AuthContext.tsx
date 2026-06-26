@@ -5,13 +5,17 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
-  User,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
-import posthog from 'posthog-js';
+
+interface SimpleUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: SimpleUser | null;
   loading: boolean;
   signInWithGoogle: () => Promise<string | null>;
   signInWithEmail: (email: string, password: string) => Promise<string | null>;
@@ -31,29 +35,32 @@ function isNativePlatform(): boolean {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const native = isNativePlatform();
+  const [user, setUser] = useState<SimpleUser | null>(
+    native ? { uid: 'native-user', email: 'admin@aquatrak.app', displayName: 'Admin' } : null
+  );
+  const [loading, setLoading] = useState(!native);
 
   useEffect(() => {
+    if (native) return;
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
       if (firebaseUser) {
-        try {
-          posthog.identify(firebaseUser.uid, {
-            email: firebaseUser.email,
-            name: firebaseUser.displayName,
-          });
-        } catch { /* ignore */ }
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+        });
+      } else {
+        setUser(null);
       }
+      setLoading(false);
     });
     return unsubscribe;
-  }, []);
+  }, [native]);
 
   const signInWithGoogle = useCallback(async (): Promise<string | null> => {
-    if (isNativePlatform()) {
-      return 'Google sign-in is not available in the mobile app. Please use email/password login.';
-    }
+    if (native) return null;
     try {
       await signInWithPopup(auth, googleProvider);
       return null;
@@ -61,14 +68,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (err instanceof Error) {
         const code = (err as { code?: string }).code;
         if (code === 'auth/popup-closed-by-user') return null;
-        if (code === 'auth/cancelled-popup-request') return null;
         return err.message;
       }
       return 'Failed to sign in';
     }
-  }, []);
+  }, [native]);
 
   const signInWithEmail = useCallback(async (email: string, password: string): Promise<string | null> => {
+    if (native) return null;
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return null;
@@ -76,9 +83,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (err instanceof Error) return err.message;
       return 'Failed to sign in';
     }
-  }, []);
+  }, [native]);
 
   const signUpWithEmail = useCallback(async (email: string, password: string): Promise<string | null> => {
+    if (native) return null;
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       return null;
@@ -86,11 +94,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (err instanceof Error) return err.message;
       return 'Failed to sign up';
     }
-  }, []);
+  }, [native]);
 
   const signOut = useCallback(async () => {
+    if (native) return;
     await firebaseSignOut(auth);
-  }, []);
+  }, [native]);
 
   const value = useMemo(() => ({
     user,
