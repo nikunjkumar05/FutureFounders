@@ -23,13 +23,14 @@ import type {
   BriefingInsights,
   ReminderResponse,
   CustomerIntelligence,
+  CustomerSegment,
   RevenueIntelligence,
   SegmentedCustomer,
-  CustomerSegment,
   ReminderStatus,
   WageType,
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
+import { deriveCustomerIntelligence, estimateServiceValue } from './customer-intelligence';
 import { trackEvent } from './analytics';
 
 const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
@@ -1257,38 +1258,6 @@ export function useDailyBriefing() {
 
 // ─── Revenue Intelligence ────────────────────────────────────────
 
-function estimateServiceValue(card: ServiceCardWithDetails): number {
-  const details = (card.service_details ?? {}) as Record<string, unknown>;
-
-  if (typeof details.totalCharge === 'number') return details.totalCharge;
-
-  if (Array.isArray(details.services)) {
-    const groups = details.services as Array<{ totalPrice?: number; items?: Array<{ price?: number; quantity?: number }> }>;
-    return groups.reduce((sum, g) => {
-      if (g.totalPrice) return sum + g.totalPrice;
-      if (g.items) {
-        return sum + g.items.reduce((s, i) => s + (i.price ?? 0) * (i.quantity ?? 1), 0);
-      }
-      return sum;
-    }, 0);
-  }
-
-  const tankCapacity = (details.totalCapacity as number) || (details.tankCapacity as number) || 1000;
-  const pricing: Record<string, number> = {
-    standard_cleaning: 1200,
-    deep_cleaning: 1800,
-    sofa_cleaning: 1500,
-    seats_cleaning: 1200,
-    carpet_cleaning: 2000,
-    custom_service: 1000,
-  };
-  const basePrice = pricing[card.service_type] ?? 1000;
-  if (card.service_type === 'standard_cleaning' || card.service_type === 'deep_cleaning') {
-    return Math.round(basePrice * (tankCapacity / 1000));
-  }
-  return basePrice;
-}
-
 export function useRevenueIntelligence() {
   return useQuery({
     queryKey: ['revenue_intelligence'],
@@ -1358,112 +1327,42 @@ export function useRevenueIntelligence() {
 
       const uniqueOverdueCustomers = new Map<string, ServiceCardWithDetails>();
       for (const c of overdueCustomers) uniqueOverdueCustomers.set(c.customer_id, c);
-      // Calculate revenue due this month
+      // Derive intelligence for each customer and bucket into segments
       let potentialRevenueDueThisMonth = 0;
       const readyToBook: SegmentedCustomer[] = [];
       const followUpNeeded: SegmentedCustomer[] = [];
       const highChurnRisk: SegmentedCustomer[] = [];
 
       for (const [cid, card] of uniqueDueCustomers) {
-        const value = estimateServiceValue(card);
-        const completedCard = latestCompletedByCustomer.get(cid);
-        const expectedValue = completedCard ? estimateServiceValue(completedCard) : value;
-        potentialRevenueDueThisMonth += expectedValue;
-
-        const reminder = latestReminderByCustomer.get(cid);
-        const ci = intelligenceByCustomer.get(cid);
-        const segment = ci?.segment ?? 'unknown';
-        const daysOverdue = card.next_service_date && card.next_service_date < todayStr
-          ? Math.floor((today.getTime() - new Date(card.next_service_date + 'T00:00:00').getTime()) / 86400000)
-          : 0;
-
-        let healthScore = 100;
-        healthScore -= Math.min(daysOverdue * 1.5, 60);
-        if (reminder?.status === 'ignored') {
-          healthScore -= 20;
-        } else if (reminder?.status === 'sent') {
-          healthScore -= 10;
-        }
-        const details = (card.service_details || {}) as any;
-        const capacity = (details.tankCapacity || details.totalCapacity || 1000) as number;
-        if (capacity > 1000) {
-          healthScore -= 10;
-        }
-        healthScore = Math.max(0, Math.round(healthScore));
-
-        const base: SegmentedCustomer = {
-          id: cid,
-          name: card.customers?.name ?? 'Unknown',
-          phone: card.customers?.phone ?? '',
-          address: card.customers?.address ?? null,
-          expectedValue,
-          serviceType: card.service_type,
-          serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
-          status: segment,
-          daysOverdue,
-          lastServiceDate: card.service_date,
-          healthScore,
-        };
-
-        if (segment === 'ready_to_book' || reminder?.status === 'responded' || reminder?.status === 'booked') {
-          readyToBook.push({ ...base, status: 'ready_to_book' });
-        } else if (segment === 'high_churn_risk' || daysOverdue > 30 || reminder?.status === 'ignored') {
-          highChurnRisk.push({ ...base, status: 'high_churn_risk' });
-        } else if (reminder?.status === 'sent' || daysOverdue > 0) {
-          followUpNeeded.push({ ...base, status: 'follow_up_needed' });
-        } else if (reminder) {
-          followUpNeeded.push({ ...base, status: 'follow_up_needed' });
-        } else {
-          readyToBook.push({ ...base, status: 'ready_to_book' });
-        }
+        const customer = deriveCustomerIntelligence({
+          card,
+          latestCompletedCard: latestCompletedByCustomer.get(cid) ?? null,
+          latestReminder: latestReminderByCustomer.get(cid) ?? null,
+          storedSegment: intelligenceByCustomer.get(cid)?.segment ?? 'unknown',
+          today,
+          todayStr,
+          isDueThisMonth: true,
+        });
+        potentialRevenueDueThisMonth += customer.expectedValue;
+        if (customer.status === 'ready_to_book') readyToBook.push(customer);
+        else if (customer.status === 'follow_up_needed') followUpNeeded.push(customer);
+        else if (customer.status === 'high_churn_risk') highChurnRisk.push(customer);
       }
 
-      // Also classify overdue customers not yet in due-this-month
       for (const [cid, card] of uniqueOverdueCustomers) {
         if (uniqueDueCustomers.has(cid)) continue;
-        const value = estimateServiceValue(card);
-        const completedCard = latestCompletedByCustomer.get(cid);
-        const expectedValue = completedCard ? estimateServiceValue(completedCard) : value;
-        const reminder = latestReminderByCustomer.get(cid);
-        const ci = intelligenceByCustomer.get(cid);
-        const segment = ci?.segment ?? 'unknown';
-        const daysOverdue = Math.floor((today.getTime() - new Date(card.next_service_date! + 'T00:00:00').getTime()) / 86400000);
-
-        let healthScore = 100;
-        healthScore -= Math.min(daysOverdue * 1.5, 60);
-        if (reminder?.status === 'ignored') {
-          healthScore -= 20;
-        } else if (reminder?.status === 'sent') {
-          healthScore -= 10;
-        }
-        const details = (card.service_details || {}) as any;
-        const capacity = (details.tankCapacity || details.totalCapacity || 1000) as number;
-        if (capacity > 1000) {
-          healthScore -= 10;
-        }
-        healthScore = Math.max(0, Math.round(healthScore));
-
-        const base: SegmentedCustomer = {
-          id: cid,
-          name: card.customers?.name ?? 'Unknown',
-          phone: card.customers?.phone ?? '',
-          address: card.customers?.address ?? null,
-          expectedValue,
-          serviceType: card.service_type,
-          serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
-          status: segment,
-          daysOverdue,
-          lastServiceDate: card.service_date,
-          healthScore,
-        };
-
-        if (segment === 'high_churn_risk' || daysOverdue > 30 || reminder?.status === 'ignored') {
-          highChurnRisk.push({ ...base, status: 'high_churn_risk' });
-        } else if (segment === 'ready_to_book' || reminder?.status === 'responded' || reminder?.status === 'booked') {
-          readyToBook.push({ ...base, status: 'ready_to_book' });
-        } else {
-          followUpNeeded.push({ ...base, status: 'follow_up_needed' });
-        }
+        const customer = deriveCustomerIntelligence({
+          card,
+          latestCompletedCard: latestCompletedByCustomer.get(cid) ?? null,
+          latestReminder: latestReminderByCustomer.get(cid) ?? null,
+          storedSegment: intelligenceByCustomer.get(cid)?.segment ?? 'unknown',
+          today,
+          todayStr,
+          isDueThisMonth: false,
+        });
+        if (customer.status === 'high_churn_risk') highChurnRisk.push(customer);
+        else if (customer.status === 'ready_to_book') readyToBook.push(customer);
+        else if (customer.status === 'follow_up_needed') followUpNeeded.push(customer);
       }
 
       // Calculate forecast
