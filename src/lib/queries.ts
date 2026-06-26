@@ -420,6 +420,64 @@ export function useMarkReminderSent() {
   });
 }
 
+// Time saved metrics (current calendar month)
+export function useTimeSavedMetrics() {
+  return useQuery({
+    queryKey: ['time_saved_metrics'],
+    queryFn: async () => {
+      const today = new Date();
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+      const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+      const [completedJobs, remindersSent, reminderResponses, customersCreated, attendanceCheckIns] = await Promise.all([
+        supabase
+          .from('service_cards')
+          .select('id', { count: 'exact', head: true })
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('job_status', 'completed')
+          .gte('service_date', monthStart)
+          .lte('service_date', monthEnd),
+        supabase
+          .from('service_cards')
+          .select('id', { count: 'exact', head: true })
+          .eq('merchant_id', MERCHANT_ID)
+          .not('reminder_sent_at', 'is', null)
+          .gte('reminder_sent_at', monthStart)
+          .lte('reminder_sent_at', monthEnd),
+        supabase
+          .from('reminder_responses')
+          .select('id', { count: 'exact', head: true })
+          .eq('merchant_id', MERCHANT_ID)
+          .not('responded_at', 'is', null)
+          .gte('responded_at', monthStart)
+          .lte('responded_at', monthEnd),
+        supabase
+          .from('customers')
+          .select('id', { count: 'exact', head: true })
+          .eq('merchant_id', MERCHANT_ID)
+          .gte('created_at', monthStart)
+          .lte('created_at', monthEnd),
+        supabase
+          .from('attendance')
+          .select('id', { count: 'exact', head: true })
+          .eq('merchant_id', MERCHANT_ID)
+          .not('checkin_time', 'is', null)
+          .gte('checkin_time', monthStart)
+          .lte('checkin_time', monthEnd),
+      ]);
+
+      return {
+        completedJobs: completedJobs.count ?? 0,
+        remindersSent: remindersSent.count ?? 0,
+        reminderResponses: reminderResponses.count ?? 0,
+        customersCreated: customersCreated.count ?? 0,
+        attendanceCheckIns: attendanceCheckIns.count ?? 0,
+      };
+    },
+    staleTime: 30_000,
+  });
+}
+
 // Dashboard metrics
 export function useDashboardMetrics() {
   return useQuery({

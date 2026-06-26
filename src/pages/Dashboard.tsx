@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   Clock,
 } from 'lucide-react';
-import { useDashboardMetrics, useDailyBriefing } from '../lib/queries';
+import { useDashboardMetrics, useTimeSavedMetrics, useDailyBriefing } from '../lib/queries';
+import { calculateTotalMinutes, formatMinutes } from '../lib/timeSaved';
 import { CardSkeleton } from '../components/LoadingSkeleton';
 import { Suspense, lazy, memo, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
@@ -22,6 +23,7 @@ const DailyBriefingModal = lazy(() => import('../components/DailyBriefing'));
 
 export default function Dashboard() {
   const { data, isLoading } = useDashboardMetrics();
+  const { data: timeData } = useTimeSavedMetrics();
   const { data: briefing } = useDailyBriefing();
   const [showBriefing, setShowBriefing] = useState(false);
   const qc = useQueryClient();
@@ -39,7 +41,10 @@ export default function Dashboard() {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'service_cards' },
-          () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
+          () => {
+            qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+            qc.invalidateQueries({ queryKey: ['time_saved_metrics'] });
+          }
         )
         .on(
           'postgres_changes',
@@ -54,12 +59,23 @@ export default function Dashboard() {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'attendance' },
-          () => qc.invalidateQueries({ queryKey: ['dashboard_metrics'] })
+          () => {
+            qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
+            qc.invalidateQueries({ queryKey: ['time_saved_metrics'] });
+          }
         )
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'reminder_responses' },
-          () => qc.invalidateQueries({ queryKey: ['revenue_intelligence'] })
+          () => {
+            qc.invalidateQueries({ queryKey: ['revenue_intelligence'] });
+            qc.invalidateQueries({ queryKey: ['time_saved_metrics'] });
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'customers' },
+          () => qc.invalidateQueries({ queryKey: ['time_saved_metrics'] })
         )
         .on(
           'postgres_changes',
@@ -82,6 +98,8 @@ export default function Dashboard() {
   const inProgressJobs = data?.inProgressJobs ?? 0;
   const staffCheckedIn = data?.staffCheckedIn ?? 0;
   const lowStockAlerts = data?.lowStockAlerts ?? 0;
+  const timeSavedValue = timeData ? formatMinutes(calculateTotalMinutes(timeData)) : '0m';
+
 
   return (
     <div className="space-y-6">
@@ -171,10 +189,10 @@ export default function Dashboard() {
               />
               <MetricCard
                 label="Time saved this month"
-                value={Math.round(38 + (data?.jobsCompletedThisWeek ?? 0) * 1.75)}
+                value={timeSavedValue}
                 icon={Clock}
                 color="cyan"
-                trend="Hours saved"
+                trend="Based on actual activity"
               />
             </>
           )}
@@ -208,7 +226,7 @@ const MetricCard = memo(function MetricCard({
   trend,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   icon: typeof CircleDot;
   color: 'cyan' | 'amber' | 'red' | 'surface';
   trend: string;
