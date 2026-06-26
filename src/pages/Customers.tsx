@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import {
   Search,
   Plus,
@@ -116,7 +116,7 @@ export default function Customers() {
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-700">
                 {(period === 'all' && !search ? [...customerGroups.entries()] : null)?.map(([monthYear, groupCustomers]) => (
-                  <React.Fragment key={monthYear}>
+                  <Fragment key={monthYear}>
                     <tr className="bg-surface-50 dark:bg-surface-800/50">
                       <td colSpan={7} className="px-4 py-2 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">
                         {monthYear}
@@ -144,7 +144,7 @@ export default function Customers() {
                         />
                       );
                     })}
-                  </React.Fragment>
+                  </Fragment>
                 )) ?? filteredByPeriod.map((customer) => {
                   const cards = serviceCards?.filter(
                     (sc) => sc.customer_id === customer.id
