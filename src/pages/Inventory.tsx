@@ -44,7 +44,7 @@ export default function Inventory() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {inventory.map((item) => {
-            const ratio = item.current_stock / (item.minimum_threshold * 3);
+            const ratio = item.minimum_threshold > 0 ? item.current_stock / (item.minimum_threshold * 3) : 0;
             const status =
               item.current_stock < item.minimum_threshold
                 ? (reorderedIds?.has(item.id) ? 'reordered' : 'critical')
@@ -170,7 +170,7 @@ function DeleteButton({ itemId, itemName }: { itemId: string; itemName: string }
             del.mutate({ id: itemId });
             setConfirming(false);
           }}
-          className="text-[10px] font-medium text-red-700 bg-red-50 hover:bg-red-100 px-1.5 py-0.5 rounded transition-colors"
+          className="text-[10px] font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 px-1.5 py-0.5 rounded transition-colors"
         >
           Sure?
         </button>
@@ -227,7 +227,7 @@ function AlertHistoryTable() {
               <td className="px-4 py-2.5 font-medium text-surface-900 dark:text-white">
                 {alert.inventory?.item_name}
               </td>
-              <td className="px-4 py-2.5 text-red-600 font-medium">
+              <td className="px-4 py-2.5 text-red-600 dark:text-red-400 font-medium">
                 {alert.inventory?.current_stock}
                 {alert.inventory?.unit}
               </td>
@@ -241,7 +241,7 @@ function AlertHistoryTable() {
               <td className="px-4 py-2.5 text-right">
                 <button
                   onClick={() => resolveAlert.mutate({ alertId: alert.id, inventoryId: alert.inventory_id, merchantId: alert.merchant_id })}
-                  className="text-xs font-medium text-cyan-700 hover:text-cyan-900 bg-cyan-50 hover:bg-cyan-100 px-3 py-1 rounded-md transition-colors"
+                  className="text-xs font-medium text-cyan-700 dark:text-cyan-300 hover:text-cyan-900 dark:hover:text-cyan-100 bg-cyan-50 dark:bg-cyan-900/30 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 px-3 py-1 rounded-md transition-colors"
                 >
                   Mark Reordered
                 </button>
@@ -339,7 +339,7 @@ function AddItemModal({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={addInventory.isPending}
-            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50"
+            className="w-full bg-navy-600 dark:bg-cyan-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 dark:hover:bg-cyan-400 transition-colors disabled:opacity-50"
           >
             {addInventory.isPending ? 'Adding...' : 'Add Item'}
           </button>
@@ -435,7 +435,7 @@ function EditItemModal({ item, onClose }: { item: Inventory; onClose: () => void
           <button
             type="submit"
             disabled={updateInventory.isPending}
-            className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50"
+            className="w-full bg-navy-600 dark:bg-cyan-500 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 dark:hover:bg-cyan-400 transition-colors disabled:opacity-50"
           >
             {updateInventory.isPending ? 'Saving...' : 'Save Changes'}
           </button>

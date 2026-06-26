@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback } from '../lib/queries';
+import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback, MERCHANT_ID } from '../lib/queries';
 import { format } from 'date-fns';
 import {
   Clock,
@@ -591,7 +591,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         const { data: newCust, error: custErr } = await supabase
           .from('customers')
           .insert({
-            merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+            merchant_id: MERCHANT_ID,
             name: newCustomerName,
             phone: newCustomerPhone,
             address: newCustomerAddress || null,
@@ -844,10 +844,12 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                   )}
 
                   {group.serviceType === 'seats_cleaning' && (
-                    <div>
-                      <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Quantity</label>
-                      <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
-                        className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Quantity</label>
+                        <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                          className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
+                      </div>
                     </div>
                   )}
 
@@ -1009,13 +1011,13 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {totalCharge > 0 && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
-                <span className="text-sm font-semibold text-green-800">Total</span>
-                <span className="text-lg font-bold text-green-800">₹{totalCharge.toLocaleString('en-IN')}</span>
+              <div className="bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg p-3 flex items-center justify-between">
+                <span className="text-sm font-semibold text-green-800 dark:text-green-300">Total</span>
+                <span className="text-lg font-bold text-green-800 dark:text-green-300">₹{totalCharge.toLocaleString('en-IN')}</span>
               </div>
             )}
 
-            {error && <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>}
+            {error && <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs rounded-lg px-3 py-2">{error}</div>}
             <div className="flex justify-between pt-2">
               <BackBtn onClick={() => setStep('schedule')} />
               <button onClick={handleCreate} disabled={submitting}

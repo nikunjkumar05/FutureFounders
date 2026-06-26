@@ -248,7 +248,7 @@ function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; color: string; icon: typeof CheckCircle }> = {
     checked_in: {
       label: 'Checked In',
-      color: 'bg-cyan-100 text-cyan-700',
+      color: 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300',
       icon: CheckCircle,
     },
     checked_out: {
@@ -256,10 +256,10 @@ function StatusBadge({ status }: { status: string }) {
       color: 'bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300',
       icon: Clock,
     },
-    absent: { label: 'Absent', color: 'bg-red-100 text-red-700', icon: XCircle },
+    absent: { label: 'Absent', color: 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300', icon: XCircle },
     not_yet: {
       label: 'Not Yet',
-      color: 'bg-amber-100 text-amber-700',
+      color: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
       icon: User,
     },
   };
@@ -565,20 +565,25 @@ function WageCalculator({ staff }: { staff: Staff[] }) {
     }
 
     try {
-      const csvRows = records.map(r => ({
-        Staff: r.staff?.name ?? '',
-        Phone: '',
-        Date: r.date,
-        'Check In': r.checkin_time ? format(new Date(r.checkin_time), 'HH:mm') : '',
-        'Check Out': r.checkout_time ? format(new Date(r.checkout_time), 'HH:mm') : '',
-        'Wage Type': r.staff?.wage_type ?? 'daily',
-        'Wage Amount': r.staff?.wage_amount ?? r.staff?.daily_wage_inr ?? 0,
-      }));
+      const csvRows = records.map(r => {
+        const wageType = r.staff?.wage_type ?? 'daily';
+        const wageAmount = r.staff?.wage_amount ?? r.staff?.daily_wage_inr ?? 0;
+        return {
+          Staff: r.staff?.name ?? '',
+          Phone: r.staff?.phone ?? '',
+          Date: r.date,
+          'Check In': r.checkin_time ? format(new Date(r.checkin_time), 'HH:mm') : '',
+          'Check Out': r.checkout_time ? format(new Date(r.checkout_time), 'HH:mm') : '',
+          'Wage Type': wageType,
+          'Wage Amount': wageAmount,
+        };
+      });
 
+      const escapeCSV = (val: string) => `"${val.replace(/"/g, '""')}"`;
       const headers = Object.keys(csvRows[0]);
       const csv = [
         headers.join(','),
-        ...csvRows.map(r => headers.map(h => `"${String((r as Record<string, unknown>)[h] ?? '')}"`).join(',')),
+        ...csvRows.map(r => headers.map(h => escapeCSV(String((r as Record<string, unknown>)[h] ?? ''))).join(',')),
       ].join('\n');
 
       const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
@@ -603,7 +608,7 @@ function WageCalculator({ staff }: { staff: Staff[] }) {
         </h2>
         <button
           onClick={handleExport}
-          className="flex items-center gap-1.5 text-xs font-medium text-navy-700 bg-navy-50 hover:bg-navy-100 px-3 py-1.5 rounded-lg transition-colors"
+          className="flex items-center gap-1.5 text-xs font-medium text-navy-700 dark:text-navy-300 bg-navy-50 dark:bg-navy-900/30 hover:bg-navy-100 dark:hover:bg-navy-900/50 px-3 py-1.5 rounded-lg transition-colors"
         >
           <Download size={14} />
           Export CSV ({exportData?.length ?? 0} records)
@@ -640,7 +645,7 @@ function WageRow({ staff, month }: { staff: Staff; month: string }) {
   const totalAdvances = (monthlyAdvances ?? []).reduce((sum, a) => sum + a.amount, 0);
 
   const wageType: WageType = staff.wage_type ?? 'daily';
-  const wageAmount = staff.wage_amount || staff.daily_wage_inr;
+  const wageAmount = staff.wage_amount ?? staff.daily_wage_inr;
 
   let grossEarnings = 0;
   if (wageType === 'daily') {
@@ -665,7 +670,7 @@ function WageRow({ staff, month }: { staff: Staff; month: string }) {
       <td className="px-3 py-2 text-surface-600 dark:text-surface-300">{presentDays}</td>
       <td className="px-3 py-2 text-surface-600 dark:text-surface-300">₹{grossEarnings.toLocaleString()}</td>
       <td className="px-3 py-2 text-red-600 dark:text-red-400">₹{totalAdvances.toLocaleString()}</td>
-      <td className="px-3 py-2 font-semibold text-cyan-700">₹{netPayable.toLocaleString()}</td>
+      <td className="px-3 py-2 font-semibold text-cyan-700 dark:text-cyan-300">₹{netPayable.toLocaleString()}</td>
     </tr>
   );
 }

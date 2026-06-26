@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     } catch (err: unknown) {
       if (err instanceof Error) {
-        if ((err as any).code === 'auth/popup-closed-by-user') return null;
+        if ((err as { code?: string }).code === 'auth/popup-closed-by-user') return null;
         return err.message;
       }
       return 'Failed to sign in';

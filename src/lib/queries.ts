@@ -33,7 +33,7 @@ import { SERVICE_TYPE_LABELS } from './types';
 import { deriveCustomerIntelligence, estimateServiceValue } from './customer-intelligence';
 import { trackEvent } from './analytics';
 
-const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+export const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
 // Customers
 export function useCustomers() {
@@ -286,22 +286,26 @@ export function useStockAlerts() {
   return useQuery({
     queryKey: ['stock_alerts'],
     queryFn: async () => {
-      const { data: alerts } = await supabase
-        .from('stock_alerts')
-        .select('*, inventory(*)')
-        .eq('merchant_id', MERCHANT_ID)
-        .eq('resolved', false)
-        .order('created_at', { ascending: false });
+      const [alertsResult, allAlertsResult, inventoryResult] = await Promise.all([
+        supabase
+          .from('stock_alerts')
+          .select('*, inventory(*)')
+          .eq('merchant_id', MERCHANT_ID)
+          .eq('resolved', false)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('stock_alerts')
+          .select('inventory_id')
+          .eq('merchant_id', MERCHANT_ID),
+        supabase
+          .from('inventory')
+          .select('*')
+          .eq('merchant_id', MERCHANT_ID),
+      ]);
 
-      const { data: allAlerts } = await supabase
-        .from('stock_alerts')
-        .select('inventory_id')
-        .eq('merchant_id', MERCHANT_ID);
-
-      const { data: inventory } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('merchant_id', MERCHANT_ID);
+      const alerts = alertsResult.data;
+      const allAlerts = allAlertsResult.data;
+      const inventory = inventoryResult.data;
 
       const alertIds = new Set((allAlerts ?? []).map(a => a.inventory_id));
       const belowThreshold = (inventory ?? []).filter(
@@ -382,6 +386,7 @@ export function useSupportTickets() {
       const { data, error } = await supabase
         .from('support_tickets')
         .select('*')
+        .eq('merchant_id', MERCHANT_ID)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as SupportTicket[];

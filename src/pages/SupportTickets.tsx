@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Headphones, CheckCircle, Bot, User, AlertCircle } from 'lucide-react';
 import { useSupportTickets, useResolveTicket } from '../lib/queries';
 import { supabase } from '../lib/supabase';
@@ -13,7 +13,7 @@ export default function SupportTickets() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    let channel: any = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     try {
       channel = supabase
@@ -33,10 +33,14 @@ export default function SupportTickets() {
     };
   }, [qc]);
 
-  const needsAttention = tickets?.filter(
-    (t) => t.requires_human_intervention && t.status !== 'resolved'
+  const needsAttention = useMemo(
+    () => tickets?.filter((t) => t.requires_human_intervention && t.status !== 'resolved'),
+    [tickets]
   );
-  const autoResolved = tickets?.filter((t) => t.status === 'auto_resolved');
+  const autoResolved = useMemo(
+    () => tickets?.filter((t) => t.status === 'auto_resolved'),
+    [tickets]
+  );
 
   const activeTab = tab === 'attention' ? needsAttention : autoResolved;
 

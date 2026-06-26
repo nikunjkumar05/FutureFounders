@@ -1,4 +1,5 @@
 import { useRevenueIntelligence } from '../lib/queries';
+import { memo, useMemo } from 'react';
 import type { SegmentedCustomer } from '../lib/types';
 import {
   TrendingUp,
@@ -36,7 +37,7 @@ export default function RevenueIntelligence() {
 
   if (!data) return null;
 
-  const metrics = [
+  const metrics = useMemo(() => [
     {
       label: 'Potential Revenue Due',
       value: formatINR(data.potentialRevenueDueThisMonth),
@@ -79,7 +80,7 @@ export default function RevenueIntelligence() {
       color: 'rose',
       sub: 'At-risk customers',
     },
-  ];
+  ], [data]);
 
   return (
     <div className="space-y-5">
@@ -173,7 +174,7 @@ export default function RevenueIntelligence() {
   );
 }
 
-function MetricTile({ label, value, icon: Icon, color, sub }: {
+const MetricTile = memo(function MetricTile({ label, value, icon: Icon, color, sub }: {
   label: string;
   value: string | number;
   icon: typeof DollarSign;
@@ -233,16 +234,16 @@ function MetricTile({ label, value, icon: Icon, color, sub }: {
       </p>
     </div>
   );
-}
+});
 
-function AnalyticTile({ label, value }: { label: string; value: string | number }) {
+const AnalyticTile = memo(function AnalyticTile({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="bg-surface-50 dark:bg-surface-800/50 rounded-lg p-3">
       <p className="text-[11px] text-surface-500 dark:text-surface-400 font-medium">{label}</p>
       <p className="text-lg font-display font-bold text-navy-900 dark:text-surface-100 mt-0.5">{value}</p>
     </div>
   );
-}
+});
 
 function CustomerRow({ customer, icon }: { customer: SegmentedCustomer; icon: React.ReactNode }) {
   const score = customer.healthScore ?? 100;

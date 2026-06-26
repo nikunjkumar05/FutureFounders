@@ -1,4 +1,5 @@
-import { getOpenWAConfig, sendWhatsAppMessage } from "../lib/openwa.js";
+import { getOpenWAConfig } from "../lib/openwa.js";
+import { sendWithRetry } from "../lib/retry.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,7 +73,7 @@ export default async function handler(req: any, res: any) {
 
         const reminderMessage = `Namaste ${customer.name}! Aapke paani ki tanki ki safai ka samay aa gaya hai. Gande tank se bimariyan failti hain. Aaj hi safai book karein! Reply YES to confirm or call 9876543210. — AquaClean Services`;
 
-        const result = await sendWhatsAppMessage(
+        const result = await sendWithRetry(
           openwaConfig,
           customer.phone,
           reminderMessage

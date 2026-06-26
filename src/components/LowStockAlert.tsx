@@ -10,7 +10,7 @@ export function LowStockAlert() {
   const qc = useQueryClient();
 
   useEffect(() => {
-    let channel: any = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     try {
       channel = supabase

@@ -17,6 +17,16 @@ export default function Login() {
     if (!loading && user) navigate('/', { replace: true });
   }, [user, loading, navigate]);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex items-center justify-center">
+        <div className="animate-spin w-6 h-6 border-2 border-navy-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (user) return null;
+
   const handleGoogleSignIn = async () => {
     setError('');
     setSubmitting(true);
@@ -47,14 +57,6 @@ export default function Login() {
     setMode(mode === 'signin' ? 'signup' : 'signin');
     setError('');
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex items-center justify-center">
-        <div className="animate-spin w-6 h-6 border-2 border-navy-500 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-surface-50 dark:bg-surface-900 flex items-center justify-center p-4">

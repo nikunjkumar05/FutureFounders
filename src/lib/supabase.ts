@@ -8,8 +8,7 @@ let supabase: SupabaseClient;
 if (supabaseUrl && supabaseAnonKey) {
   supabase = createClient(supabaseUrl, supabaseAnonKey);
 } else {
-  console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY env vars');
-  supabase = createClient('https://placeholder.supabase.co', 'placeholder-key');
+  throw new Error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY env vars');
 }
 
 export { supabase };

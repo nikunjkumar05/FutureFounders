@@ -394,10 +394,10 @@ function ServiceHistoryModal({
                 const details = card.service_details as Record<string, unknown>;
                 const services = getServicesFromDetails(details);
                 const statusColor = card.job_status === 'completed'
-                  ? 'bg-cyan-100 text-cyan-700'
+                  ? 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300'
                   : card.job_status === 'in_progress'
-                  ? 'bg-navy-100 text-navy-700'
-                  : 'bg-amber-100 text-amber-700';
+                  ? 'bg-navy-100 dark:bg-navy-900/50 text-navy-700 dark:text-navy-300'
+                  : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300';
                 const statusLabel = card.job_status === 'completed'
                   ? 'Completed'
                   : card.job_status === 'in_progress'
@@ -562,7 +562,7 @@ function EditCustomerModal({
                 className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none" />
             </div>
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
+              <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs rounded-lg px-3 py-2">{error}</div>
             )}
             <button type="submit" disabled={submitting}
               className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">
@@ -619,7 +619,7 @@ function DeleteConfirmModal({
           This action cannot be undone. Their service history will also be removed.
         </p>
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2 mb-4">{error}</div>
+          <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs rounded-lg px-3 py-2 mb-4">{error}</div>
         )}
         <div className="flex gap-2 justify-end">
           <button onClick={onClose}
@@ -738,7 +738,7 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
                 className="w-full px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-600 dark:bg-surface-600 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 resize-none" />
             </div>
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">{error}</div>
+              <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-xs rounded-lg px-3 py-2">{error}</div>
             )}
             <button type="submit" disabled={submitting}
               className="w-full bg-navy-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-navy-700 transition-colors disabled:opacity-50">

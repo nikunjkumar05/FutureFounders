@@ -1,9 +1,12 @@
 import {
   getOpenWAConfig,
-  sendWhatsAppMessage,
   extractPhoneFromOpenWA,
-  resolveLidToPhone,
 } from "../lib/openwa.js";
+import { sendWithRetry } from "../lib/retry.js";
+import { log } from "../lib/logger.js";
+
+const COMPONENT = "webhook";
+const MERCHANT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,7 +67,11 @@ export default async function handler(req: any, res: any) {
 
 async function processMessage(payload: any) {
   const config = getOpenWAConfig();
-  console.log(`[webhook] Config: baseUrl=${config.baseUrl}, sessionId=${config.sessionId}, apiKey=${config.apiKey ? "set" : "MISSING"}`);
+  log.info(COMPONENT, "Processing message", {
+    baseUrl: config.baseUrl,
+    sessionId: config.sessionId,
+    apiKeySet: !!config.apiKey,
+  });
 
   const supabaseUrl = process.env.SUPABASE_URL!;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -73,6 +80,24 @@ async function processMessage(payload: any) {
     Authorization: `Bearer ${serviceRoleKey}`,
     "Content-Type": "application/json",
   };
+
+  // Idempotency check
+  const idempotencyKey = payload.idempotencyKey;
+  if (idempotencyKey) {
+    try {
+      const existing = await fetch(
+        `${supabaseUrl}/rest/v1/webhook_idempotency?key=eq.${encodeURIComponent(idempotencyKey)}&select=key`,
+        { headers }
+      );
+      const rows = await existing.json();
+      if (Array.isArray(rows) && rows.length > 0) {
+        log.info(COMPONENT, "Duplicate message skipped", { idempotencyKey });
+        return;
+      }
+    } catch (err: any) {
+      log.warn(COMPONENT, "Idempotency check failed, continuing", { error: err.message });
+    }
+  }
 
   const data = payload.data;
   const fromJid = data.from;
@@ -310,6 +335,26 @@ async function processMessage(payload: any) {
       await handleFAQ(replyTo, phone ?? replyTo, messageBody, supabaseUrl, headers);
     }
   }
+
+  // Record idempotency key
+  if (idempotencyKey) {
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, {
+        method: "POST",
+        headers: { ...headers, Prefer: "resolution=merge-duplicates" },
+        body: JSON.stringify({ key: idempotencyKey }),
+      });
+      // Cleanup old keys (1 in 100 requests)
+      if (Math.random() < 0.01) {
+        await fetch(
+          `${supabaseUrl}/rest/v1/rpc/cleanup_idempotency_keys`,
+          { method: "POST", headers }
+        );
+      }
+    } catch (err: any) {
+      log.warn(COMPONENT, "Failed to record idempotency key", { error: err.message });
+    }
+  }
 }
 
 function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -327,41 +372,47 @@ function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 async function replyViaOpenWA(to: string, text: string) {
   const config = getOpenWAConfig();
-  return sendWhatsAppMessage(config, to, text);
+  return sendWithRetry(config, to, text);
 }
 
 async function handleFAQ(
   replyTo: string,
   _identifier: string,
   message: string,
-  _supabaseUrl: string,
-  _headers: Record<string, string>
+  supabaseUrl: string,
+  headers: Record<string, string>
 ): Promise<{ ok: boolean; error?: string }> {
   const mistralKey = process.env.MISTRAL_API_KEY ?? "";
   const mistralModel = process.env.MISTRAL_MODEL ?? "mistral-large-latest";
-  const sanitized = message.replace(/[^a-zA-Z0-9\s?!,.]/g, "").slice(0, 500);
+  const sanitized = message.replace(/[<>]/g, "").slice(0, 500);
+  const phone = _identifier.replace(/@.*$/, "");
 
-  console.log(`[faq] replyTo=${replyTo}, message=${sanitized}`);
+  log.info(COMPONENT, "FAQ request received", { replyTo, messageLength: sanitized.length });
 
   if (!mistralKey) {
-    console.log("[faq] No MISTRAL_API_KEY, sending fallback");
-    const r = await replyViaOpenWA(replyTo, "Thanks for reaching out! Our team will get back to you shortly.");
+    log.warn(COMPONENT, "No MISTRAL_API_KEY, sending fallback");
+    const fallback = "Thanks for reaching out! Our team will get back to you shortly.";
+    await createSupportTicket(supabaseUrl, headers, phone, sanitized, fallback, false);
+    const r = await sendWithRetry(getOpenWAConfig(), replyTo, fallback);
     return r;
   }
 
   try {
+    const aiController = new AbortController();
+    const aiTimeout = setTimeout(() => aiController.abort(), 15000);
     const aiRes = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${mistralKey}`,
         "Content-Type": "application/json",
       },
+      signal: aiController.signal,
       body: JSON.stringify({
         model: mistralModel,
         messages: [
           {
             role: "system",
-            content: `You are a friendly customer support assistant for AquaClean Services — a water tank cleaning business. You help customers with ANY question about our services. Here is what we offer:\n\nServices & Pricing:\n- Water tank cleaning (standard): 500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800\n- Deep cleaning: 30% above standard rates\n- Sofa cleaning: per seat Rs.500, full sofa set Rs.1500\n- Car seats cleaning: per seat Rs.300, full car interior Rs.2000\n- Carpet cleaning: starting at Rs.600\n\nWorking hours: Monday to Saturday, 8:00 AM to 6:00 PM\nTank capacity formula: length x width x height (in meters) x 1000 = liters\nService interval: Every 6 months recommended\n\nRules:\n- Be helpful, friendly, and professional\n- Answer ANY question the customer has about our services\n- If asked about something completely unrelated to our services, politely redirect to our services\n- Keep answers under 80 words\n- You can use emojis occasionally`,
+            content: `You are a friendly customer support assistant for AquaClean Services — a water tank cleaning business. You help customers with ANY question about our services.\n\nServices & Pricing:\n- Water tank cleaning (standard): 500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800\n- Deep cleaning: 30% above standard rates\n- Sofa cleaning: per seat Rs.500, full sofa set Rs.1500\n- Car seats cleaning: per seat Rs.300, full car interior Rs.2000\n- Carpet cleaning: starting at Rs.600\n\nWorking hours: Monday to Saturday, 8:00 AM to 6:00 PM\nTank capacity formula: length x width x height (in meters) x 1000 = liters\nService interval: Every 6 months recommended\n\nRules:\n- Be helpful, friendly, and professional\n- Answer ANY question the customer has about our services\n- The customer may write in Hindi (Devanagari script) or Roman Hindi (Hinglish). Respond in the same language they use\n- If asked about something completely unrelated to our services, respond with exactly: ESCALATE\n- Keep answers under 80 words\n- You can use emojis occasionally`,
           },
           { role: "user", content: sanitized },
         ],
@@ -370,14 +421,53 @@ async function handleFAQ(
       }),
     });
 
+    clearTimeout(aiTimeout);
     const aiData = await aiRes.json();
     const aiResponse = aiData?.choices?.[0]?.message?.content?.trim();
-    console.log(`[faq] AI response length=${aiResponse?.length}`);
-    const r = await replyViaOpenWA(replyTo, aiResponse ?? "Thanks for your message! Our team will get back to you shortly.");
+    const isEscalated = aiResponse === "ESCALATE";
+    const finalResponse = isEscalated
+      ? "Thanks for your message! Our team will get back to you shortly."
+      : (aiResponse ?? "Thanks for your message! Our team will get back to you shortly.");
+
+    log.info(COMPONENT, "FAQ response generated", {
+      responseLength: finalResponse.length,
+      escalated: isEscalated,
+    });
+
+    await createSupportTicket(supabaseUrl, headers, phone, sanitized, finalResponse, isEscalated);
+    const r = await sendWithRetry(getOpenWAConfig(), replyTo, finalResponse);
     return r;
   } catch (err: any) {
-    console.error("[faq] Error:", err.message);
-    const r = await replyViaOpenWA(replyTo, "Thanks for your message! Our team will get back to you shortly.");
+    log.error(COMPONENT, "FAQ error", { error: err.message });
+    const fallback = "Thanks for your message! Our team will get back to you shortly.";
+    await createSupportTicket(supabaseUrl, headers, phone, sanitized, fallback, true);
+    const r = await sendWithRetry(getOpenWAConfig(), replyTo, fallback);
     return r;
+  }
+}
+
+async function createSupportTicket(
+  supabaseUrl: string,
+  headers: Record<string, string>,
+  phone: string,
+  message: string,
+  aiResponse: string,
+  requiresHuman: boolean
+) {
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/support_tickets`, {
+      method: "POST",
+      headers: { ...headers, Prefer: "return=representation" },
+      body: JSON.stringify({
+        customer_phone: phone,
+        message,
+        ai_response: aiResponse,
+        requires_human_intervention: requiresHuman,
+        status: requiresHuman ? "open" : "auto_resolved",
+        merchant_id: MERCHANT_ID,
+      }),
+    });
+  } catch (err: any) {
+    log.error(COMPONENT, "Failed to create support ticket", { error: err.message });
   }
 }
