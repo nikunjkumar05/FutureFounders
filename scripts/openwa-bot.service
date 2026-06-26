@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenWA WhatsApp Bot
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=forking
+WorkingDirectory=/home/user/openwa
+ExecStart=/home/user/openwa/start.sh
+Restart=always
+RestartSec=30
+Environment=HOME=/home/user
+
+[Install]
+WantedBy=multi-user.target

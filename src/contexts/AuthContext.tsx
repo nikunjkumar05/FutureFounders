@@ -5,8 +5,11 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
+  signInWithCredential,
+  GoogleAuthProvider,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
+import { GoogleSignIn } from '@capawesome/capacitor-google-sign-in';
 
 interface SimpleUser {
   uid: string;
@@ -36,14 +39,24 @@ function isNativePlatform(): boolean {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const native = isNativePlatform();
-  const [user, setUser] = useState<SimpleUser | null>(
-    native ? { uid: 'native-user', email: 'admin@aquatrak.app', displayName: 'Admin' } : null
-  );
-  const [loading, setLoading] = useState(!native);
+  const [user, setUser] = useState<SimpleUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Initialize native Google Sign-In
+  useEffect(() => {
+    if (native) {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      if (clientId) {
+        GoogleSignIn.initialize({ clientId }).catch((err) => {
+          console.error('Failed to initialize Google Sign-In:', err);
+        });
+      } else {
+        console.warn('VITE_GOOGLE_CLIENT_ID is not configured in .env');
+      }
+    }
+  }, [native]);
 
   useEffect(() => {
-    if (native) return;
-
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser({
@@ -57,13 +70,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
     return unsubscribe;
-  }, [native]);
+  }, []);
 
   const signInWithGoogle = useCallback(async (): Promise<string | null> => {
-    if (native) return null;
     try {
-      await signInWithPopup(auth, googleProvider);
-      return null;
+      if (native) {
+        const result = await GoogleSignIn.signIn();
+        const idToken = result.idToken;
+        if (!idToken) throw new Error('No Google ID Token returned');
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+        return null;
+      } else {
+        await signInWithPopup(auth, googleProvider);
+        return null;
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         const code = (err as { code?: string }).code;
@@ -75,7 +96,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [native]);
 
   const signInWithEmail = useCallback(async (email: string, password: string): Promise<string | null> => {
-    if (native) return null;
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return null;
@@ -83,10 +103,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (err instanceof Error) return err.message;
       return 'Failed to sign in';
     }
-  }, [native]);
+  }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string): Promise<string | null> => {
-    if (native) return null;
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       return null;
@@ -94,10 +113,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (err instanceof Error) return err.message;
       return 'Failed to sign up';
     }
-  }, [native]);
+  }, []);
 
   const signOut = useCallback(async () => {
-    if (native) return;
+    if (native) {
+      try {
+        await GoogleSignIn.signOut();
+      } catch (err) {
+        console.error('Failed to sign out from Google natively:', err);
+      }
+    }
     await firebaseSignOut(auth);
   }, [native]);
 

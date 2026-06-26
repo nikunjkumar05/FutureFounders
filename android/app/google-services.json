@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "556229695502",
+    "project_id": "operation-workflow",
+    "storage_bucket": "operation-workflow.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:556229695502:android:300931cd2b61af37f1845f",
+        "android_client_info": {
+          "package_name": "com.aquatrak.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "556229695502-lv056c1tvag5tprghkiao76v0n14ln44.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvXUGNEB5RjLZUM18SRBVMFG9i5f37rMw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "556229695502-lv056c1tvag5tprghkiao76v0n14ln44.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
