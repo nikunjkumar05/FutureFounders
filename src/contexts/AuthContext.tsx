@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import {
   onAuthStateChanged,
   signInWithPopup,
@@ -33,12 +33,8 @@ function isNativePlatform(): boolean {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const initialized = useRef(false);
 
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -54,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const signInWithGoogle = async (): Promise<string | null> => {
+  const signInWithGoogle = useCallback(async (): Promise<string | null> => {
     if (isNativePlatform()) {
       return 'Google sign-in is not available in the mobile app. Please use email/password login.';
     }
@@ -70,9 +66,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return 'Failed to sign in';
     }
-  };
+  }, []);
 
-  const signInWithEmail = async (email: string, password: string): Promise<string | null> => {
+  const signInWithEmail = useCallback(async (email: string, password: string): Promise<string | null> => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return null;
@@ -80,9 +76,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (err instanceof Error) return err.message;
       return 'Failed to sign in';
     }
-  };
+  }, []);
 
-  const signUpWithEmail = async (email: string, password: string): Promise<string | null> => {
+  const signUpWithEmail = useCallback(async (email: string, password: string): Promise<string | null> => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       return null;
@@ -90,14 +86,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (err instanceof Error) return err.message;
       return 'Failed to sign up';
     }
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await firebaseSignOut(auth);
-  };
+  }, []);
+
+  const value = useMemo(() => ({
+    user,
+    loading,
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    signOut,
+  }), [user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
