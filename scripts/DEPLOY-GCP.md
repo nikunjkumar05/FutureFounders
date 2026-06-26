@@ -23,7 +23,7 @@ Or use the SSH button in GCP Console.
 ### Step 3: Run Setup Script
 ```bash
 # Clone the project
-git clone https://github.com/your-repo/FutureFounders.git
+git clone https://github.com/nikunjkumar05/FutureFounders.git
 cd FutureFounders
 
 # Run setup
