@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Search,
   Plus,
@@ -27,6 +27,8 @@ import { trackEvent } from '../lib/analytics';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import ContactPicker from '../components/ContactPicker';
 import DuplicateWarningModal from '../components/DuplicateWarningModal';
+import TimeFilter from '../components/TimeFilter';
+import { type TimePeriod, isInRange, groupByMonthYear } from '../lib/timeUtils';
 import type { Customer, DuplicateCheckResult, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
 import { SERVICE_TYPE_LABELS, getServicesFromDetails } from '../lib/types';
 import { PhoneLink } from '../components/PhoneLink';
@@ -35,6 +37,7 @@ export default function Customers() {
   const { data: customers, isLoading } = useCustomers();
   const { data: serviceCards } = useServiceCards();
   const [search, setSearch] = useState('');
+  const [period, setPeriod] = useState<TimePeriod>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
@@ -45,13 +48,25 @@ export default function Customers() {
     return c.name.toLowerCase().includes(q) || c.phone.includes(q);
   });
 
+  const filteredByPeriod = useMemo(() => {
+    if (period === 'all') return filtered;
+    return filtered?.filter(c => isInRange(c.created_at, period));
+  }, [filtered, period]);
+
+  const customerGroups = useMemo(() => {
+    if (!filteredByPeriod) return new Map<string, Customer[]>();
+    return groupByMonthYear(filteredByPeriod, c => c.created_at);
+  }, [filteredByPeriod]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-display-lg font-display text-surface-900 dark:text-surface-100">Properties</h1>
           <p className="text-body-sm text-surface-500 dark:text-surface-400 mt-1">
-            {search ? `Showing ${filtered?.length ?? 0} of ${customers?.length ?? 0} customers` : `${customers?.length ?? 0} customers`}
+            {search || period !== 'all'
+              ? `Showing ${filteredByPeriod?.length ?? 0} of ${customers?.length ?? 0} customers`
+              : `${customers?.length ?? 0} customers`}
           </p>
         </div>
         <button
@@ -77,11 +92,12 @@ export default function Customers() {
             className="input-base pl-9"
           />
         </div>
+        <TimeFilter value={period} onChange={setPeriod} />
       </div>
 
       {isLoading ? (
         <TableSkeleton rows={5} cols={7} />
-      ) : !filtered?.length ? (
+      ) : !filteredByPeriod?.length ? (
         <EmptyState />
       ) : (
         <div className="card-base overflow-hidden">
@@ -99,7 +115,37 @@ export default function Customers() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-700">
-                {filtered.map((customer) => {
+                {(period === 'all' && !search ? [...customerGroups.entries()] : null)?.map(([monthYear, groupCustomers]) => (
+                  <React.Fragment key={monthYear}>
+                    <tr className="bg-surface-50 dark:bg-surface-800/50">
+                      <td colSpan={7} className="px-4 py-2 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">
+                        {monthYear}
+                      </td>
+                    </tr>
+                    {groupCustomers.map((customer) => {
+                      const cards = serviceCards?.filter(
+                        (sc) => sc.customer_id === customer.id
+                      ) ?? [];
+                      const latestCard = cards[0] ?? null;
+                      const totalJobs = cards.length;
+                      const activeJobs = cards.filter(
+                        (c) => c.job_status === 'pending' || c.job_status === 'in_progress'
+                      ).length;
+                      return (
+                        <CustomerRow
+                          key={customer.id}
+                          customer={customer}
+                          latestCard={latestCard}
+                          totalJobs={totalJobs}
+                          activeJobs={activeJobs}
+                          onEdit={() => setEditingCustomer(customer)}
+                          onDelete={() => setDeletingCustomer(customer)}
+                          onViewHistory={() => setHistoryCustomer(customer)}
+                        />
+                      );
+                    })}
+                  </React.Fragment>
+                )) ?? filteredByPeriod.map((customer) => {
                   const cards = serviceCards?.filter(
                     (sc) => sc.customer_id === customer.id
                   ) ?? [];
