@@ -109,7 +109,7 @@ cat > start-bot.sh << 'STARTEOF'
 cd ~/openwa/OpenWA
 
 echo "Starting OpenWA Docker Container..."
-docker-compose -f docker-compose.prod.yml up -d --build
+sudo docker-compose -f docker-compose.prod.yml up -d --build
 echo "Waiting for OpenWA to boot up..."
 sleep 15
 
