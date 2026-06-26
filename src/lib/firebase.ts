@@ -13,21 +13,3 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-
-// Disable analytics in Capacitor (requires native SDK)
-let isCapacitor = false;
-try {
-  const { Capacitor } = await import('@capacitor/core');
-  isCapacitor = Capacitor.isNativePlatform();
-} catch {
-  // Not in Capacitor
-}
-
-if (!isCapacitor) {
-  try {
-    const { getAnalytics } = await import('firebase/analytics');
-    getAnalytics(app);
-  } catch {
-    // Analytics not available
-  }
-}

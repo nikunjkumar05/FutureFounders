@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import {
   onAuthStateChanged,
   signInWithPopup,
@@ -21,33 +21,51 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function isNativePlatform(): boolean {
+  try {
+    // @ts-ignore
+    return window?.Capacitor?.isNativePlatform?.() ?? false;
+  } catch {
+    return false;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const initialized = useRef(false);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
       if (firebaseUser) {
-        posthog.identify(firebaseUser.uid, {
-          email: firebaseUser.email,
-          name: firebaseUser.displayName,
-        });
-      } else {
-        posthog.reset();
+        try {
+          posthog.identify(firebaseUser.uid, {
+            email: firebaseUser.email,
+            name: firebaseUser.displayName,
+          });
+        } catch { /* ignore */ }
       }
     });
     return unsubscribe;
   }, []);
 
   const signInWithGoogle = async (): Promise<string | null> => {
+    if (isNativePlatform()) {
+      return 'Google sign-in is not available in the mobile app. Please use email/password login.';
+    }
     try {
       await signInWithPopup(auth, googleProvider);
       return null;
     } catch (err: unknown) {
       if (err instanceof Error) {
-        if ((err as { code?: string }).code === 'auth/popup-closed-by-user') return null;
+        const code = (err as { code?: string }).code;
+        if (code === 'auth/popup-closed-by-user') return null;
+        if (code === 'auth/cancelled-popup-request') return null;
         return err.message;
       }
       return 'Failed to sign in';

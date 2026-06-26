@@ -12,23 +12,6 @@ if (import.meta.env.VITE_POSTHOG_KEY) {
   });
 }
 
-async function initApp() {
-  try {
-    const { Capacitor } = await import('@capacitor/core');
-    const { SplashScreen } = await import('@capacitor/splash-screen');
-    const { StatusBar, Style } = await import('@capacitor/status-bar');
-
-    if (Capacitor.isNativePlatform()) {
-      await StatusBar.setStyle({ style: Style.Dark });
-      await StatusBar.setBackgroundColor({ color: '#0a192f' });
-    }
-
-    await SplashScreen.hide();
-  } catch {
-    // Not running in Capacitor — web mode, skip native init
-  }
-}
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
@@ -37,4 +20,10 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-initApp();
+// Initialize Capacitor native features after render
+setTimeout(async () => {
+  try {
+    const { SplashScreen } = await import('@capacitor/splash-screen');
+    await SplashScreen.hide();
+  } catch { /* not in Capacitor */ }
+}, 100);

@@ -6,6 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     androidScheme: 'https',
+    allowNavigation: ['*.firebaseapp.com', '*.google.com'],
   },
   android: {
     backgroundColor: '#0a192f',
