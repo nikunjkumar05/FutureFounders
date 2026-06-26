@@ -58,6 +58,40 @@ export default function Customers() {
     return groupByMonthYear(filteredByPeriod, c => c.created_at);
   }, [filteredByPeriod]);
 
+  function buildCustomerRow(customer: Customer) {
+    const cards = serviceCards?.filter(
+      (sc) => sc.customer_id === customer.id
+    ) ?? [];
+    const latestCard = cards[0] ?? null;
+    const totalJobs = cards.length;
+    const activeJobs = cards.filter(
+      (c) => c.job_status === 'pending' || c.job_status === 'in_progress'
+    ).length;
+    return (
+      <CustomerRow
+        key={customer.id}
+        customer={customer}
+        latestCard={latestCard}
+        totalJobs={totalJobs}
+        activeJobs={activeJobs}
+        onEdit={() => setEditingCustomer(customer)}
+        onDelete={() => setDeletingCustomer(customer)}
+        onViewHistory={() => setHistoryCustomer(customer)}
+      />
+    );
+  }
+
+  const renderedRows = period === 'all' && !search
+    ? [...customerGroups.entries()].flatMap(([monthYear, groupCustomers]) => [
+        <tr key={monthYear} className="bg-surface-50 dark:bg-surface-800/50">
+          <td colSpan={7} className="px-4 py-2 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">
+            {monthYear}
+          </td>
+        </tr>,
+        ...groupCustomers.map(buildCustomerRow),
+      ])
+    : filteredByPeriod?.map(buildCustomerRow) ?? [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -115,58 +149,7 @@ export default function Customers() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100 dark:divide-surface-700">
-                {(period === 'all' && !search ? [...customerGroups.entries()] : null)?.map(([monthYear, groupCustomers]) => (
-                  <React.Fragment key={monthYear}>
-                    <tr className="bg-surface-50 dark:bg-surface-800/50">
-                      <td colSpan={7} className="px-4 py-2 text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide">
-                        {monthYear}
-                      </td>
-                    </tr>
-                    {groupCustomers.map((customer) => {
-                      const cards = serviceCards?.filter(
-                        (sc) => sc.customer_id === customer.id
-                      ) ?? [];
-                      const latestCard = cards[0] ?? null;
-                      const totalJobs = cards.length;
-                      const activeJobs = cards.filter(
-                        (c) => c.job_status === 'pending' || c.job_status === 'in_progress'
-                      ).length;
-                      return (
-                        <CustomerRow
-                          key={customer.id}
-                          customer={customer}
-                          latestCard={latestCard}
-                          totalJobs={totalJobs}
-                          activeJobs={activeJobs}
-                          onEdit={() => setEditingCustomer(customer)}
-                          onDelete={() => setDeletingCustomer(customer)}
-                          onViewHistory={() => setHistoryCustomer(customer)}
-                        />
-                      );
-                    })}
-                  </React.Fragment>
-                )) ?? filteredByPeriod.map((customer) => {
-                  const cards = serviceCards?.filter(
-                    (sc) => sc.customer_id === customer.id
-                  ) ?? [];
-                  const latestCard = cards[0] ?? null;
-                  const totalJobs = cards.length;
-                  const activeJobs = cards.filter(
-                    (c) => c.job_status === 'pending' || c.job_status === 'in_progress'
-                  ).length;
-                  return (
-                    <CustomerRow
-                      key={customer.id}
-                      customer={customer}
-                      latestCard={latestCard}
-                      totalJobs={totalJobs}
-                      activeJobs={activeJobs}
-                      onEdit={() => setEditingCustomer(customer)}
-                      onDelete={() => setDeletingCustomer(customer)}
-                      onViewHistory={() => setHistoryCustomer(customer)}
-                    />
-                  );
-                })}
+                {renderedRows}
               </tbody>
             </table>
           </div>
