@@ -147,16 +147,18 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
   }
 
   try {
-    const historyRes = await fetch(`${supabaseUrl}/rest/v1/support_tickets?customer_phone=eq.${phone}&order=created_at.desc&limit=5`, { headers });
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const historyRes = await fetch(`${supabaseUrl}/rest/v1/support_tickets?customer_phone=eq.${phone}&created_at=gt.${oneHourAgo}&order=created_at.desc&limit=10`, { headers });
     const historyData = await historyRes.json();
     const pastMessages = [];
     if (Array.isArray(historyData)) {
-      const chronological = historyData.reverse();
+      const chronological = [...historyData].reverse();
       for (const ticket of chronological) {
         if (ticket.message) pastMessages.push({ role: 'user', content: ticket.message });
         if (ticket.ai_response && ticket.ai_response !== 'ESCALATE') pastMessages.push({ role: 'assistant', content: ticket.ai_response });
       }
     }
+    console.log(`[AI FAQ] Reconstructed history for ${phone} (last 1hr):`, JSON.stringify(pastMessages));
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
