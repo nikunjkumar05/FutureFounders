@@ -147,6 +147,17 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
   }
 
   try {
+    const historyRes = await fetch(`${supabaseUrl}/rest/v1/support_tickets?customer_phone=eq.${phone}&order=created_at.desc&limit=5`, { headers });
+    const historyData = await historyRes.json();
+    const pastMessages = [];
+    if (Array.isArray(historyData)) {
+      const chronological = historyData.reverse();
+      for (const ticket of chronological) {
+        if (ticket.message) pastMessages.push({ role: 'user', content: ticket.message });
+        if (ticket.ai_response && ticket.ai_response !== 'ESCALATE') pastMessages.push({ role: 'assistant', content: ticket.ai_response });
+      }
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     const aiRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -157,6 +168,7 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
         model: process.env.MISTRAL_MODEL ?? 'mistral-large-latest',
         messages: [
           { role: 'system', content: `You are a friendly customer support assistant for AquaClean Services — a water tank cleaning business. You help customers with ANY question about our services. If they want to book a service, you MUST ask for their Full Name, Address, Service Type (tank/sofa/deep/car), Preferred Date (YYYY-MM-DD), and Slot (Morning/Afternoon). ONCE you have all these details, call the book_cleaning_service tool.\n\nServices & Pricing:\n- Water tank cleaning (standard): 500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800\n- Deep cleaning: 30% above standard rates\n- Sofa cleaning: per seat Rs.500, full sofa set Rs.1500\n- Car seats cleaning: per seat Rs.300, full car interior Rs.2000\n- Carpet cleaning: starting at Rs.600\n\nWorking hours: Monday to Saturday, 8:00 AM to 6:00 PM\nTank capacity formula: length x width x height (in meters) x 1000 = liters\nService interval: Every 6 months recommended\n\nRules:\n- Be helpful, friendly, and professional\n- Answer ANY question the customer has about our services\n- The customer may write in Hindi (Devanagari script) or Roman Hindi (Hinglish). Respond in the same language they use\n- If asked about something completely unrelated to our services, respond with exactly: ESCALATE\n- Keep answers under 80 words` },
+          ...pastMessages,
           { role: 'user', content: sanitized },
         ],
         max_tokens: 250, temperature: 0.7,
