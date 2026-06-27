@@ -30,7 +30,7 @@ export default async function handler(req: any, res: any) {
     const today = new Date().toISOString().slice(0, 10);
 
     const cardsRes = await fetch(
-      `${supabaseUrl}/rest/v1/service_cards?select=id,customer_id,next_service_date,reminder_sent_at,customers(name,phone)&next_service_date=lte.${today}&reminder_sent_at=is.null&job_status=eq.pending`,
+      `${supabaseUrl}/rest/v1/service_cards?select=id,customer_id,merchant_id,next_service_date,reminder_sent_at,customers(name,phone)&next_service_date=lte.${today}&reminder_sent_at=is.null&job_status=eq.pending`,
       {
         headers: {
           apikey: serviceRoleKey,
@@ -89,6 +89,43 @@ export default async function handler(req: any, res: any) {
             },
             body: JSON.stringify({ reminder_sent_at: new Date().toISOString() }),
           });
+
+          try {
+            await fetch(`${supabaseUrl}/rest/v1/reminder_responses`, {
+              method: "POST",
+              headers: {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`,
+                "Content-Type": "application/json",
+                Prefer: "return=minimal",
+              },
+              body: JSON.stringify({
+                service_card_id: card.id,
+                merchant_id: card.merchant_id,
+                customer_id: card.customer_id,
+                sent_at: new Date().toISOString(),
+                responded_at: null,
+                response: null,
+                status: "sent",
+                notes: null,
+              }),
+            });
+          } catch (rrErr: any) {
+            await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
+              method: "POST",
+              headers: {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                type: "send_reminder",
+                status: "failed",
+                error_message: `reminder_responses insert failed for card ${card.id}: ${rrErr?.message ?? rrErr}`,
+              }),
+            });
+          }
+
           sent++;
         } else {
           await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
