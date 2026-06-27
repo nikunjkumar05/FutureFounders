@@ -95,6 +95,10 @@ export function useUpdateJobStatus() {
       if (variables.status === 'completed') {
         trackEvent('job_completed', { job_id: variables.id });
       }
+      const card = _data as { customer_id?: string } | null;
+      if (card?.customer_id) {
+        refreshCustomerIntelligence(card.customer_id);
+      }
     },
   });
 }
@@ -1261,6 +1265,88 @@ export function useDailyBriefing() {
   });
 }
 
+/**
+ * Recalculate customer intelligence for a single customer and persist
+ * the result into the customer_intelligence cache table.
+ *
+ * Fetches the customer's service cards, reminders, and stored intelligence,
+ * runs deriveCustomerIntelligence(), then upserts the result.
+ *
+ * This is called after business events that could change a customer's
+ * segment, health score, or estimated revenue.
+ */
+async function refreshCustomerIntelligence(customerId: string) {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+  const [cardsRes, remindersRes, ciRes] = await Promise.all([
+    supabase
+      .from('service_cards')
+      .select('*, customers(*)')
+      .eq('customer_id', customerId)
+      .order('service_date', { ascending: false }),
+    supabase
+      .from('reminder_responses')
+      .select('*')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('customer_intelligence')
+      .select('*')
+      .eq('customer_id', customerId)
+      .maybeSingle(),
+  ]);
+
+  const cards = (cardsRes.data ?? []) as unknown as ServiceCardWithDetails[];
+  if (cards.length === 0) return;
+
+  const reminders = (remindersRes.data ?? []) as ReminderResponse[];
+  const storedCI = ciRes.data as CustomerIntelligence | null;
+
+  const latestReminder = reminders.length > 0 ? reminders[0] : null;
+
+  let latestCompletedCard: ServiceCardWithDetails | null = null;
+  for (const card of cards) {
+    if (card.job_status === 'completed') {
+      if (!latestCompletedCard || new Date(card.service_date) > new Date(latestCompletedCard.service_date)) {
+        latestCompletedCard = card;
+      }
+    }
+  }
+
+  const currentCard = cards[0];
+
+  const isDueThisMonth = currentCard.next_service_date
+    ? currentCard.next_service_date >= monthStart && currentCard.next_service_date <= monthEnd
+    : false;
+
+  const derived = deriveCustomerIntelligence({
+    card: currentCard,
+    latestCompletedCard,
+    latestReminder,
+    storedSegment: storedCI?.segment ?? 'unknown',
+    today,
+    todayStr,
+    isDueThisMonth,
+  });
+
+  const { error } = await supabase
+    .from('customer_intelligence')
+    .upsert({
+      merchant_id: MERCHANT_ID,
+      customer_id: customerId,
+      segment: derived.status as CustomerSegment,
+      estimated_revenue: derived.expectedValue,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'merchant_id, customer_id' });
+
+  if (error) {
+    console.error('Failed to refresh customer intelligence cache:', error);
+  }
+}
+
 // ─── Revenue Intelligence ────────────────────────────────────────
 
 export function useRevenueIntelligence() {
@@ -1528,6 +1614,7 @@ export function useCreateReminderResponse() {
           status: variables.status,
         });
       }
+      refreshCustomerIntelligence(variables.customerId);
     },
   });
 }
