@@ -25,6 +25,10 @@ const config: CapacitorConfig = {
       showSpinner: true,
       spinnerColor: '#0ab5ff',
     },
+    GoogleAuth: {
+      scopes: ['profile', 'email'],
+      forceCodeForRefreshToken: true,
+    },
   },
 };
 
