@@ -1,0 +1,11 @@
+{
+  "name": "openwa-server",
+  "version": "1.0.0",
+  "main": "start.js",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.19.2",
+    "whatsapp-web.js": "^1.26.0",
+    "qrcode": "^1.5.3"
+  }
+}

@@ -156,15 +156,76 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
       body: JSON.stringify({
         model: process.env.MISTRAL_MODEL ?? 'mistral-large-latest',
         messages: [
-          { role: 'system', content: `You are a friendly customer support assistant for AquaClean Services — a water tank cleaning business. You help customers with ANY question about our services.\n\nServices & Pricing:\n- Water tank cleaning (standard): 500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800\n- Deep cleaning: 30% above standard rates\n- Sofa cleaning: per seat Rs.500, full sofa set Rs.1500\n- Car seats cleaning: per seat Rs.300, full car interior Rs.2000\n- Carpet cleaning: starting at Rs.600\n\nWorking hours: Monday to Saturday, 8:00 AM to 6:00 PM\nTank capacity formula: length x width x height (in meters) x 1000 = liters\nService interval: Every 6 months recommended\n\nRules:\n- Be helpful, friendly, and professional\n- Answer ANY question the customer has about our services\n- The customer may write in Hindi (Devanagari script) or Roman Hindi (Hinglish). Respond in the same language they use\n- If asked about something completely unrelated to our services, respond with exactly: ESCALATE\n- Keep answers under 80 words` },
+          { role: 'system', content: `You are a friendly customer support assistant for AquaClean Services — a water tank cleaning business. You help customers with ANY question about our services. If they want to book a service, you MUST ask for their Full Name, Address, Service Type (tank/sofa/deep/car), Preferred Date (YYYY-MM-DD), and Slot (Morning/Afternoon). ONCE you have all these details, call the book_cleaning_service tool.\n\nServices & Pricing:\n- Water tank cleaning (standard): 500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800\n- Deep cleaning: 30% above standard rates\n- Sofa cleaning: per seat Rs.500, full sofa set Rs.1500\n- Car seats cleaning: per seat Rs.300, full car interior Rs.2000\n- Carpet cleaning: starting at Rs.600\n\nWorking hours: Monday to Saturday, 8:00 AM to 6:00 PM\nTank capacity formula: length x width x height (in meters) x 1000 = liters\nService interval: Every 6 months recommended\n\nRules:\n- Be helpful, friendly, and professional\n- Answer ANY question the customer has about our services\n- The customer may write in Hindi (Devanagari script) or Roman Hindi (Hinglish). Respond in the same language they use\n- If asked about something completely unrelated to our services, respond with exactly: ESCALATE\n- Keep answers under 80 words` },
           { role: 'user', content: sanitized },
         ],
-        max_tokens: 200, temperature: 0.7,
+        max_tokens: 250, temperature: 0.7,
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "book_cleaning_service",
+              description: "Book a cleaning service when you have all customer details.",
+              parameters: {
+                type: "object",
+                properties: {
+                  customer_name: { type: "string" },
+                  address: { type: "string" },
+                  service_type: { type: "string", enum: ["standard_cleaning", "deep_cleaning", "sofa_cleaning", "car_cleaning", "carpet_cleaning"] },
+                  service_date: { type: "string", description: "YYYY-MM-DD format" },
+                  slot: { type: "string", enum: ["morning", "afternoon"] }
+                },
+                required: ["customer_name", "address", "service_type", "service_date", "slot"]
+              }
+            }
+          }
+        ]
       }),
     });
     clearTimeout(timeout);
     const aiData = await aiRes.json();
-    const aiResponse = aiData?.choices?.[0]?.message?.content?.trim() ?? 'ESCALATE';
+    const message = aiData?.choices?.[0]?.message;
+
+    if (message?.tool_calls?.length > 0) {
+      const toolCall = message.tool_calls[0];
+      if (toolCall.function.name === 'book_cleaning_service') {
+        const args = JSON.parse(toolCall.function.arguments);
+        const merchant_id = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'; // Default merchant
+        
+        // UPSERT Customer
+        const custRes = await fetch(`${supabaseUrl}/rest/v1/customers?phone=eq.${phone}`, { headers });
+        const existingCusts = await custRes.json();
+        let customer_id;
+        let tank_capacity = 1000;
+        
+        if (Array.isArray(existingCusts) && existingCusts.length > 0) {
+          customer_id = existingCusts[0].id;
+          tank_capacity = existingCusts[0].tank_capacity_liters || 1000;
+          await fetch(`${supabaseUrl}/rest/v1/customers?id=eq.${customer_id}`, { method: 'PATCH', headers, body: JSON.stringify({ name: args.customer_name, address: args.address }) });
+        } else {
+          const insertRes = await fetch(`${supabaseUrl}/rest/v1/customers`, { method: 'POST', headers: { ...headers, Prefer: 'return=representation' }, body: JSON.stringify({ merchant_id, name: args.customer_name, phone, address: args.address }) });
+          const newCusts = await insertRes.json();
+          if (Array.isArray(newCusts) && newCusts.length > 0) { customer_id = newCusts[0].id; }
+        }
+        
+        if (customer_id) {
+          // Determine price based on service type
+          let price = 1200;
+          if (args.service_type === 'sofa_cleaning') price = 1500;
+          else if (args.service_type === 'car_cleaning') price = 2000;
+          else if (args.service_type === 'deep_cleaning') price = 1560;
+          
+          await fetch(`${supabaseUrl}/rest/v1/service_cards`, { method: 'POST', headers, body: JSON.stringify({ customer_id, merchant_id, service_type: args.service_type, service_date: args.service_date, job_status: 'pending', notes: `Auto-booked via AI Assistant (${args.slot} slot)`, service_details: { services: [{ serviceType: args.service_type, items: [{ id: 'item-auto', quantity: 1, price, capacity: tank_capacity }], totalPrice: price }], totalCharge: price, tankCount: 1, tankCapacity: tank_capacity, totalCapacity: tank_capacity, serviceType: args.service_type } }) });
+          
+          const finalResponse = `Great! Your ${args.service_type.replace('_', ' ')} is confirmed for ${args.service_date} (${args.slot}). Our team will visit ${args.address}. Thank you!`;
+          await sendOpenWAMessage(openwaConfig, fromPhone, finalResponse);
+          fetch(`${supabaseUrl}/rest/v1/support_tickets`, { method: 'POST', headers, body: JSON.stringify({ customer_phone: phone, message: sanitized, ai_response: finalResponse, requires_human_intervention: false, status: 'auto_resolved', merchant_id }) }).catch(() => {});
+          return 'booked';
+        }
+      }
+    }
+
+    const aiResponse = message?.content?.trim() ?? 'ESCALATE';
     const isEscalated = aiResponse === 'ESCALATE';
     const finalResponse = isEscalated ? "Thanks for reaching out! Our team will get back to you shortly." : aiResponse;
 

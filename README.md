@@ -1,5 +1,6 @@
 # AquaTrak App — Water Tank Cleaning Operations Platform
 ### App Link : https://futurefounders-ruddy.vercel.app/
+### WhatsApp Bot QR Link : https://rickety-strum-detoxify.ngrok-free.dev/qr
 Lean SMB operations platform for water tank cleaning businesses. Built for the OKCredit Future Founder Hackathon.
 
 ## Architecture
