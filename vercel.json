@@ -4,9 +4,6 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "devCommand": "npm run dev",
-  "git": {
-    "deploymentEnabled": false
-  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
