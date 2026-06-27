@@ -17,7 +17,9 @@
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios",
     "build:android": "vite build && npx cap sync android",
-    "build:ios": "vite build && npx cap sync ios"
+    "build:ios": "vite build && npx cap sync ios",
+    "start": "node api/server.js",
+    "azure:deploy": "az webapp deployment source config-local-git --name aquatrak-bot --resource-group AQUATRAK-RG && az webapp deployment list-publishing-credentials --name aquatrak-bot --resource-group AQUATRAK-RG"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.1",
@@ -28,10 +30,11 @@
     "@capacitor/keyboard": "^6.0.4",
     "@capacitor/splash-screen": "^6.0.4",
     "@capacitor/status-bar": "^6.0.3",
-    "@capawesome/capacitor-google-sign-in": "^0.1.2",
+    "@codetrix-studio/capacitor-google-auth": "^3.4.0-rc.4",
     "@supabase/supabase-js": "^2.57.4",
     "@tanstack/react-query": "^5.101.0",
     "date-fns": "^4.4.0",
+    "express": "^5.2.1",
     "firebase": "^12.14.0",
     "lucide-react": "^1.17.0",
     "posthog-js": "^1.391.5",
@@ -50,7 +53,6 @@
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",
-    "express": "^5.2.1",
     "globals": "^15.9.0",
     "papaparse": "^5.5.3",
     "postcss": "^8.4.35",

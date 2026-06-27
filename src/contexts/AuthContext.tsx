@@ -9,7 +9,7 @@ import {
   GoogleAuthProvider,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
-import { GoogleSignIn } from '@capawesome/capacitor-google-sign-in';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
 interface SimpleUser {
   uid: string;
@@ -47,9 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (native) {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
       if (clientId) {
-        GoogleSignIn.initialize({ clientId }).catch((err) => {
-          console.error('Failed to initialize Google Sign-In:', err);
-        });
+        GoogleAuth.initialize({ clientId, scopes: ['profile', 'email'] });
       } else {
         console.warn('VITE_GOOGLE_CLIENT_ID is not configured in .env');
       }
@@ -75,8 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = useCallback(async (): Promise<string | null> => {
     try {
       if (native) {
-        const result = await GoogleSignIn.signIn();
-        const idToken = result.idToken;
+        const result = await GoogleAuth.signIn();
+        const idToken = result.authentication.idToken;
         if (!idToken) throw new Error('No Google ID Token returned');
         const credential = GoogleAuthProvider.credential(idToken);
         await signInWithCredential(auth, credential);
@@ -118,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(async () => {
     if (native) {
       try {
-        await GoogleSignIn.signOut();
+        await GoogleAuth.signOut();
       } catch (err) {
         console.error('Failed to sign out from Google natively:', err);
       }
