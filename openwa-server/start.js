@@ -189,7 +189,7 @@ async function startBaileys() {
         printQRInTerminal: false,
         browser: ['AquaTrak Bot', 'Chrome', '1.0.0'],
         generateHighQualityLinkPreview: false,
-        syncFullHistory: false
+        syncFullHistory: true
     });
 
     sock.ev.on('creds.update', saveCreds);
