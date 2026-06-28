@@ -32,6 +32,7 @@ const AUTH_DIR = join(process.cwd(), '.baileys_auth', SESSION_ID);
 let latestQR = null;
 let clientReady = false;
 let sock = null;
+let lidToPhoneMap = {};
 
 const logger = pino({ level: 'silent' });
 
@@ -147,6 +148,30 @@ const forwardToWebhook = async (payload) => {
     }
 };
 
+// LID-to-phone resolution
+async function resolveLidToPhone(lidJid) {
+    const phone = lidToPhoneMap[lidJid];
+    if (phone) return phone;
+    if (!sock) return null;
+    try {
+        const contact = await sock.onWhatsApp(lidJid);
+        if (contact && contact.exists && contact.jid && contact.jid.includes('@s.whatsapp.net')) {
+            const resolved = contact.jid.split('@')[0];
+            lidToPhoneMap[lidJid] = resolved;
+            return resolved;
+        }
+    } catch {}
+    try {
+        const storeContact = sock.store?.contacts?.[lidJid];
+        if (storeContact?.id && storeContact.id.includes('@s.whatsapp.net')) {
+            const resolved = storeContact.id.split('@')[0];
+            lidToPhoneMap[lidJid] = resolved;
+            return resolved;
+        }
+    } catch {}
+    return null;
+}
+
 // Start Express
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SERVER] Custom OpenWA-compatible gateway (Baileys) listening on port ${PORT}`);
@@ -203,6 +228,16 @@ async function startBaileys() {
             console.log('[CLIENT] WhatsApp client is ready!');
             clientReady = true;
             latestQR = null;
+            // Build LID→phone map from stored contacts
+            const contacts = sock.store?.contacts || {};
+            let mapCount = 0;
+            for (const [jid, contact] of Object.entries(contacts)) {
+                if (jid.endsWith('@lid') && contact?.id && contact.id.includes('@s.whatsapp.net')) {
+                    lidToPhoneMap[jid] = contact.id.split('@')[0];
+                    mapCount++;
+                }
+            }
+            console.log(`[CLIENT] Built LID→phone map with ${mapCount} entries`);
         }
     });
 
@@ -213,7 +248,15 @@ async function startBaileys() {
             if (!from) continue;
             if (from.endsWith('@g.us') || from === 'status@broadcast') continue;
 
-            console.log(`[CLIENT] Message received from ${from}`);
+            const isLid = from.endsWith('@lid');
+            let resolvedPhone = null;
+            if (isLid) {
+                resolvedPhone = await resolveLidToPhone(from);
+                console.log(`[CLIENT] LID ${from} → ${resolvedPhone || 'FAILED'}`);
+            }
+
+            const fromJid = resolvedPhone ? `${resolvedPhone}@s.whatsapp.net` : from;
+            console.log(`[CLIENT] Message received from ${from} (resolved: ${fromJid})`);
 
             let latitude = null;
             let longitude = null;
@@ -232,7 +275,7 @@ async function startBaileys() {
             const payload = {
                 event: 'message.received',
                 data: {
-                    from,
+                    from: fromJid,
                     body,
                     location: (latitude && longitude) ? { latitude, longitude } : null,
                     fromMe: false
