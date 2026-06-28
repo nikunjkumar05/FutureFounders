@@ -29,7 +29,7 @@ import DuplicateWarningModal from '../components/DuplicateWarningModal';
 import TimeFilter from '../components/TimeFilter';
 import { type TimePeriod, isInRange, groupByMonthYear } from '../lib/timeUtils';
 import type { Customer, DuplicateCheckResult, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
-import { SERVICE_TYPE_LABELS, getServicesFromDetails, getTotalCharge } from '../lib/types';
+import { SERVICE_TYPE_LABELS, PREDEFINED_SOFA_TYPES, getServicesFromDetails, getTotalCharge } from '../lib/types';
 import { PhoneLink } from '../components/PhoneLink';
 
 export default function Customers() {
@@ -437,8 +437,12 @@ function ServiceHistoryModal({
                                       <span className="text-cyan-600 dark:text-cyan-400">
                                         {svc.serviceType === 'standard_cleaning' || svc.serviceType === 'deep_cleaning'
                                           ? `${item.capacity || 0}L Tank`
-                                          : svc.serviceType === 'sofa_cleaning'
-                                          ? `${item.sofaType || 'Standard'} Sofa`
+: svc.serviceType === 'sofa_cleaning'
+                                           ? !item.sofaType
+                                             ? 'Standard Sofa'
+                                             : PREDEFINED_SOFA_TYPES.includes(item.sofaType)
+                                             ? `${item.sofaType} Sofa`
+                                             : item.sofaType
                                           : svc.serviceType === 'seats_cleaning'
                                           ? 'Seat'
                                           : svc.serviceType === 'carpet_cleaning'
