@@ -1,6 +1,7 @@
 import type {
   ServiceCardWithDetails,
   ReminderResponse,
+  CustomerIntelligence,
   CustomerSegment,
   SegmentedCustomer,
 } from './types';
@@ -54,6 +55,15 @@ function calcDaysOverdue(
   return Math.floor(
     (today.getTime() - new Date(nextServiceDate + 'T00:00:00').getTime()) / 86400000,
   );
+}
+
+/**
+ * Extract the tank capacity from service card details for health score
+ * computation.
+ */
+function extractCapacity(card: ServiceCardWithDetails): number {
+  const details = (card.service_details || {}) as Record<string, unknown>;
+  return (details.tankCapacity || details.totalCapacity || 1000) as number;
 }
 
 /**
@@ -133,34 +143,7 @@ function classifySegment(
   return 'follow_up_needed';
 }
 
-/**
- * Extract the tank capacity from service card details for health score
- * computation.
- */
-function extractCapacity(card: ServiceCardWithDetails): number {
-  const details = (card.service_details || {}) as Record<string, unknown>;
-  return (details.tankCapacity || details.totalCapacity || 1000) as number;
-}
-
-/**
- * Derive customer intelligence for a single customer.
- *
- * Accepts raw data for one customer and returns derived intelligence:
- * segment classification, days overdue, health score, estimated revenue,
- * and the full SegmentedCustomer object.
- *
- * This is a pure function with no side effects, database queries, or
- * React hooks. Given the same inputs it always returns the same output.
- */
-export function deriveCustomerIntelligence({
-  card,
-  latestCompletedCard,
-  latestReminder,
-  storedSegment,
-  today,
-  todayStr,
-  isDueThisMonth,
-}: {
+export interface CustomerIntelligenceInput {
   card: ServiceCardWithDetails;
   latestCompletedCard: ServiceCardWithDetails | null;
   latestReminder: ReminderResponse | null;
@@ -168,16 +151,30 @@ export function deriveCustomerIntelligence({
   today: Date;
   todayStr: string;
   isDueThisMonth: boolean;
-}): SegmentedCustomer {
+}
+
+/**
+ * Derive customer intelligence for a single customer.
+ *
+ * Accepts a CustomerIntelligenceInput object and returns derived intelligence:
+ * segment classification, days overdue, health score, estimated revenue,
+ * and the full SegmentedCustomer object.
+ *
+ * This is a pure function with no side effects, database queries, or
+ * React hooks. Given the same inputs it always returns the same output.
+ */
+export function deriveCustomerIntelligence(
+  input: CustomerIntelligenceInput,
+): SegmentedCustomer {
+  const { card, latestCompletedCard, latestReminder, storedSegment, today, todayStr, isDueThisMonth } = input;
+
   const expectedValue = latestCompletedCard
     ? estimateServiceValue(latestCompletedCard)
     : estimateServiceValue(card);
 
   const daysOverdue = calcDaysOverdue(card.next_service_date, today, todayStr);
-
   const capacity = extractCapacity(card);
   const healthScore = calcHealthScore(daysOverdue, latestReminder, capacity);
-
   const status = classifySegment(storedSegment, latestReminder, daysOverdue, isDueThisMonth);
 
   return {
@@ -192,5 +189,71 @@ export function deriveCustomerIntelligence({
     daysOverdue,
     lastServiceDate: card.service_date,
     healthScore,
+  };
+}
+
+export interface CustomerContext {
+  card: ServiceCardWithDetails;
+  latestCompletedCard: ServiceCardWithDetails | null;
+  latestReminder: ReminderResponse | null;
+  storedSegment: CustomerSegment;
+  isDueThisMonth: boolean;
+}
+
+export function findLatestReminder(
+  reminders: ReminderResponse[],
+  customerId: string,
+): ReminderResponse | null {
+  let latest: ReminderResponse | null = null;
+  for (const r of reminders) {
+    if (r.customer_id !== customerId) continue;
+    if (!latest || new Date(r.sent_at) > new Date(latest.sent_at)) {
+      latest = r;
+    }
+  }
+  return latest;
+}
+
+export function findLatestCompletedCard(
+  cards: ServiceCardWithDetails[],
+  customerId: string,
+): ServiceCardWithDetails | null {
+  let latest: ServiceCardWithDetails | null = null;
+  for (const card of cards) {
+    if (card.customer_id !== customerId) continue;
+    if (card.job_status !== 'completed') continue;
+    if (!latest || new Date(card.service_date) > new Date(latest.service_date)) {
+      latest = card;
+    }
+  }
+  return latest;
+}
+
+export function isCardDueThisMonth(
+  card: ServiceCardWithDetails,
+  monthStart: string,
+  monthEnd: string,
+): boolean {
+  if (!card.next_service_date) return false;
+  return card.next_service_date >= monthStart && card.next_service_date <= monthEnd;
+}
+
+export function buildCustomerContext(
+  cards: ServiceCardWithDetails[],
+  reminders: ReminderResponse[],
+  storedCI: CustomerIntelligence | null,
+  monthStart: string,
+  monthEnd: string,
+  customerId: string,
+): CustomerContext | null {
+  const card = cards.find(c => c.customer_id === customerId);
+  if (!card) return null;
+
+  return {
+    card,
+    latestCompletedCard: findLatestCompletedCard(cards, customerId),
+    latestReminder: findLatestReminder(reminders, customerId),
+    storedSegment: storedCI?.segment ?? 'unknown',
+    isDueThisMonth: isCardDueThisMonth(card, monthStart, monthEnd),
   };
 }
