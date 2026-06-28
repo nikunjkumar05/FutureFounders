@@ -147,6 +147,22 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
   }
 
   try {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const historyRes = await fetch(`${supabaseUrl}/rest/v1/support_tickets?customer_phone=eq.${phone}&created_at=gt.${oneHourAgo}&order=created_at.desc&limit=10`, { headers });
+    const historyData = await historyRes.json();
+    const pastMessages = [];
+    if (Array.isArray(historyData)) {
+      const chronological = [...historyData].reverse();
+      for (const ticket of chronological) {
+        if (ticket.ai_response === 'GREETING_QUESTION' || ticket.ai_response === 'BOT_SELECTED' || ticket.ai_response === 'HUMAN_SELECTED' || ticket.ai_response === 'HUMAN_MODE_IGNORED') {
+          continue;
+        }
+        if (ticket.message) pastMessages.push({ role: 'user', content: ticket.message });
+        if (ticket.ai_response && ticket.ai_response !== 'ESCALATE') pastMessages.push({ role: 'assistant', content: ticket.ai_response });
+      }
+    }
+    console.log(`[AI FAQ] Reconstructed history for ${phone} (last 1hr):`, JSON.stringify(pastMessages));
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     const aiRes = await fetch('https://api.mistral.ai/v1/chat/completions', {
@@ -156,7 +172,31 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
       body: JSON.stringify({
         model: process.env.MISTRAL_MODEL ?? 'mistral-large-latest',
         messages: [
-          { role: 'system', content: `You are a friendly customer support assistant for AquaClean Services — a water tank cleaning business. You help customers with ANY question about our services. If they want to book a service, you MUST ask for their Full Name, Address, Service Type (tank/sofa/deep/car), Preferred Date (YYYY-MM-DD), and Slot (Morning/Afternoon). ONCE you have all these details, call the book_cleaning_service tool.\n\nServices & Pricing:\n- Water tank cleaning (standard): 500L tank: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800\n- Deep cleaning: 30% above standard rates\n- Sofa cleaning: per seat Rs.500, full sofa set Rs.1500\n- Car seats cleaning: per seat Rs.300, full car interior Rs.2000\n- Carpet cleaning: starting at Rs.600\n\nWorking hours: Monday to Saturday, 8:00 AM to 6:00 PM\nTank capacity formula: length x width x height (in meters) x 1000 = liters\nService interval: Every 6 months recommended\n\nRules:\n- Be helpful, friendly, and professional\n- Answer ANY question the customer has about our services\n- The customer may write in Hindi (Devanagari script) or Roman Hindi (Hinglish). Respond in the same language they use\n- If asked about something completely unrelated to our services, respond with exactly: ESCALATE\n- Keep answers under 80 words` },
+          { role: 'system', content: `You are a strict booking assistant for AquaClean Services. 
+YOUR ONLY GOAL when a user wants a cleaning is to collect EXACTLY these 5 details:
+1. Full Name
+2. Full Address
+3. Service Type (tank/sofa/deep/car/carpet)
+4. Preferred Date (YYYY-MM-DD)
+5. Time Slot (Morning/Afternoon)
+
+CRITICAL RULES:
+- NEVER say a service is booked or confirmed until you have ALL 5 details.
+- If any detail is missing, you MUST ask the user for it. Do not guess.
+- ONCE YOU HAVE ALL 5 DETAILS, you MUST call the book_cleaning_service tool.
+- Answer general questions (prices, hours) concisely.
+- Do not exceed 80 words per response.
+
+Pricing:
+- Water tank (standard): 500L: Rs.800, 1000L: Rs.1200, 2000L+: Rs.1800
+- Deep cleaning: +30%
+- Sofa: Rs.500/seat, full set Rs.1500
+- Car seats: Rs.300/seat, full interior Rs.2000
+- Carpet: starting Rs.600
+Hours: Mon-Sat, 8AM-6PM
+
+Respond in the language the user writes (Hindi, Hinglish, or English). If asked completely unrelated topics, output exactly: ESCALATE` },
+          ...pastMessages,
           { role: 'user', content: sanitized },
         ],
         max_tokens: 250, temperature: 0.7,
@@ -179,7 +219,8 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
               }
             }
           }
-        ]
+        ],
+        tool_choice: "auto"
       }),
     });
     clearTimeout(timeout);
@@ -333,6 +374,142 @@ app.post('/api/webhook', async (req, res) => {
 
     // Non-staff
     if (!staffMember) {
+      // ── Bot/Human State Routing Machine ──
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      let lastState = null;
+      try {
+        const historyRes = await fetch(`${supabaseUrl}/rest/v1/support_tickets?customer_phone=eq.${phone}&created_at=gt.${oneHourAgo}&order=created_at.desc&limit=10`, { headers });
+        const historyData = await historyRes.json();
+        if (Array.isArray(historyData) && historyData.length > 0) {
+          for (const ticket of historyData) {
+            if (ticket.ai_response === 'GREETING_QUESTION' || ticket.ai_response === 'BOT_SELECTED' || ticket.ai_response === 'HUMAN_SELECTED' || ticket.ai_response === 'HUMAN_MODE_IGNORED') {
+              lastState = ticket.ai_response;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[WEBHOOK ROUTING ERROR]', e.message);
+      }
+
+      const normalizedMsg = messageBody.trim().toLowerCase();
+
+      if (!lastState) {
+        // First message in 1 hour -> Send Greeting Question
+        const greeting = "नमस्ते! AquaClean Services में आपका स्वागत है।\nबताइए, आप हमारे AI Bot से बात करना चाहते हैं या Human Support (इंसान) से?\n\nKripya reply karein:\n1️⃣ AI Bot (फटाफट बुकिंग और जवाब के लिए)\n2️⃣ Human (इंसान से बात करने के लिए)";
+        await sendWithRetry(openwaConfig, fromPhone, greeting);
+        await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+          method: 'POST', 
+          headers, 
+          body: JSON.stringify({ 
+            customer_phone: phone, 
+            message: messageBody, 
+            ai_response: 'GREETING_QUESTION', 
+            requires_human_intervention: false, 
+            status: 'auto_resolved', 
+            merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+          }) 
+        }).catch(() => {});
+        
+        if (idempotencyKey) {
+          try {
+            await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+          } catch {}
+        }
+        return res.set(corsHeaders).json({ status: 'routing_question_sent' });
+      }
+
+      if (lastState === 'GREETING_QUESTION') {
+        if (normalizedMsg === '1' || normalizedMsg.includes('bot') || normalizedMsg.includes('ai') || normalizedMsg.includes('one')) {
+          const confirmBot = "AI Bot selected! 🤖\n\nHow can I help you today? Ask me about tank cleaning prices, sofa/car cleaning, or tell me if you'd like to book a service.";
+          await sendWithRetry(openwaConfig, fromPhone, confirmBot);
+          await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+            method: 'POST', 
+            headers, 
+            body: JSON.stringify({ 
+              customer_phone: phone, 
+              message: messageBody, 
+              ai_response: 'BOT_SELECTED', 
+              requires_human_intervention: false, 
+              status: 'auto_resolved', 
+              merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+            }) 
+          }).catch(() => {});
+          
+          if (idempotencyKey) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+            } catch {}
+          }
+          return res.set(corsHeaders).json({ status: 'bot_mode_enabled' });
+        } else if (normalizedMsg === '2' || normalizedMsg.includes('human') || normalizedMsg.includes('person') || normalizedMsg.includes('two')) {
+          const confirmHuman = "Human Support selected! 👤\n\nOur team has been notified and will contact you shortly.";
+          await sendWithRetry(openwaConfig, fromPhone, confirmHuman);
+          await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+            method: 'POST', 
+            headers, 
+            body: JSON.stringify({ 
+              customer_phone: phone, 
+              message: messageBody, 
+              ai_response: 'HUMAN_SELECTED', 
+              requires_human_intervention: true, 
+              status: 'open', 
+              merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+            }) 
+          }).catch(() => {});
+          
+          if (idempotencyKey) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+            } catch {}
+          }
+          return res.set(corsHeaders).json({ status: 'human_mode_enabled' });
+        } else {
+          const repeatMsg = "Invalid choice. Please reply with:\n1️⃣ for AI Bot\n2️⃣ for Human Support";
+          await sendWithRetry(openwaConfig, fromPhone, repeatMsg);
+          await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+            method: 'POST', 
+            headers, 
+            body: JSON.stringify({ 
+              customer_phone: phone, 
+              message: messageBody, 
+              ai_response: 'GREETING_QUESTION', 
+              requires_human_intervention: false, 
+              status: 'auto_resolved', 
+              merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+            }) 
+          }).catch(() => {});
+          
+          if (idempotencyKey) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+            } catch {}
+          }
+          return res.set(corsHeaders).json({ status: 'routing_question_repeated' });
+        }
+      }
+
+      if (lastState === 'HUMAN_SELECTED' || lastState === 'HUMAN_MODE_IGNORED') {
+        await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+          method: 'POST', 
+          headers, 
+          body: JSON.stringify({ 
+            customer_phone: phone, 
+            message: messageBody, 
+            ai_response: 'HUMAN_MODE_IGNORED', 
+            requires_human_intervention: true, 
+            status: 'open', 
+            merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+          }) 
+        }).catch(() => {});
+        
+        if (idempotencyKey) {
+          try {
+            await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+          } catch {}
+        }
+        return res.set(corsHeaders).json({ status: 'ignored_human_mode' });
+      }
       // Check if customer
       let customer = null;
       if (phone) {

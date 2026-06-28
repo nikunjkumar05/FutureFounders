@@ -1,0 +1,25 @@
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-to-vm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: 'Login via Azure CLI'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: 'Deploy to Azure VM'
+        run: |
+          az vm run-command invoke \
+            --name aquatrak-bot \
+            --resource-group AQUATRAK-RG \
+            --command-id RunShellScript \
+            --scripts "chown -R nikunjkumar05:nikunjkumar05 /home/nikunjkumar05/FutureFounders; cd /home/nikunjkumar05/FutureFounders; sudo -u nikunjkumar05 git checkout main; sudo -u nikunjkumar05 git pull origin main; pm2 restart all"
