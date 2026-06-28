@@ -210,6 +210,7 @@ client.on('disconnected', (reason) => {
 
 client.on('message', async (msg) => {
     if (msg.fromMe) return;
+    if (msg.from.endsWith('@g.us') || msg.from === 'status@broadcast') return;
 
     console.log(`[CLIENT] Message received from ${msg.from}`);
 

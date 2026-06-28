@@ -154,6 +154,9 @@ async function handleFAQ(supabaseUrl, headers, openwaConfig, fromPhone, phone, m
     if (Array.isArray(historyData)) {
       const chronological = [...historyData].reverse();
       for (const ticket of chronological) {
+        if (ticket.ai_response === 'GREETING_QUESTION' || ticket.ai_response === 'BOT_SELECTED' || ticket.ai_response === 'HUMAN_SELECTED' || ticket.ai_response === 'HUMAN_MODE_IGNORED') {
+          continue;
+        }
         if (ticket.message) pastMessages.push({ role: 'user', content: ticket.message });
         if (ticket.ai_response && ticket.ai_response !== 'ESCALATE') pastMessages.push({ role: 'assistant', content: ticket.ai_response });
       }
@@ -371,6 +374,142 @@ app.post('/api/webhook', async (req, res) => {
 
     // Non-staff
     if (!staffMember) {
+      // ── Bot/Human State Routing Machine ──
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      let lastState = null;
+      try {
+        const historyRes = await fetch(`${supabaseUrl}/rest/v1/support_tickets?customer_phone=eq.${phone}&created_at=gt.${oneHourAgo}&order=created_at.desc&limit=10`, { headers });
+        const historyData = await historyRes.json();
+        if (Array.isArray(historyData) && historyData.length > 0) {
+          for (const ticket of historyData) {
+            if (ticket.ai_response === 'GREETING_QUESTION' || ticket.ai_response === 'BOT_SELECTED' || ticket.ai_response === 'HUMAN_SELECTED' || ticket.ai_response === 'HUMAN_MODE_IGNORED') {
+              lastState = ticket.ai_response;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[WEBHOOK ROUTING ERROR]', e.message);
+      }
+
+      const normalizedMsg = messageBody.trim().toLowerCase();
+
+      if (!lastState) {
+        // First message in 1 hour -> Send Greeting Question
+        const greeting = "नमस्ते! AquaClean Services में आपका स्वागत है।\nबताइए, आप हमारे AI Bot से बात करना चाहते हैं या Human Support (इंसान) से?\n\nKripya reply karein:\n1️⃣ AI Bot (फटाफट बुकिंग और जवाब के लिए)\n2️⃣ Human (इंसान से बात करने के लिए)";
+        await sendWithRetry(openwaConfig, fromPhone, greeting);
+        await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+          method: 'POST', 
+          headers, 
+          body: JSON.stringify({ 
+            customer_phone: phone, 
+            message: messageBody, 
+            ai_response: 'GREETING_QUESTION', 
+            requires_human_intervention: false, 
+            status: 'auto_resolved', 
+            merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+          }) 
+        }).catch(() => {});
+        
+        if (idempotencyKey) {
+          try {
+            await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+          } catch {}
+        }
+        return res.set(corsHeaders).json({ status: 'routing_question_sent' });
+      }
+
+      if (lastState === 'GREETING_QUESTION') {
+        if (normalizedMsg === '1' || normalizedMsg.includes('bot') || normalizedMsg.includes('ai') || normalizedMsg.includes('one')) {
+          const confirmBot = "AI Bot selected! 🤖\n\nHow can I help you today? Ask me about tank cleaning prices, sofa/car cleaning, or tell me if you'd like to book a service.";
+          await sendWithRetry(openwaConfig, fromPhone, confirmBot);
+          await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+            method: 'POST', 
+            headers, 
+            body: JSON.stringify({ 
+              customer_phone: phone, 
+              message: messageBody, 
+              ai_response: 'BOT_SELECTED', 
+              requires_human_intervention: false, 
+              status: 'auto_resolved', 
+              merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+            }) 
+          }).catch(() => {});
+          
+          if (idempotencyKey) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+            } catch {}
+          }
+          return res.set(corsHeaders).json({ status: 'bot_mode_enabled' });
+        } else if (normalizedMsg === '2' || normalizedMsg.includes('human') || normalizedMsg.includes('person') || normalizedMsg.includes('two')) {
+          const confirmHuman = "Human Support selected! 👤\n\nOur team has been notified and will contact you shortly.";
+          await sendWithRetry(openwaConfig, fromPhone, confirmHuman);
+          await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+            method: 'POST', 
+            headers, 
+            body: JSON.stringify({ 
+              customer_phone: phone, 
+              message: messageBody, 
+              ai_response: 'HUMAN_SELECTED', 
+              requires_human_intervention: true, 
+              status: 'open', 
+              merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+            }) 
+          }).catch(() => {});
+          
+          if (idempotencyKey) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+            } catch {}
+          }
+          return res.set(corsHeaders).json({ status: 'human_mode_enabled' });
+        } else {
+          const repeatMsg = "Invalid choice. Please reply with:\n1️⃣ for AI Bot\n2️⃣ for Human Support";
+          await sendWithRetry(openwaConfig, fromPhone, repeatMsg);
+          await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+            method: 'POST', 
+            headers, 
+            body: JSON.stringify({ 
+              customer_phone: phone, 
+              message: messageBody, 
+              ai_response: 'GREETING_QUESTION', 
+              requires_human_intervention: false, 
+              status: 'auto_resolved', 
+              merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+            }) 
+          }).catch(() => {});
+          
+          if (idempotencyKey) {
+            try {
+              await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+            } catch {}
+          }
+          return res.set(corsHeaders).json({ status: 'routing_question_repeated' });
+        }
+      }
+
+      if (lastState === 'HUMAN_SELECTED' || lastState === 'HUMAN_MODE_IGNORED') {
+        await fetch(`${supabaseUrl}/rest/v1/support_tickets`, { 
+          method: 'POST', 
+          headers, 
+          body: JSON.stringify({ 
+            customer_phone: phone, 
+            message: messageBody, 
+            ai_response: 'HUMAN_MODE_IGNORED', 
+            requires_human_intervention: true, 
+            status: 'open', 
+            merchant_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11' 
+          }) 
+        }).catch(() => {});
+        
+        if (idempotencyKey) {
+          try {
+            await fetch(`${supabaseUrl}/rest/v1/webhook_idempotency`, { method: 'POST', headers: { ...headers, Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key: idempotencyKey }) });
+          } catch {}
+        }
+        return res.set(corsHeaders).json({ status: 'ignored_human_mode' });
+      }
       // Check if customer
       let customer = null;
       if (phone) {
