@@ -33,6 +33,7 @@ let latestQR = null;
 let clientReady = false;
 let sock = null;
 let lidToPhoneMap = {};
+const recentLids = {};
 
 const logger = pino({ level: 'silent' });
 
@@ -89,18 +90,12 @@ app.get('/api/sessions/:sessionId/contacts/:jid', apiKeyCheck, async (req, res) 
         return res.status(503).json({ error: 'WhatsApp not connected' });
     }
     try {
-        const lidJid = jid.endsWith('@lid') ? jid : `${jid}@lid`;
-        const contact = await sock.onWhatsApp(lidJid);
-        if (contact && contact.exists) {
-            res.json({ id: contact.jid, name: '', number: jid.split('@')[0] });
+        const phonePart = jid.split('@')[0];
+        const lidJid = recentLids[phonePart];
+        if (lidJid) {
+            res.json({ id: lidJid, name: '', number: phonePart });
         } else {
-            const phoneJid = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
-            const contact2 = await sock.onWhatsApp(phoneJid);
-            if (contact2 && contact2.exists) {
-                res.json({ id: contact2.jid, name: '', number: jid.split('@')[0] });
-            } else {
-                res.status(404).json({ error: 'Contact not found' });
-            }
+            res.status(404).json({ error: 'Contact not found' });
         }
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -116,14 +111,26 @@ app.post('/api/sessions/:sessionId/messages/send-text', apiKeyCheck, async (req,
         return res.status(503).json({ error: 'WhatsApp not connected' });
     }
 
-    console.log(`[CLIENT] Sending message to ${chatId}`);
+    let targetJid = chatId;
+    if (!chatId.includes('@') || chatId.endsWith('@c.us')) {
+        const phonePart = chatId.split('@')[0];
+        const lidJid = recentLids[phonePart];
+        if (lidJid) {
+            targetJid = lidJid;
+            console.log(`[CLIENT] Mapped ${chatId} → LID ${lidJid}`);
+        } else if (!chatId.includes('@')) {
+            targetJid = `${chatId}@s.whatsapp.net`;
+        }
+    }
 
-    sock.sendMessage(chatId, { text })
+    console.log(`[CLIENT] Sending message to ${targetJid}`);
+
+    sock.sendMessage(targetJid, { text })
         .then(msg => {
-            console.log(`[CLIENT] Successfully sent message to ${chatId} (ID: ${msg?.key?.id})`);
+            console.log(`[CLIENT] Successfully sent message to ${targetJid} (ID: ${msg?.key?.id})`);
         })
         .catch(err => {
-            console.error(`[CLIENT] Send error to ${chatId}:`, err.message);
+            console.error(`[CLIENT] Send error to ${targetJid}:`, err.message);
         });
 
     res.json({ messageId: 'msg_' + Date.now() });
@@ -152,23 +159,6 @@ const forwardToWebhook = async (payload) => {
 async function resolveLidToPhone(lidJid) {
     const phone = lidToPhoneMap[lidJid];
     if (phone) return phone;
-    if (!sock) return null;
-    try {
-        const contact = await sock.onWhatsApp(lidJid);
-        if (contact && contact.exists && contact.jid && contact.jid.includes('@s.whatsapp.net')) {
-            const resolved = contact.jid.split('@')[0];
-            lidToPhoneMap[lidJid] = resolved;
-            return resolved;
-        }
-    } catch {}
-    try {
-        const storeContact = sock.store?.contacts?.[lidJid];
-        if (storeContact?.id && storeContact.id.includes('@s.whatsapp.net')) {
-            const resolved = storeContact.id.split('@')[0];
-            lidToPhoneMap[lidJid] = resolved;
-            return resolved;
-        }
-    } catch {}
     return null;
 }
 
@@ -189,10 +179,18 @@ async function startBaileys() {
         printQRInTerminal: false,
         browser: ['AquaTrak Bot', 'Chrome', '1.0.0'],
         generateHighQualityLinkPreview: false,
-        syncFullHistory: true
+        syncFullHistory: false
     });
 
     sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('contacts.upsert', (contacts) => {
+        for (const contact of contacts) {
+            if (contact.lid && contact.id) {
+                lidToPhoneMap[contact.lid] = contact.id.split('@')[0];
+            }
+        }
+    });
 
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -228,19 +226,7 @@ async function startBaileys() {
             console.log('[CLIENT] WhatsApp client is ready!');
             clientReady = true;
             latestQR = null;
-            // Build LID→phone map from stored contacts
-            const contacts = sock.store?.contacts || {};
-            let mapCount = 0;
-            for (const [jid, contact] of Object.entries(contacts)) {
-                if (jid.includes('@s.whatsapp.net') && contact?.lid) {
-                    lidToPhoneMap[contact.lid] = jid.split('@')[0];
-                    mapCount++;
-                }
-            }
-            console.log(`[CLIENT] Built LID→phone map with ${mapCount} entries`);
-            if (mapCount === 0) {
-                console.log('[CLIENT] Contacts store keys sample:', Object.keys(contacts).slice(0, 5));
-            }
+            console.log(`[CLIENT] LID→phone map entries: ${Object.keys(lidToPhoneMap).length}`);
         }
     });
 
@@ -254,6 +240,8 @@ async function startBaileys() {
             const isLid = from.endsWith('@lid');
             let resolvedPhone = null;
             if (isLid) {
+                const phonePart = from.split('@')[0];
+                recentLids[phonePart] = from;
                 resolvedPhone = await resolveLidToPhone(from);
                 console.log(`[CLIENT] LID ${from} → ${resolvedPhone || 'FAILED'}`);
             }
