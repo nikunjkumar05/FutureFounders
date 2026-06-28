@@ -1,5 +1,19 @@
+import { createClient } from "@supabase/supabase-js";
+import { refreshCustomerIntelligence } from "../../src/lib/customer-intelligence-sync.js";
 import { getOpenWAConfig } from "../lib/openwa.js";
 import { sendWithRetry } from "../lib/retry.js";
+
+let _supabaseClient: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseClient() {
+  if (!_supabaseClient) {
+    _supabaseClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    );
+  }
+  return _supabaseClient;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,6 +124,7 @@ export default async function handler(req: any, res: any) {
                 notes: null,
               }),
             });
+
           } catch (rrErr: any) {
             await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
               method: "POST",
@@ -122,6 +137,28 @@ export default async function handler(req: any, res: any) {
                 type: "send_reminder",
                 status: "failed",
                 error_message: `reminder_responses insert failed for card ${card.id}: ${rrErr?.message ?? rrErr}`,
+              }),
+            });
+          }
+
+          try {
+            await refreshCustomerIntelligence(
+              getSupabaseClient(),
+              card.merchant_id,
+              card.customer_id,
+            );
+          } catch (ciErr: any) {
+            await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
+              method: "POST",
+              headers: {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                type: "send_reminder",
+                status: "failed",
+                error_message: `customer_intelligence refresh failed for card ${card.id}: ${ciErr?.message ?? ciErr}`,
               }),
             });
           }
