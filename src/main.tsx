@@ -5,12 +5,16 @@ import './index.css';
 import { ThemeProvider } from './contexts/ThemeContext';
 
 if (import.meta.env.VITE_POSTHOG_KEY) {
-  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
-    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
-    autocapture: true,
-    capture_pageleave: true,
-    capture_pageview: false,
-  });
+  try {
+    posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+      api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+      autocapture: true,
+      capture_pageleave: true,
+      capture_pageview: false,
+    });
+  } catch (e) {
+    console.warn('[PostHog] init failed:', e);
+  }
 }
 
 createRoot(document.getElementById('root')!).render(

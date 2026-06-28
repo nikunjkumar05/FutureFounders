@@ -617,6 +617,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   const handleCreate = async () => {
     setError('');
     setSubmitting(true);
+    console.log('[CreateJob] Starting handleCreate, showNewCustomer:', showNewCustomer, 'selectedCustomerId:', selectedCustomerId);
 
     try {
       let customerId = selectedCustomerId;
@@ -685,10 +686,11 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         throw new Error('Job was not created — no response from server');
       }
 
+      console.log('[CreateJob] Job created successfully');
       trackEvent('job_created', { service_type: primaryGroup.serviceType, service_date: serviceDate, customer_id: customerId });
       onClose();
     } catch (err) {
-      console.error('Job creation failed:', err);
+      console.error('[CreateJob] Job creation failed:', err);
       setError(err instanceof Error ? err.message : 'Failed to create job. Please try again.');
     } finally {
       setSubmitting(false);

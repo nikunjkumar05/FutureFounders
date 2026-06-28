@@ -50,12 +50,16 @@ type AnalyticsProperties = Record<string, string | number | boolean | null | und
 
 function trackEvent(event: AnalyticsEvent, properties?: AnalyticsProperties): void {
   if (!shouldTrackUser()) return;
-  posthog.capture(event, {
-    $set: { last_event: event, last_event_at: new Date().toISOString() },
-    ...properties,
-    environment: import.meta.env.DEV ? 'development' : 'production',
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    posthog.capture(event, {
+      $set: { last_event: event, last_event_at: new Date().toISOString() },
+      ...properties,
+      environment: import.meta.env.DEV ? 'development' : 'production',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn('[analytics] trackEvent failed:', e);
+  }
 }
 
 export { shouldTrackUser, trackEvent };

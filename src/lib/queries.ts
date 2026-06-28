@@ -64,7 +64,11 @@ export function useServiceCards(status?: JobStatus) {
         .order('service_date', { ascending: false });
       if (status) q = q.eq('job_status', status);
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        console.error('[useServiceCards] Query error:', JSON.stringify(error, null, 2));
+        throw error;
+      }
+      console.log('[useServiceCards] Fetched', data?.length, 'cards');
       return data as unknown as ServiceCardWithDetails[];
     },
   });
@@ -129,15 +133,17 @@ export function useCreateJob() {
         notes: job.notes ?? null,
       };
 
+      console.log('[useCreateJob] Inserting:', JSON.stringify(payload, null, 2));
       const { data, error } = await supabase
         .from('service_cards')
         .insert(payload)
         .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
       if (error) {
-        console.error('Create job error:', error);
+        console.error('[useCreateJob] Insert error:', JSON.stringify(error, null, 2));
         throw new Error(error.message || 'Failed to create job in database');
       }
+      console.log('[useCreateJob] Inserted card:', data);
 
       const card = data as Record<string, unknown>;
       const cardId = card.id as string;
@@ -153,8 +159,10 @@ export function useCreateJob() {
             notes: item.notes ?? null,
           }))
         );
+        console.log('[useCreateJob] Inserting job_services:', jobServiceRows.length, 'rows');
         const { error: jsErr } = await supabase.from('job_services').insert(jobServiceRows);
         if (jsErr) {
+          console.error('[useCreateJob] job_services error:', JSON.stringify(jsErr, null, 2));
           await supabase.from('service_cards').delete().eq('id', cardId);
           throw new Error('Failed to save service details: ' + jsErr.message);
         }
@@ -163,6 +171,7 @@ export function useCreateJob() {
       return data;
     },
     onSuccess: (data, variables) => {
+      console.log('[useCreateJob] onSuccess - invalidating queries');
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
       const card = data as Record<string, unknown>;

@@ -27,7 +27,9 @@ const queryClient = new QueryClient({
 function PageviewTracker() {
   const location = useLocation();
   useEffect(() => {
-    posthog.capture('$pageview', { $current_url: window.location.href });
+    try {
+      posthog.capture('$pageview', { $current_url: window.location.href });
+    } catch { /* PostHog not initialized */ }
   }, [location]);
   return null;
 }
