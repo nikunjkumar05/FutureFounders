@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
-import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback, MERCHANT_ID } from '../lib/queries';
+import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback, useAddCustomer, checkDuplicateCustomer, MERCHANT_ID } from '../lib/queries';
+import { trackEvent } from '../lib/analytics';
 import { format } from 'date-fns';
 import {
   Clock,
@@ -20,10 +20,11 @@ import {
   Search,
   Map as MapIcon,
 } from 'lucide-react';
-import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup } from '../lib/types';
+import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, DuplicateCheckResult } from '../lib/types';
 import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, generateItemId, buildServiceDetails, getGroupTotal } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 import ContactPicker from '../components/ContactPicker';
+import DuplicateWarningModal from '../components/DuplicateWarningModal';
 import TimeFilter from '../components/TimeFilter';
 import { type TimePeriod, isInRange, groupByMonthYear } from '../lib/timeUtils';
 
@@ -503,6 +504,9 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   const [serviceDate, setServiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [jobNotes, setJobNotes] = useState('');
 
+  const addCustomer = useAddCustomer();
+  const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null);
+
   const selectedCustomer = customers?.find(c => c.id === selectedCustomerId);
 
   const toggleServiceType = (st: ServiceType) => {
@@ -588,20 +592,23 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
           setSubmitting(false);
           return;
         }
-        const { data: newCust, error: custErr } = await supabase
-          .from('customers')
-          .insert({
-            merchant_id: MERCHANT_ID,
-            name: newCustomerName,
-            phone: newCustomerPhone,
-            address: newCustomerAddress || null,
-          })
-          .select()
-          .single();
-        if (custErr) {
-          console.error('Create customer error:', custErr);
-          throw new Error(`Failed to create customer: ${custErr.message}`);
+
+        const dup = await checkDuplicateCustomer({ name: newCustomerName, phone: newCustomerPhone });
+        if (dup) {
+          setDuplicateResult(dup);
+          trackEvent('duplicate_customer_detected', {
+            customer_name: newCustomerName,
+            customer_phone: newCustomerPhone,
+            context: 'schedule',
+          });
+          return;
         }
+
+        const newCust = await addCustomer.mutateAsync({
+          name: newCustomerName,
+          phone: newCustomerPhone,
+          address: newCustomerAddress || null,
+        });
         customerId = (newCust as Record<string, unknown>).id as string;
       }
 
@@ -650,6 +657,48 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCreateAnyway = async () => {
+    setDuplicateResult(null);
+    setSubmitting(true);
+    try {
+      const newCust = await addCustomer.mutateAsync({
+        name: newCustomerName,
+        phone: newCustomerPhone,
+        address: newCustomerAddress || null,
+      });
+      trackEvent('duplicate_customer_creation_confirmed', { customer_name: newCustomerName, customer_phone: newCustomerPhone });
+      const createdCustomerId = (newCust as Record<string, unknown>).id as string;
+
+      const primaryGroup = serviceGroups[0];
+
+      const result = await createJob.mutateAsync({
+        customerId: createdCustomerId,
+        serviceType: primaryGroup.serviceType,
+        serviceDetails: buildServiceDetails(serviceGroups),
+        serviceDate,
+        technicianId: technicianId || undefined,
+        notes: jobNotes || undefined,
+        services: serviceGroups,
+      });
+
+      if (!result) {
+        throw new Error('Job was not created — no response from server');
+      }
+
+      onClose();
+    } catch (err) {
+      console.error('Job creation failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create job. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelDuplicate = () => {
+    trackEvent('duplicate_customer_creation_cancelled', { customer_name: newCustomerName, customer_phone: newCustomerPhone });
+    setDuplicateResult(null);
   };
 
   const stepOrder: CreateStep[] = ['select_customer', 'select_service', 'service_details', 'assign_worker', 'schedule', 'review'];
@@ -1032,18 +1081,28 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-navy-900 rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto border border-surface-200 dark:border-surface-700">
-        <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-700">
-          <div>
-            <h2 className="text-display-sm font-display text-surface-900 dark:text-surface-100">Schedule cleaning</h2>
-            <p className="text-body-xs text-surface-500 dark:text-surface-400">Step {stepOrder.indexOf(step) + 1} of 6</p>
+    <>
+      <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-navy-900 rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto border border-surface-200 dark:border-surface-700">
+          <div className="flex items-center justify-between p-5 border-b border-surface-100 dark:border-surface-700">
+            <div>
+              <h2 className="text-display-sm font-display text-surface-900 dark:text-surface-100">Schedule cleaning</h2>
+              <p className="text-body-xs text-surface-500 dark:text-surface-400">Step {stepOrder.indexOf(step) + 1} of 6</p>
+            </div>
+            <button onClick={onClose} className="btn-ghost p-2"><X size={20} /></button>
           </div>
-          <button onClick={onClose} className="btn-ghost p-2"><X size={20} /></button>
+          <div className="p-5">{renderStep()}</div>
         </div>
-        <div className="p-5">{renderStep()}</div>
       </div>
-    </div>
+      {duplicateResult && (
+        <DuplicateWarningModal
+          customer={duplicateResult.customer}
+          matchType={duplicateResult.type}
+          onCancel={handleCancelDuplicate}
+          onConfirm={handleCreateAnyway}
+        />
+      )}
+    </>
   );
 }
 
