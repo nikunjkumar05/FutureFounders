@@ -349,7 +349,15 @@ app.post('/api/webhook', async (req, res) => {
     if (isLid) {
       const resolved = await resolveLidToPhone(openwaConfig, fromJid);
       console.log(`[WEBHOOK] LID ${fromJid} → ${resolved || 'FAILED'}`);
-      if (resolved) { phone = resolved; fromPhone = `91${resolved}`; }
+      if (resolved) {
+        phone = resolved;
+        fromPhone = `91${resolved}`;
+      } else {
+        // LID→phone failed. Reply directly to the LID JID.
+        // Baileys + WhatsApp route @lid messages server-side.
+        fromPhone = fromJid; // e.g. '245303030599767@lid'
+        console.log(`[WEBHOOK] Using raw LID JID for reply: ${fromPhone}`);
+      }
     }
 
     // Idempotency check

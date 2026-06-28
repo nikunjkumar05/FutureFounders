@@ -232,12 +232,15 @@ async function startBaileys() {
             const contacts = sock.store?.contacts || {};
             let mapCount = 0;
             for (const [jid, contact] of Object.entries(contacts)) {
-                if (jid.endsWith('@lid') && contact?.id && contact.id.includes('@s.whatsapp.net')) {
-                    lidToPhoneMap[jid] = contact.id.split('@')[0];
+                if (jid.includes('@s.whatsapp.net') && contact?.lid) {
+                    lidToPhoneMap[contact.lid] = jid.split('@')[0];
                     mapCount++;
                 }
             }
             console.log(`[CLIENT] Built LID→phone map with ${mapCount} entries`);
+            if (mapCount === 0) {
+                console.log('[CLIENT] Contacts store keys sample:', Object.keys(contacts).slice(0, 5));
+            }
         }
     });
 
