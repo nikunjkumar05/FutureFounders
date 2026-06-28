@@ -434,7 +434,7 @@ function ServiceHistoryModal({
                                 {svc.items.map((item, itemIdx) => (
                                   <div key={item.id ?? itemIdx} className="flex items-center justify-between text-sm text-surface-700 dark:text-surface-200 bg-surface-50 dark:bg-surface-800/50 rounded-lg px-3 py-2">
                                     <div>
-                                      <span className="text-surface-700 dark:text-surface-200">
+                                      <span className="text-cyan-600 dark:text-cyan-400">
                                         {svc.serviceType === 'standard_cleaning' || svc.serviceType === 'deep_cleaning'
                                           ? `${item.capacity || 0}L Tank`
                                           : svc.serviceType === 'sofa_cleaning'
@@ -448,12 +448,12 @@ function ServiceHistoryModal({
                                           : ''}
                                       </span>
                                       <span className="ml-2">
-                                        <span className="text-surface-400 dark:text-surface-500">Qty:</span>
-                                        <span className="text-surface-600 dark:text-surface-300"> {item.quantity}</span>
+                                        <span className="text-surface-900 dark:text-surface-100 font-semibold">Qty:</span>
+                                        <span className="text-surface-900 dark:text-surface-100 font-semibold"> {item.quantity}</span>
                                         {item.price > 0 && (
                                           <>
                                             <span className="text-surface-400 dark:text-surface-500"> · </span>
-                                            <span className="text-surface-600 dark:text-surface-300">₹{item.price.toLocaleString('en-IN')}/unit</span>
+                                            <span className="text-amber-600 dark:text-amber-300">₹{item.price.toLocaleString('en-IN')}/unit</span>
                                           </>
                                         )}
                                       </span>

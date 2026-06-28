@@ -376,7 +376,7 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
 
         <div className="p-5 space-y-5">
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4">
-            <h3 className="text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-2">Customer</h3>
+            <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Customer</h3>
             <p className="text-sm font-display font-semibold text-surface-900 dark:text-surface-100">{card.customers?.name}</p>
             <p className="text-body-xs text-surface-500 dark:text-surface-400">{card.customers?.phone}</p>
             {card.customers?.address && <p className="text-body-xs text-surface-500 dark:text-surface-400 mt-0.5">{card.customers.address}</p>}
@@ -384,7 +384,7 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
 
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3">
-              <h3 className="text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-1">Status</h3>
+              <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Status</h3>
               <span className={`${
                 card.job_status === 'pending' ? 'badge-warn'
                   : card.job_status === 'in_progress' ? 'badge-info'
@@ -392,24 +392,24 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
               }`}>{card.job_status.replace('_', ' ')}</span>
             </div>
             <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3">
-              <h3 className="text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-1">Service date</h3>
+              <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Service date</h3>
               <p className="text-sm font-display font-medium text-surface-900 dark:text-surface-100">{format(new Date(card.service_date), 'dd MMM yyyy')}</p>
             </div>
           </div>
 
           <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4">
-            <h3 className="text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-2">Assigned worker</h3>
+            <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Assigned worker</h3>
             {card.staff ? (
               <div className="flex items-center gap-2">
                 <User size={14} className="text-surface-400 dark:text-surface-500" />
                 <span className="text-sm font-display font-medium text-surface-900 dark:text-surface-100">{card.staff.name}</span>
-                <span className="font-mono text-xs text-surface-500 dark:text-surface-400">{WAGE_TYPE_LABELS[card.staff.wage_type ?? 'daily']} · ₹{(card.staff.wage_amount || card.staff.daily_wage_inr).toLocaleString()}</span>
+                <span className="font-mono text-xs text-surface-400 dark:text-surface-300">{WAGE_TYPE_LABELS[card.staff.wage_type ?? 'daily']} · ₹{(card.staff.wage_amount || card.staff.daily_wage_inr).toLocaleString()}</span>
               </div>
             ) : <span className="text-body-sm text-surface-400 dark:text-surface-500">Unassigned</span>}
           </div>
 
           <div>
-            <h3 className="text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-3">Services ({services.length})</h3>
+            <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-3">Services ({services.length})</h3>
             <div className="space-y-3">
               {services.map((svc, idx) => (
                 <div key={idx} className="border border-surface-200 dark:border-surface-700 rounded-xl p-3">
@@ -419,10 +419,19 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
                   </div>
                   <div className="space-y-1">
                     {svc.items.map((item, itemIdx) => (
-                      <div key={itemIdx} className="flex items-center justify-between text-xs text-surface-600 dark:text-surface-300 bg-surface-50 dark:bg-surface-800/50 rounded-lg px-2.5 py-1.5">
+                      <div key={itemIdx} className="flex items-center justify-between text-sm text-surface-700 dark:text-surface-200 bg-surface-50 dark:bg-surface-800/50 rounded-lg px-3 py-2">
                         <div>
-                          <span className="text-surface-700 dark:text-surface-200">{formatItemDetail(item, svc.serviceType)}</span>
-                          <span className="text-surface-400 ml-2">Qty: {item.quantity}{item.price > 0 ? ` · ₹${item.price.toLocaleString('en-IN')}/unit` : ''}</span>
+                          <span className="text-cyan-600 dark:text-cyan-400">{formatItemDetail(item, svc.serviceType)}</span>
+                          <span className="ml-2">
+                            <span className="text-surface-900 dark:text-surface-100 font-semibold">Qty:</span>
+                            <span className="text-surface-900 dark:text-surface-100 font-semibold"> {item.quantity}</span>
+                            {item.price > 0 && (
+                              <>
+                                <span className="text-surface-400 dark:text-surface-500"> · </span>
+                                <span className="text-amber-600 dark:text-amber-300">₹{item.price.toLocaleString('en-IN')}/unit</span>
+                              </>
+                            )}
+                          </span>
                         </div>
                         {item.price > 0 && <span className="font-mono text-cyan-600 dark:text-cyan-400 font-medium ml-2">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
                       </div>
@@ -436,12 +445,12 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
           {totalCharge > 0 && (
             <div className="space-y-2">
               <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3 flex items-center justify-between">
-                <span className="text-xs font-display font-medium text-surface-600 dark:text-surface-400">Original Total</span>
+                <span className="text-sm font-display font-medium text-surface-600 dark:text-surface-300">Original Total</span>
                 <span className="font-mono text-sm text-surface-700 dark:text-surface-300">₹{totalCharge.toLocaleString('en-IN')}</span>
               </div>
               {discount > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-xl p-3 flex items-center justify-between">
-                  <span className="text-xs font-display font-medium text-amber-700 dark:text-amber-300">Discount</span>
+                  <span className="text-sm font-display font-medium text-amber-700 dark:text-amber-300">Discount</span>
                   <span className="font-mono text-sm text-amber-700 dark:text-amber-300">−₹{discount.toLocaleString('en-IN')}</span>
                 </div>
               )}
@@ -454,13 +463,13 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
 
           {card.next_service_date && (
             <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-3">
-              <p className="text-xs text-cyan-700 dark:text-cyan-300">Next service due: {format(new Date(card.next_service_date), 'dd MMM yyyy')}</p>
+              <p className="text-sm text-cyan-700 dark:text-cyan-300">Next service due: {format(new Date(card.next_service_date), 'dd MMM yyyy')}</p>
             </div>
           )}
 
           {card.notes && (
             <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4">
-              <h3 className="text-xs font-display font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wide mb-1">Notes</h3>
+              <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Notes</h3>
               <p className="text-body-sm text-surface-700 dark:text-surface-200">{card.notes}</p>
             </div>
           )}
