@@ -1,8 +1,9 @@
 import express from 'express';
-import pkg from 'whatsapp-web.js';
-const { Client, LocalAuth } = pkg;
+import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
+import pino from 'pino';
 import qrcode from 'qrcode';
-import { readFileSync, rmSync } from 'fs';
+import { readFileSync, rmSync, existsSync } from 'fs';
+import { join } from 'path';
 
 // Load env variables from the main project's .env file on VM
 try {
@@ -26,46 +27,14 @@ app.use(express.json());
 const PORT = 2785;
 const API_KEY = process.env.OPENWA_API_KEY || 'owa_k1_17bbdae706b3994981c70be61bb93ff3eb45d1764266b983a33145847a196bf4';
 const SESSION_ID = process.env.OPENWA_SESSION_ID || 'session';
+const AUTH_DIR = join(process.cwd(), '.baileys_auth', SESSION_ID);
 
 let latestQR = null;
 let clientReady = false;
+let sock = null;
 
-// Initialize WhatsApp Client
-const client = new Client({
-    authStrategy: new LocalAuth({
-        clientId: SESSION_ID,
-        dataPath: './.wwebjs_auth'
-    }),
-    authTimeoutMs: 600000,
-    puppeteer: {
-        headless: true,
-        executablePath: '/usr/bin/google-chrome',
-        protocolTimeout: 120000,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--no-first-run',
-            '--disable-extensions',
-            '--disable-component-extensions-with-background-pages',
-            '--disable-default-apps',
-            '--mute-audio',
-            '--no-default-browser-check',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-background-networking',
-            '--disable-sync',
-            '--disable-translate',
-            '--disable-features=site-per-process',
-            '--js-flags="--max-old-space-size=128"',
-            '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
-        ]
-    }
-});
+const logger = pino({ level: 'silent' });
 
-// Middleware for API key check
 const apiKeyCheck = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     if (API_KEY && apiKey !== API_KEY) {
@@ -75,7 +44,7 @@ const apiKeyCheck = (req, res, next) => {
 };
 
 // Routes
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
     res.json({
         status: clientReady ? 'ok' : 'initializing',
         whatsapp: clientReady ? 'connected' : 'disconnected',
@@ -83,12 +52,11 @@ app.get('/health', (req, res) => {
     });
 });
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
     res.json({ status: clientReady ? 'ok' : 'initializing' });
 });
 
-// GET /qr - directly displays the PNG QR code (makes manual scanning easy)
-app.get('/qr', (req, res) => {
+app.get('/qr', (_req, res) => {
     if (latestQR) {
         res.writeHead(200, { 'Content-Type': 'image/png' });
         res.end(latestQR);
@@ -97,8 +65,7 @@ app.get('/qr', (req, res) => {
     }
 });
 
-// GET /api/sessions/:sessionId/qr - returns base64 QR code JSON (matches OpenWA format)
-app.get('/api/sessions/:sessionId/qr', apiKeyCheck, (req, res) => {
+app.get('/api/sessions/:sessionId/qr', apiKeyCheck, (_req, res) => {
     if (latestQR) {
         const qrBase64 = latestQR.toString('base64');
         res.json({ qrCode: `data:image/png;base64,${qrBase64}` });
@@ -107,8 +74,7 @@ app.get('/api/sessions/:sessionId/qr', apiKeyCheck, (req, res) => {
     }
 });
 
-// GET /api/sessions/:sessionId - health check endpoint used by the bot server
-app.get('/api/sessions/:sessionId', apiKeyCheck, (req, res) => {
+app.get('/api/sessions/:sessionId', apiKeyCheck, (_req, res) => {
     if (clientReady) {
         res.json({ status: 'CONNECTED' });
     } else {
@@ -116,19 +82,24 @@ app.get('/api/sessions/:sessionId', apiKeyCheck, (req, res) => {
     }
 });
 
-// GET /api/sessions/:sessionId/contacts/:jid - gets contact details (specifically JID resolution)
 app.get('/api/sessions/:sessionId/contacts/:jid', apiKeyCheck, async (req, res) => {
     const { jid } = req.params;
+    if (!sock || !clientReady) {
+        return res.status(503).json({ error: 'WhatsApp not connected' });
+    }
     try {
-        const contact = await client.getContactById(jid);
-        if (contact) {
-            res.json({
-                id: contact.id._serialized,
-                name: contact.name,
-                number: contact.number
-            });
+        const lidJid = jid.endsWith('@lid') ? jid : `${jid}@lid`;
+        const contact = await sock.onWhatsApp(lidJid);
+        if (contact && contact.exists) {
+            res.json({ id: contact.jid, name: '', number: jid.split('@')[0] });
         } else {
-            res.status(404).json({ error: 'Contact not found' });
+            const phoneJid = jid.includes('@') ? jid : `${jid}@s.whatsapp.net`;
+            const contact2 = await sock.onWhatsApp(phoneJid);
+            if (contact2 && contact2.exists) {
+                res.json({ id: contact2.jid, name: '', number: jid.split('@')[0] });
+            } else {
+                res.status(404).json({ error: 'Contact not found' });
+            }
         }
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -140,19 +111,20 @@ app.post('/api/sessions/:sessionId/messages/send-text', apiKeyCheck, async (req,
     if (!chatId || !text) {
         return res.status(400).json({ error: 'Missing chatId or text' });
     }
-    
-    console.log(`[CLIENT] Initiating async send message to ${chatId}`);
-    
-    // Send message asynchronously in the background
-    client.sendMessage(chatId, text)
+    if (!sock || !clientReady) {
+        return res.status(503).json({ error: 'WhatsApp not connected' });
+    }
+
+    console.log(`[CLIENT] Sending message to ${chatId}`);
+
+    sock.sendMessage(chatId, { text })
         .then(msg => {
-            console.log(`[CLIENT] Successfully sent message to ${chatId} (ID: ${msg.id._serialized})`);
+            console.log(`[CLIENT] Successfully sent message to ${chatId} (ID: ${msg?.key?.id})`);
         })
         .catch(err => {
-            console.error(`[CLIENT] Async send error to ${chatId}:`, err.message);
+            console.error(`[CLIENT] Send error to ${chatId}:`, err.message);
         });
 
-    // Return success immediately to prevent bot server from timing out and retrying
     res.json({ messageId: 'msg_' + Date.now() });
 });
 
@@ -175,79 +147,107 @@ const forwardToWebhook = async (payload) => {
     }
 };
 
-// WhatsApp events
-client.on('qr', (qr) => {
-    console.log('[CLIENT] QR code received. Generating PNG...');
-    qrcode.toBuffer(qr, { type: 'png' }, (err, buffer) => {
-        if (!err) {
-            latestQR = buffer;
-        } else {
-            console.error('[CLIENT] Failed to generate QR PNG buffer:', err.message);
-        }
-    });
-});
-
-client.on('ready', () => {
-    console.log('[CLIENT] WhatsApp client is ready!');
-    clientReady = true;
-    latestQR = null;
-});
-
-client.on('auth_failure', (msg) => {
-    console.error('[CLIENT] Auth failure:', msg);
-    clientReady = false;
-    latestQR = null;
-});
-
-client.on('disconnected', (reason) => {
-    console.error('[CLIENT] WhatsApp client disconnected:', reason);
-    clientReady = false;
-    latestQR = null;
-    try {
-        console.log('[CLIENT] Cleaning up session directory...');
-        rmSync('./.wwebjs_auth', { recursive: true, force: true });
-    } catch (e) {}
-    // Exit process so PM2 restarts it cleanly
-    console.log('[CLIENT] Exiting process to let PM2 restart client...');
-    process.exit(1);
-});
-
-client.on('message', async (msg) => {
-    if (msg.fromMe) return;
-    if (msg.from.endsWith('@g.us') || msg.from === 'status@broadcast') return;
-
-    console.log(`[CLIENT] Message received from ${msg.from}`);
-
-    let latitude = null;
-    let longitude = null;
-    if (msg.type === 'location' || msg.location) {
-        latitude = msg.location?.latitude || msg.lat;
-        longitude = msg.location?.longitude || msg.lng;
-    }
-
-    const payload = {
-        event: 'message.received',
-        data: {
-            from: msg.from,
-            body: msg.body,
-            location: (latitude && longitude) ? { latitude, longitude } : null,
-            fromMe: msg.fromMe
-        },
-        idempotencyKey: msg.id._serialized
-    };
-
-    await forwardToWebhook(payload);
-});
-
 // Start Express
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[SERVER] Custom OpenWA-compatible gateway listening on port ${PORT}`);
+    console.log(`[SERVER] Custom OpenWA-compatible gateway (Baileys) listening on port ${PORT}`);
 });
 
-// Start WhatsApp Client
-console.log('[CLIENT] Initializing WhatsApp Client...');
-client.initialize().catch(err => {
+// Initialize Baileys
+async function startBaileys() {
+    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    const { version } = await fetchLatestBaileysVersion();
+
+    sock = makeWASocket({
+        version,
+        auth: state,
+        logger,
+        printQRInTerminal: false,
+        browser: ['AquaTrak Bot', 'Chrome', '1.0.0'],
+        generateHighQualityLinkPreview: false,
+        syncFullHistory: false
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+            console.log('[CLIENT] QR code received. Generating PNG...');
+            try {
+                latestQR = await qrcode.toBuffer(qr, { type: 'png' });
+            } catch (err) {
+                console.error('[CLIENT] Failed to generate QR PNG:', err.message);
+            }
+        }
+
+        if (connection === 'close') {
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log(`[CLIENT] Connection closed. Status: ${statusCode}. Reconnect: ${shouldReconnect}`);
+
+            clientReady = false;
+            latestQR = null;
+
+            if (shouldReconnect) {
+                setTimeout(() => startBaileys(), 3000);
+            } else {
+                console.log('[CLIENT] Logged out. Cleaning session...');
+                try { rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
+                console.log('[CLIENT] Exiting to let PM2 restart...');
+                process.exit(1);
+            }
+        }
+
+        if (connection === 'open') {
+            console.log('[CLIENT] WhatsApp client is ready!');
+            clientReady = true;
+            latestQR = null;
+        }
+    });
+
+    sock.ev.on('messages.upsert', async ({ messages }) => {
+        for (const msg of messages) {
+            if (msg.key.fromMe) continue;
+            const from = msg.key.remoteJid;
+            if (!from) continue;
+            if (from.endsWith('@g.us') || from === 'status@broadcast') continue;
+
+            console.log(`[CLIENT] Message received from ${from}`);
+
+            let latitude = null;
+            let longitude = null;
+            const locationMsg = msg.message?.locationMessage;
+            if (locationMsg) {
+                latitude = locationMsg.degreesLatitude;
+                longitude = locationMsg.degreesLongitude;
+            }
+
+            const body = msg.message?.conversation
+                || msg.message?.extendedTextMessage?.text
+                || msg.message?.imageMessage?.caption
+                || msg.message?.videoMessage?.caption
+                || '';
+
+            const payload = {
+                event: 'message.received',
+                data: {
+                    from,
+                    body,
+                    location: (latitude && longitude) ? { latitude, longitude } : null,
+                    fromMe: false
+                },
+                idempotencyKey: msg.key.id || `baileys_${Date.now()}`
+            };
+
+            await forwardToWebhook(payload);
+        }
+    });
+}
+
+console.log('[CLIENT] Initializing Baileys WhatsApp Client...');
+startBaileys().catch(err => {
     console.error('[CLIENT] Initialization failed:', err.message);
-    console.log('[CLIENT] Exiting process to let PM2 retry (retaining session files)...');
+    console.log('[CLIENT] Exiting process to let PM2 retry...');
     process.exit(1);
 });
