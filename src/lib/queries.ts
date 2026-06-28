@@ -59,7 +59,7 @@ export function useServiceCards(status?: JobStatus) {
     queryFn: async () => {
       let q = supabase
         .from('service_cards')
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at, customers(*), staff(*)')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at, customers(*), staff(*)')
         .eq('merchant_id', MERCHANT_ID)
         .order('service_date', { ascending: false });
       if (status) q = q.eq('job_status', status);
@@ -85,7 +85,7 @@ export function useUpdateJobStatus() {
         .from('service_cards')
         .update(updates)
         .eq('id', id)
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
       if (error) throw error;
       return data;
@@ -132,7 +132,7 @@ export function useCreateJob() {
       const { data, error } = await supabase
         .from('service_cards')
         .insert(payload)
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
       if (error) {
         console.error('Create job error:', error);
@@ -419,7 +419,7 @@ export function useMarkReminderSent() {
         .from('service_cards')
         .update({ reminder_sent_at: new Date().toISOString() })
         .eq('id', cardId)
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
       if (error) throw error;
       return data;
@@ -750,6 +750,7 @@ export function useUpdateJob() {
       technicianId?: string;
       notes?: string;
       services?: ServiceGroup[];
+      discount?: number;
     }) => {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
@@ -763,13 +764,14 @@ export function useUpdateJob() {
         next_service_date: nextDate,
         technician_id: job.technicianId ?? null,
         notes: job.notes ?? null,
+        discount: job.discount ?? 0,
       };
 
       const { data, error } = await supabase
         .from('service_cards')
         .update(payload)
         .eq('id', job.id)
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
       if (error) {
         console.error('Update job error:', error);
@@ -805,6 +807,9 @@ export function useUpdateJob() {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
       trackEvent('job_updated', { job_id: variables.id });
+      if (variables.discount !== undefined) {
+        trackEvent('job_discount_updated', { job_id: variables.id, discount: variables.discount });
+      }
     },
   });
 }
@@ -1590,7 +1595,7 @@ export function useSendFeedback() {
         .from('service_cards')
         .update({ feedback_sent: true, feedback_rating: rating })
         .eq('id', cardId)
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
         .single();
       if (error) throw error;
       return data;

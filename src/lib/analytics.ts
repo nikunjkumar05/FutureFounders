@@ -43,7 +43,8 @@ type AnalyticsEvent =
   | 'duplicate_customer_creation_confirmed'
   | 'duplicate_customer_creation_cancelled'
   | 'dashboard_viewed'
-  | 'inventory_checked';
+  | 'inventory_checked'
+  | 'job_discount_updated';
 
 type AnalyticsProperties = Record<string, string | number | boolean | null | undefined>;
 

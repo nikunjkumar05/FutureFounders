@@ -130,6 +130,7 @@ export interface ServiceCard {
   next_service_date: string | null;
   job_status: JobStatus;
   technician_id: string | null;
+  discount: number;
   notes: string | null;
   feedback_sent: boolean;
   feedback_rating: string | null;
