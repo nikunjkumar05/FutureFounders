@@ -21,8 +21,9 @@ import {
   Map as MapIcon,
 } from 'lucide-react';
 import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, DuplicateCheckResult } from '../lib/types';
-import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, generateItemId, buildServiceDetails, getGroupTotal } from '../lib/types';
+import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, PREDEFINED_SOFA_TYPES, generateItemId, buildServiceDetails, getGroupTotal } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
+
 import ContactPicker from '../components/ContactPicker';
 import DuplicateWarningModal from '../components/DuplicateWarningModal';
 import TimeFilter from '../components/TimeFilter';
@@ -237,7 +238,9 @@ function formatItemDetail(item: ServiceItem, serviceType: ServiceType): string {
     case 'deep_cleaning':
       return `${item.capacity ?? 0}L Tank`;
     case 'sofa_cleaning':
-      return `${item.sofaType ?? 'Standard'} Sofa`;
+      if (!item.sofaType) return 'Standard Sofa';
+      if (PREDEFINED_SOFA_TYPES.includes(item.sofaType)) return `${item.sofaType} Sofa`;
+      return item.sofaType;
     case 'seats_cleaning':
       return 'Seat';
     case 'carpet_cleaning':
@@ -908,12 +911,17 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Type</label>
-                        <select value={item.sofaType ?? 'Standard'} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { sofaType: e.target.value })}
+                        <select value={item.sofaType && PREDEFINED_SOFA_TYPES.includes(item.sofaType) ? item.sofaType : '__custom__'} onChange={e => {
+                          const val = e.target.value;
+                          updateServiceItem(currentServiceIdx, itemIdx, { sofaType: val === '__custom__' ? '' : val });
+                        }}
                           className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white">
                           <option value="Standard">Standard</option>
-                          <option value="L-Shape">L-Shape</option>
+                          <option value="Chair">Chair</option>
                           <option value="Sectional">Sectional</option>
-                          <option value="Recliner">Recliner</option>
+                          <option value="Dining Chair">Dining Chair</option>
+                          <option value="Puffy">Puffy</option>
+                          <option value="__custom__">Custom</option>
                         </select>
                       </div>
                       <div>
@@ -921,6 +929,15 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                         <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
                           className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                       </div>
+                    </div>
+                  )}
+
+                  {group.serviceType === 'sofa_cleaning' && item.sofaType !== undefined && !PREDEFINED_SOFA_TYPES.includes(item.sofaType) && (
+                    <div className="mt-2">
+                      <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Custom name</label>
+                      <input type="text" value={item.sofaType} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { sofaType: e.target.value })}
+                        placeholder="e.g. Office Chair, Bean Bag, etc."
+                        className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                     </div>
                   )}
 
@@ -1404,12 +1421,17 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                           <div className="grid grid-cols-3 gap-2">
                             <div>
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Type</label>
-                              <select value={item.sofaType ?? 'Standard'} onChange={e => updateServiceItem(groupIdx, itemIdx, { sofaType: e.target.value })}
+                              <select value={item.sofaType && PREDEFINED_SOFA_TYPES.includes(item.sofaType) ? item.sofaType : '__custom__'} onChange={e => {
+                                const val = e.target.value;
+                                updateServiceItem(groupIdx, itemIdx, { sofaType: val === '__custom__' ? '' : val });
+                              }}
                                 className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white">
                                 <option value="Standard">Standard</option>
-                                <option value="L-Shape">L-Shape</option>
+                                <option value="Chair">Chair</option>
                                 <option value="Sectional">Sectional</option>
-                                <option value="Recliner">Recliner</option>
+                                <option value="Dining Chair">Dining Chair</option>
+                                <option value="Puffy">Puffy</option>
+                                <option value="__custom__">Custom</option>
                               </select>
                             </div>
                             <div>
@@ -1422,6 +1444,15 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                               <input type="number" min={0} value={item.price || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { price: parseInt(e.target.value) || 0 })}
                                 placeholder="0" className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
                             </div>
+                          </div>
+                        )}
+
+                        {group.serviceType === 'sofa_cleaning' && item.sofaType !== undefined && !PREDEFINED_SOFA_TYPES.includes(item.sofaType) && (
+                          <div className="mt-2">
+                            <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Custom name</label>
+                            <input type="text" value={item.sofaType} onChange={e => updateServiceItem(groupIdx, itemIdx, { sofaType: e.target.value })}
+                              placeholder="e.g. Office Chair, Bean Bag, etc."
+                              className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
                           </div>
                         )}
 

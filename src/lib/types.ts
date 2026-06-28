@@ -17,6 +17,8 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   custom_service: 'Custom Service',
 };
 
+export const PREDEFINED_SOFA_TYPES = ['Standard', 'Chair', 'Sectional', 'Dining Chair', 'Puffy'];
+
 // ─── Single-item detail types (backward compat) ──────────────────
 
 export interface TankCleaningDetails {
