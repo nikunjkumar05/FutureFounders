@@ -27,6 +27,7 @@ import {
   useUpdateAdvance,
   useDeleteAdvance,
 } from '../lib/queries';
+import { trackEvent } from '../lib/analytics';
 import { format } from 'date-fns';
 import ContactPicker from '../components/ContactPicker';
 import type { Staff, WageType, Advance } from '../lib/types';
@@ -221,7 +222,7 @@ function DeleteStaffButton({ staffId, staffName }: { staffId: string; staffName:
     return (
       <div className="flex items-center gap-1">
         <button
-          onClick={() => { del.mutate({ id: staffId }); setConfirming(false); }}
+          onClick={() => { del.mutate({ id: staffId }); trackEvent('worker_deleted', { worker_id: staffId, worker_name: staffName }); setConfirming(false); }}
           className="text-[10px] font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 px-1.5 py-0.5 rounded transition-colors"
         >
           Sure?
@@ -385,7 +386,7 @@ function AdvanceManagement({ staffId, staffName }: { staffId: string; staffName:
     if (!newAmount || isNaN(amount) || amount <= 0) return;
     addAdvance.mutate(
       { staffId, amount, date: newDate, reason: newReason || undefined },
-      { onSuccess: () => { setNewAmount(''); setNewReason(''); } }
+      { onSuccess: () => { trackEvent('advance_paid', { worker_id: staffId, amount, reason: newReason }); setNewAmount(''); setNewReason(''); } }
     );
   };
 
@@ -698,7 +699,7 @@ function AddStaffModal({ onClose }: { onClose: () => void }) {
     if (!name || !phone) return;
     addStaff.mutate(
       { name, phone, wageType, wageAmount: parseInt(wageAmount) || 500 },
-      { onSuccess: onClose }
+      { onSuccess: () => { trackEvent('worker_created', { worker_name: name, wage_type: wageType }); onClose(); } }
     );
   };
 
@@ -773,7 +774,7 @@ function EditStaffModal({ staff, onClose }: { staff: Staff; onClose: () => void 
     e.preventDefault();
     updateStaff.mutate(
       { id: staff.id, name, phone, wageType, wageAmount: parseInt(wageAmount) || 500, isActive },
-      { onSuccess: onClose }
+      { onSuccess: () => { trackEvent('worker_updated', { worker_id: staff.id, worker_name: name, is_active: isActive }); onClose(); } }
     );
   };
 

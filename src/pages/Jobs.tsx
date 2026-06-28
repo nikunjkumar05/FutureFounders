@@ -326,7 +326,7 @@ function JobCard({ card, onEdit, onDelete, onView }: {
       <div className="flex gap-2">
         <select
           value={card.job_status}
-          onChange={(e) => { const ns = e.target.value as JobStatus; if (ns !== card.job_status) updateStatus.mutate({ id: card.id, status: ns }); }}
+          onChange={(e) => { const ns = e.target.value as JobStatus; if (ns !== card.job_status) { updateStatus.mutate({ id: card.id, status: ns }); if (ns === 'completed') trackEvent('job_completed', { card_id: card.id, customer_name: card.customers?.name }); } }}
           disabled={updateStatus.isPending}
           className={`flex-1 text-xs font-display font-medium px-3 py-2 rounded-xl border transition-colors disabled:opacity-50 ${
             card.job_status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800'
@@ -673,6 +673,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         throw new Error('Job was not created — no response from server');
       }
 
+      trackEvent('job_created', { service_type: primaryGroup.serviceType, service_date: serviceDate, customer_id: customerId });
       onClose();
     } catch (err) {
       console.error('Job creation failed:', err);
@@ -710,6 +711,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         throw new Error('Job was not created — no response from server');
       }
 
+      trackEvent('job_created', { service_type: primaryGroup.serviceType, service_date: serviceDate, customer_id: createdCustomerId, context: 'duplicate_confirmed' });
       onClose();
     } catch (err) {
       console.error('Job creation failed:', err);
@@ -1254,6 +1256,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
         services: serviceGroups,
         discount,
       });
+      trackEvent('job_updated', { card_id: card.id, customer_id: customerId, discount });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update job');
@@ -1560,6 +1563,7 @@ function DeleteJobConfirmModal({ card, onClose }: { card: ServiceCardWithDetails
     setError('');
     try {
       await deleteJob.mutateAsync({ id: card.id });
+      trackEvent('job_deleted', { card_id: card.id, customer_name: card.customers?.name });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete job');

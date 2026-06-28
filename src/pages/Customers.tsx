@@ -218,6 +218,7 @@ function CustomerRow({
       `https://wa.me/91${customer.phone}?text=${encodeURIComponent(template)}`
     );
     markReminder.mutate({ cardId: latestCard.id });
+    trackEvent('reminder_sent', { customer_id: customer.id, customer_name: customer.name, service_type: latestCard.service_type });
     createReminderResponse.mutate({
       serviceCardId: latestCard.id,
       customerId: customer.id,
@@ -558,6 +559,7 @@ function EditCustomerModal({
         address: address || null,
         notes: notes || null,
       });
+      trackEvent('customer_updated', { customer_id: customer.id, customer_name: name });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update customer');
@@ -658,6 +660,7 @@ function DeleteConfirmModal({
     setError('');
     try {
       await deleteCustomer.mutateAsync({ id: customer.id });
+      trackEvent('customer_deleted', { customer_id: customer.id, customer_name: customer.name });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete customer');
@@ -732,6 +735,7 @@ function AddCustomerModal({ onClose }: { onClose: () => void }) {
         address: address || null,
         notes: notes || null,
       });
+      trackEvent('customer_created', { customer_name: name, customer_phone: phone });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : JSON.stringify(err));
