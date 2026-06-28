@@ -243,10 +243,6 @@ app.listen(PORT, '0.0.0.0', () => {
 console.log('[CLIENT] Initializing WhatsApp Client...');
 client.initialize().catch(err => {
     console.error('[CLIENT] Initialization failed:', err.message);
-    try {
-        console.log('[CLIENT] Cleaning up session directory on failure...');
-        rmSync('./.wwebjs_auth', { recursive: true, force: true });
-    } catch (e) {}
-    console.log('[CLIENT] Exiting process to let PM2 retry...');
+    console.log('[CLIENT] Exiting process to let PM2 retry (retaining session files)...');
     process.exit(1);
 });
