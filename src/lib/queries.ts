@@ -750,6 +750,7 @@ export function useUpdateJob() {
       technicianId?: string;
       notes?: string;
       services?: ServiceGroup[];
+      discount?: number;
     }) => {
       const nextDate = new Date(
         new Date(job.serviceDate).getTime() + 180 * 86400000
@@ -763,6 +764,7 @@ export function useUpdateJob() {
         next_service_date: nextDate,
         technician_id: job.technicianId ?? null,
         notes: job.notes ?? null,
+        discount: job.discount ?? 0,
       };
 
       const { data, error } = await supabase
@@ -805,6 +807,9 @@ export function useUpdateJob() {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
       trackEvent('job_updated', { job_id: variables.id });
+      if (variables.discount !== undefined) {
+        trackEvent('job_discount_updated', { job_id: variables.id, discount: variables.discount });
+      }
     },
   });
 }
@@ -820,27 +825,6 @@ export function useDeleteJob() {
       qc.invalidateQueries({ queryKey: ['service_cards'] });
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
       trackEvent('job_deleted', { job_id: variables.id });
-    },
-  });
-}
-
-export function useUpdateJobDiscount() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, discount }: { id: string; discount: number }) => {
-      const { data, error } = await supabase
-        .from('service_cards')
-        .update({ discount })
-        .eq('id', id)
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ['service_cards'] });
-      qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
-      trackEvent('job_discount_updated', { job_id: variables.id, discount: variables.discount });
     },
   });
 }

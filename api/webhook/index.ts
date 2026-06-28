@@ -327,7 +327,7 @@ async function processMessage(payload: any) {
         const customerPhone = job.customers?.phone;
         const customerName = job.customers?.name;
         const details = job.service_details || {};
-        const amount = (details.totalCharge || 1200) - (job.discount || 0);
+        const amount = Math.max(0, (details.totalCharge || 1200) - (job.discount || 0));
 
         if (customerPhone) {
           const upiUrl = `upi://pay?pa=9876543210@okbizaxis&pn=AquaClean&am=${amount}&cu=INR`;

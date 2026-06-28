@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useUpdateJobDiscount, useStaff, useCustomers, useSendFeedback, useAddCustomer, checkDuplicateCustomer } from '../lib/queries';
+import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback, useAddCustomer, checkDuplicateCustomer } from '../lib/queries';
 import { trackEvent } from '../lib/analytics';
 import { format } from 'date-fns';
 import {
@@ -1179,7 +1179,6 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
   const { data: customers } = useCustomers();
   const { data: staff } = useStaff();
   const updateJob = useUpdateJob();
-  const updateJobDiscount = useUpdateJobDiscount();
 
   const [customerId, setCustomerId] = useState(card.customer_id);
   const [serviceGroups, setServiceGroups] = useState<ServiceGroup[]>(() => parseCardToServiceGroups(card));
@@ -1253,10 +1252,8 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
         technicianId: technicianId || undefined,
         notes: notes || undefined,
         services: serviceGroups,
+        discount,
       });
-      if (discount !== (card.discount ?? 0)) {
-        await updateJobDiscount.mutateAsync({ id: card.id, discount });
-      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update job');
