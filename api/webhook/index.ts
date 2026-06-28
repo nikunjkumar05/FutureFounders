@@ -1,9 +1,11 @@
+import { createClient } from '@supabase/supabase-js';
 import {
   getOpenWAConfig,
   extractPhoneFromOpenWA,
 } from "../lib/openwa.js";
 import { sendWithRetry } from "../lib/retry.js";
 import { log } from "../lib/logger.js";
+import { refreshCustomerIntelligence } from "../../src/lib/customer-intelligence-sync.js";
 
 const COMPONENT = "webhook";
 const MERCHANT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
@@ -154,6 +156,7 @@ async function processMessage(payload: any) {
               response: messageBody
             })
           });
+          refreshCustomerIntelligence(getSupabaseClient(), customer.merchant_id, customer.id);
         }
         await replyViaOpenWA(replyTo, "Namaste! Cleaning book karne ke liye dhanyavad. Kripya timing select karein: 'Morning' (8AM-1PM) ya 'Afternoon' (1PM-6PM)?");
       } else if (text.includes("morning") || text.includes("afternoon")) {
@@ -207,6 +210,8 @@ async function processMessage(payload: any) {
             headers,
             body: JSON.stringify({ status: "booked" })
           });
+
+          refreshCustomerIntelligence(getSupabaseClient(), customer.merchant_id, customer.id);
 
           await replyViaOpenWA(replyTo, `Dhanyavad! Aapki service kal (${tomorrow}) ${slot} slot ke liye book ho chuki hai. Humara staff scheduled samay par pahunch jayega.`);
         } else {
@@ -316,6 +321,7 @@ async function processMessage(payload: any) {
           headers,
           body: JSON.stringify({ job_status: "completed" }),
         });
+        refreshCustomerIntelligence(getSupabaseClient(), staffMember.merchant_id, job.customer_id);
         await replyViaOpenWA(replyTo, "Job completed! Inventory levels updated automatically.");
 
         const customerPhone = job.customers?.phone;
@@ -368,6 +374,18 @@ function getDistance(lat1: number, lng1: number, lat2: number, lng2: number): nu
     Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
+}
+
+let _supabaseClient: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseClient() {
+  if (!_supabaseClient) {
+    _supabaseClient = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    );
+  }
+  return _supabaseClient;
 }
 
 async function replyViaOpenWA(to: string, text: string) {
