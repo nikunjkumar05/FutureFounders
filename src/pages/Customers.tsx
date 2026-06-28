@@ -11,7 +11,6 @@ import {
   Trash2,
   ClipboardList,
   FileText,
-  ChevronRight,
 } from 'lucide-react';
 import {
   useCustomers,
@@ -393,87 +392,124 @@ function ServiceHistoryModal({
               {cards.map((card) => {
                 const details = card.service_details as Record<string, unknown>;
                 const services = getServicesFromDetails(details);
-                const statusColor = card.job_status === 'completed'
-                  ? 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300'
-                  : card.job_status === 'in_progress'
-                  ? 'bg-navy-100 dark:bg-navy-900/50 text-navy-700 dark:text-navy-300'
-                  : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300';
                 const statusLabel = card.job_status === 'completed'
                   ? 'Completed'
                   : card.job_status === 'in_progress'
                   ? 'In Progress'
                   : 'Pending';
                 return (
-                  <div key={card.id} className="border border-surface-200 dark:border-surface-600 rounded-lg p-4 hover:shadow-sm transition-shadow">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="font-medium text-surface-900 dark:text-white text-sm">
-                          {SERVICE_TYPE_LABELS[card.service_type as ServiceType] ?? card.service_type}
-                        </p>
-                        <p className="text-xs text-surface-400 dark:text-surface-500 mt-0.5">
+                  <div key={card.id} className="border border-surface-200 dark:border-surface-700 rounded-xl p-4 space-y-3 hover:shadow-sm transition-shadow">
+                    {/* Status & service date */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3">
+                        <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Status</h3>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          card.job_status === 'completed' ? 'badge-ok'
+                            : card.job_status === 'in_progress' ? 'badge-info'
+                            : 'badge-warn'
+                        }`}>{statusLabel}</span>
+                      </div>
+                      <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3">
+                        <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Service date</h3>
+                        <p className="text-sm font-display font-medium text-surface-900 dark:text-surface-100">
                           {new Date(card.service_date + 'T00:00:00').toLocaleDateString('en-IN', {
                             weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
                           })}
                         </p>
                       </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusColor}`}>
-                        {statusLabel}
-                      </span>
                     </div>
 
-                    {services.length > 0 && (
-                      <div className="space-y-1 mt-2">
-                        {services.flatMap((group: ServiceGroup) =>
-                          group.items.map((item) => {
-                            const parts: string[] = [];
-                            if (item.capacity) parts.push(`${item.capacity}L`);
-                            if (item.sofaType) parts.push(item.sofaType);
-                            if (item.carpetArea) parts.push(`${item.carpetArea} sq ft`);
-                            if (item.serviceName) parts.push(item.serviceName);
-                            if (item.quantity && item.quantity > 1) parts.push(`x${item.quantity}`);
-                            return (
-                              <div key={item.id} className="text-xs text-surface-500 dark:text-surface-400 flex items-center gap-1">
-                                <ChevronRight size={10} className="text-surface-300 dark:text-surface-600" />
-                                {parts.length > 0 ? parts.join(' · ') : `1 service`}
-                                {item.price > 0 && <span className="text-surface-400 dark:text-surface-500">· ₹{item.price}</span>}
+                    {/* Services */}
+                    <div>
+                      <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-3">Services ({services.length})</h3>
+                      <div className="space-y-3">
+                        {(services.length > 0 ? services : [{ serviceType: card.service_type as ServiceType, items: [], totalPrice: 0 } as ServiceGroup]).map((svc, idx) => (
+                          <div key={idx} className="border border-surface-200 dark:border-surface-700 rounded-xl p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm font-display font-semibold text-surface-900 dark:text-surface-100">{SERVICE_TYPE_LABELS[svc.serviceType as ServiceType] ?? svc.serviceType}</p>
+                              {svc.totalPrice > 0 && <span className="font-mono text-sm font-semibold text-cyan-600 dark:text-cyan-400">₹{svc.totalPrice.toLocaleString('en-IN')}</span>}
+                            </div>
+                            {svc.items.length > 0 ? (
+                              <div className="space-y-1">
+                                {svc.items.map((item, itemIdx) => (
+                                  <div key={item.id ?? itemIdx} className="flex items-center justify-between text-sm text-surface-700 dark:text-surface-200 bg-surface-50 dark:bg-surface-800/50 rounded-lg px-3 py-2">
+                                    <div>
+                                      <span className="text-surface-700 dark:text-surface-200">
+                                        {svc.serviceType === 'standard_cleaning' || svc.serviceType === 'deep_cleaning'
+                                          ? `${item.capacity || 0}L Tank`
+                                          : svc.serviceType === 'sofa_cleaning'
+                                          ? `${item.sofaType || 'Standard'} Sofa`
+                                          : svc.serviceType === 'seats_cleaning'
+                                          ? 'Seat'
+                                          : svc.serviceType === 'carpet_cleaning'
+                                          ? `${item.carpetArea || 0} sq ft`
+                                          : svc.serviceType === 'custom_service'
+                                          ? `${item.serviceName || 'Service'}${item.notes ? ` — ${item.notes}` : ''}`
+                                          : ''}
+                                      </span>
+                                      <span className="ml-2">
+                                        <span className="text-surface-400 dark:text-surface-500">Qty:</span>
+                                        <span className="text-surface-600 dark:text-surface-300"> {item.quantity}</span>
+                                        {item.price > 0 && (
+                                          <>
+                                            <span className="text-surface-400 dark:text-surface-500"> · </span>
+                                            <span className="text-surface-600 dark:text-surface-300">₹{item.price.toLocaleString('en-IN')}/unit</span>
+                                          </>
+                                        )}
+                                      </span>
+                                    </div>
+                                    {item.price > 0 && <span className="font-mono text-cyan-600 dark:text-cyan-400 font-medium ml-2">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
+                                  </div>
+                                ))}
                               </div>
-                            );
-                          })
-                        )}
+                            ) : (
+                              <p className="text-sm text-surface-500 dark:text-surface-400">1 service</p>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    )}
-
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-surface-400 dark:text-surface-500">
-                      {card.staff && <span>Worker: {card.staff.name}</span>}
-                      {card.next_service_date && (
-                        <span>Next: {new Date(card.next_service_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                      )}
                     </div>
 
+                    {/* Pricing */}
                     {(() => {
                       const totalCharge = getTotalCharge(card.service_details as Record<string, unknown>);
                       const discount = card.discount ?? 0;
                       if (totalCharge <= 0) return null;
                       const finalAmount = totalCharge - discount;
                       return (
-                        <div className="mt-2 pt-2 border-t border-surface-100 dark:border-surface-700 space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-surface-500 dark:text-surface-400">Original Total</span>
-                            <span className="font-mono text-surface-700 dark:text-surface-300">₹{totalCharge.toLocaleString('en-IN')}</span>
+                        <div className="space-y-2">
+                          <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3 flex items-center justify-between">
+                            <span className="text-sm font-display font-medium text-surface-600 dark:text-surface-300">Original Total</span>
+                            <span className="font-mono text-sm text-surface-700 dark:text-surface-300">₹{totalCharge.toLocaleString('en-IN')}</span>
                           </div>
                           {discount > 0 && (
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-amber-600 dark:text-amber-400">Discount</span>
-                              <span className="font-mono text-amber-600 dark:text-amber-400">−₹{discount.toLocaleString('en-IN')}</span>
+                            <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-xl p-3 flex items-center justify-between">
+                              <span className="text-sm font-display font-medium text-amber-700 dark:text-amber-300">Discount</span>
+                              <span className="font-mono text-sm text-amber-700 dark:text-amber-300">−₹{discount.toLocaleString('en-IN')}</span>
                             </div>
                           )}
-                          <div className="flex items-center justify-between text-sm font-medium">
-                            <span className="text-cyan-700 dark:text-cyan-300">Final Amount Paid</span>
-                            <span className="font-mono font-bold text-cyan-700 dark:text-cyan-300">₹{finalAmount.toLocaleString('en-IN')}</span>
+                          <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-4 flex items-center justify-between">
+                            <span className="text-sm font-display font-semibold text-cyan-700 dark:text-cyan-300">Final Amount</span>
+                            <span className="font-mono text-lg font-bold text-cyan-700 dark:text-cyan-300">₹{finalAmount.toLocaleString('en-IN')}</span>
                           </div>
                         </div>
                       );
                     })()}
+
+                    {/* Next service */}
+                    {card.next_service_date && (
+                      <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-3">
+                        <p className="text-sm text-cyan-700 dark:text-cyan-300">Next service due: {new Date(card.next_service_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {card.notes && (
+                      <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4">
+                        <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Notes</h3>
+                        <p className="text-body-sm text-surface-700 dark:text-surface-200">{card.notes}</p>
+                      </div>
+                    )}
                   </div>
                 );
               })}
