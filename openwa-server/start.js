@@ -36,10 +36,11 @@ const client = new Client({
         clientId: SESSION_ID,
         dataPath: './.wwebjs_auth'
     }),
-    authTimeoutMs: 300000,
+    authTimeoutMs: 600000,
     puppeteer: {
         headless: true,
         executablePath: '/usr/bin/google-chrome',
+        protocolTimeout: 120000,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -55,7 +56,11 @@ const client = new Client({
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
             '--disable-background-networking',
-            '--js-flags="--max-old-space-size=128"',
+            '--disable-sync',
+            '--disable-translate',
+            '--disable-features=site-per-process',
+            '--single-process',
+            '--js-flags="--max-old-space-size=64"',
             '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
         ]
     }
