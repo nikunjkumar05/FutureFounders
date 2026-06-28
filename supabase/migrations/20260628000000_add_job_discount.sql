@@ -1,0 +1,2 @@
+ALTER TABLE IF EXISTS service_cards
+  ADD COLUMN IF NOT EXISTS discount numeric(10,2) DEFAULT 0;

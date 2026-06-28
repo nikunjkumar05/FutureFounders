@@ -425,7 +425,7 @@ app.post('/api/webhook', async (req, res) => {
           await sendWithRetry(openwaConfig, fromPhone, 'Job completed! Inventory levels updated automatically.');
           const customerPhone = job.customers?.phone;
           const customerName = job.customers?.name;
-          const amount = job.service_details?.totalCharge || 1200;
+          const amount = (job.service_details?.totalCharge || 1200) - (job.discount || 0);
           if (customerPhone) {
             const upiUrl = `upi://pay?pa=9876543210@okbizaxis&pn=AquaClean&am=${amount}&cu=INR`;
             await sendWithRetry(openwaConfig, `91${customerPhone}@c.us`, `Namaste ${customerName}! AquaClean Services se tank cleaning poori ho chuki hai. Kripya ₹${amount} ka payment is link ke zariye karein: ${upiUrl}`);

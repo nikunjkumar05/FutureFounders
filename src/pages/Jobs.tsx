@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback, useAddCustomer, checkDuplicateCustomer, MERCHANT_ID } from '../lib/queries';
+import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useUpdateJobDiscount, useStaff, useCustomers, useSendFeedback, useAddCustomer, checkDuplicateCustomer } from '../lib/queries';
 import { trackEvent } from '../lib/analytics';
 import { format } from 'date-fns';
 import {
@@ -310,7 +310,16 @@ function JobCard({ card, onEdit, onDelete, onView }: {
       <div className="space-y-1 mt-2 mb-3 text-xs text-surface-500 dark:text-surface-400">
         <p className="flex items-center gap-1.5"><Calendar size={10} />{format(new Date(card.service_date), 'dd MMM yyyy')}</p>
         {card.staff && <p className="flex items-center gap-1.5"><User size={10} />{card.staff.name}</p>}
-        {totalCharge > 0 && <p className="font-mono font-medium text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5"><IndianRupee size={10} />Total: ₹{totalCharge.toLocaleString('en-IN')}</p>}
+        {totalCharge > 0 && (
+          <>
+            <p className="font-mono font-medium text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5"><IndianRupee size={10} />Total: ₹{totalCharge.toLocaleString('en-IN')}</p>
+            {card.discount > 0 && (
+              <p className="font-mono text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <IndianRupee size={10} />Discount: −₹{card.discount.toLocaleString('en-IN')}
+              </p>
+            )}
+          </>
+        )}
         {card.notes && <p className="italic flex items-center gap-1.5"><FileText size={10} />{card.notes}</p>}
       </div>
 
@@ -351,6 +360,8 @@ function JobCard({ card, onEdit, onDelete, onView }: {
 function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClose: () => void }) {
   const services = getServicesFromCard(card);
   const totalCharge = getTotalChargeFromCard(card);
+  const discount = card.discount ?? 0;
+  const finalAmount = totalCharge - discount;
 
   return (
     <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -423,9 +434,21 @@ function JobDetailModal({ card, onClose }: { card: ServiceCardWithDetails; onClo
           </div>
 
           {totalCharge > 0 && (
-            <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-4 flex items-center justify-between">
-              <span className="text-sm font-display font-semibold text-cyan-700 dark:text-cyan-300">Total charge</span>
-              <span className="font-mono text-lg font-bold text-cyan-700 dark:text-cyan-300">₹{totalCharge.toLocaleString('en-IN')}</span>
+            <div className="space-y-2">
+              <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3 flex items-center justify-between">
+                <span className="text-xs font-display font-medium text-surface-600 dark:text-surface-400">Original Total</span>
+                <span className="font-mono text-sm text-surface-700 dark:text-surface-300">₹{totalCharge.toLocaleString('en-IN')}</span>
+              </div>
+              {discount > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-xl p-3 flex items-center justify-between">
+                  <span className="text-xs font-display font-medium text-amber-700 dark:text-amber-300">Discount</span>
+                  <span className="font-mono text-sm text-amber-700 dark:text-amber-300">−₹{discount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-4 flex items-center justify-between">
+                <span className="text-sm font-display font-semibold text-cyan-700 dark:text-cyan-300">Final Amount</span>
+                <span className="font-mono text-lg font-bold text-cyan-700 dark:text-cyan-300">₹{finalAmount.toLocaleString('en-IN')}</span>
+              </div>
             </div>
           )}
 
@@ -1156,12 +1179,14 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
   const { data: customers } = useCustomers();
   const { data: staff } = useStaff();
   const updateJob = useUpdateJob();
+  const updateJobDiscount = useUpdateJobDiscount();
 
   const [customerId, setCustomerId] = useState(card.customer_id);
   const [serviceGroups, setServiceGroups] = useState<ServiceGroup[]>(() => parseCardToServiceGroups(card));
   const [serviceDate, setServiceDate] = useState(card.service_date);
   const [technicianId, setTechnicianId] = useState(card.technician_id ?? '');
   const [notes, setNotes] = useState(card.notes ?? '');
+  const [discount, setDiscount] = useState(card.discount ?? 0);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
@@ -1229,6 +1254,9 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
         notes: notes || undefined,
         services: serviceGroups,
       });
+      if (discount !== (card.discount ?? 0)) {
+        await updateJobDiscount.mutateAsync({ id: card.id, discount });
+      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update job');
@@ -1474,10 +1502,29 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
             )}
 
             {totalCharge > 0 && (
-              <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-3 flex items-center justify-between mt-3">
-                <span className="text-sm font-display font-semibold text-cyan-700 dark:text-cyan-300">Total</span>
-                <span className="font-mono text-lg font-bold text-cyan-700 dark:text-cyan-300">₹{totalCharge.toLocaleString('en-IN')}</span>
-              </div>
+              <>
+                <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-3 flex items-center justify-between mt-3">
+                  <span className="text-sm font-display font-semibold text-cyan-700 dark:text-cyan-300">Total</span>
+                  <span className="font-mono text-lg font-bold text-cyan-700 dark:text-cyan-300">₹{totalCharge.toLocaleString('en-IN')}</span>
+                </div>
+                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <label className="block text-xs font-display font-medium text-amber-700 dark:text-amber-300 mb-1.5">Discount (₹)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={totalCharge}
+                    value={discount}
+                    onChange={e => setDiscount(Math.max(0, Math.min(totalCharge, parseInt(e.target.value) || 0)))}
+                    placeholder="0"
+                    className="w-full px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-700 text-sm bg-white dark:bg-surface-700 text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  {discount > 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5 font-mono">
+                      Final amount: ₹{(totalCharge - discount).toLocaleString('en-IN')}
+                    </p>
+                  )}
+                </div>
+              </>
             )}
           </div>
 

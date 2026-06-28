@@ -30,7 +30,7 @@ import DuplicateWarningModal from '../components/DuplicateWarningModal';
 import TimeFilter from '../components/TimeFilter';
 import { type TimePeriod, isInRange, groupByMonthYear } from '../lib/timeUtils';
 import type { Customer, DuplicateCheckResult, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
-import { SERVICE_TYPE_LABELS, getServicesFromDetails } from '../lib/types';
+import { SERVICE_TYPE_LABELS, getServicesFromDetails, getTotalCharge } from '../lib/types';
 import { PhoneLink } from '../components/PhoneLink';
 
 export default function Customers() {
@@ -449,6 +449,31 @@ function ServiceHistoryModal({
                         <span>Next: {new Date(card.next_service_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                       )}
                     </div>
+
+                    {(() => {
+                      const totalCharge = getTotalCharge(card.service_details as Record<string, unknown>);
+                      const discount = card.discount ?? 0;
+                      if (totalCharge <= 0) return null;
+                      const finalAmount = totalCharge - discount;
+                      return (
+                        <div className="mt-2 pt-2 border-t border-surface-100 dark:border-surface-700 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-surface-500 dark:text-surface-400">Original Total</span>
+                            <span className="font-mono text-surface-700 dark:text-surface-300">₹{totalCharge.toLocaleString('en-IN')}</span>
+                          </div>
+                          {discount > 0 && (
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-amber-600 dark:text-amber-400">Discount</span>
+                              <span className="font-mono text-amber-600 dark:text-amber-400">−₹{discount.toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-sm font-medium">
+                            <span className="text-cyan-700 dark:text-cyan-300">Final Amount Paid</span>
+                            <span className="font-mono font-bold text-cyan-700 dark:text-cyan-300">₹{finalAmount.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
