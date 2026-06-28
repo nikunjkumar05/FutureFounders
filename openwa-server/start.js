@@ -59,8 +59,7 @@ const client = new Client({
             '--disable-sync',
             '--disable-translate',
             '--disable-features=site-per-process',
-            '--single-process',
-            '--js-flags="--max-old-space-size=64"',
+            '--js-flags="--max-old-space-size=128"',
             '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
         ]
     }
