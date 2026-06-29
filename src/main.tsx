@@ -4,10 +4,15 @@ import App from './App.tsx';
 import './index.css';
 import { ThemeProvider } from './contexts/ThemeContext';
 
-if (import.meta.env.VITE_POSTHOG_KEY) {
+const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY;
+const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
+
+if (!POSTHOG_KEY) {
+  console.warn('[PostHog] VITE_POSTHOG_KEY is not set — analytics disabled');
+} else {
   try {
-    posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
-      api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+    posthog.init(POSTHOG_KEY, {
+      api_host: POSTHOG_HOST,
       autocapture: true,
       capture_pageleave: true,
       capture_pageview: false,
