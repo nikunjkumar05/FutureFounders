@@ -8,6 +8,7 @@ import {
   signInWithCredential,
   GoogleAuthProvider,
 } from 'firebase/auth';
+import posthog from 'posthog-js';
 import { auth, googleProvider } from '../lib/firebase';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 
@@ -62,8 +63,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
         });
+        posthog.identify(firebaseUser.uid, {
+          email: firebaseUser.email,
+          name: firebaseUser.displayName,
+        });
       } else {
         setUser(null);
+        posthog.reset();
       }
       setLoading(false);
     });
