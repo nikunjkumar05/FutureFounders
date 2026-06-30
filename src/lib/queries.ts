@@ -30,7 +30,7 @@ import type {
   WageType,
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
-import { deriveCustomerIntelligence, estimateServiceValue } from './customer-intelligence';
+import { buildLatestCompletedByCustomer, deriveCustomerIntelligence, estimateServiceValue } from './customer-intelligence';
 import { refreshCustomerIntelligence as refreshCI } from './customer-intelligence-sync';
 import { trackEvent } from './analytics';
 
@@ -1324,15 +1324,7 @@ export function useRevenueIntelligence() {
       const intelligenceByCustomer = new Map(intelligence.map(i => [i.customer_id, i]));
 
       // Build a map of latest completed service per customer for revenue estimation
-      const latestCompletedByCustomer = new Map<string, ServiceCardWithDetails>();
-      for (const card of cards) {
-        if (card.job_status === 'completed') {
-          const existing = latestCompletedByCustomer.get(card.customer_id);
-          if (!existing || new Date(card.service_date) > new Date(existing.service_date)) {
-            latestCompletedByCustomer.set(card.customer_id, card);
-          }
-        }
-      }
+      const latestCompletedByCustomer = buildLatestCompletedByCustomer(cards);
 
       // Customers due this month (next_service_date in current month)
       const customersDueThisMonth = cards.filter(c => {
