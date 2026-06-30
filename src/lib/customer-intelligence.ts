@@ -214,19 +214,35 @@ export function findLatestReminder(
   return latest;
 }
 
+/**
+ * Build a Map of customer_id → latest completed ServiceCardWithDetails.
+ *
+ * The latest completed service is defined as:
+ *   - job_status === 'completed'
+ *   - newest service_date
+ *
+ * This is the single canonical definition of "latest completed service"
+ * used as the lifecycle anchor for a customer.
+ */
+export function buildLatestCompletedByCustomer(
+  cards: ServiceCardWithDetails[],
+): Map<string, ServiceCardWithDetails> {
+  const map = new Map<string, ServiceCardWithDetails>();
+  for (const card of cards) {
+    if (card.job_status !== 'completed') continue;
+    const existing = map.get(card.customer_id);
+    if (!existing || new Date(card.service_date) > new Date(existing.service_date)) {
+      map.set(card.customer_id, card);
+    }
+  }
+  return map;
+}
+
 export function findLatestCompletedCard(
   cards: ServiceCardWithDetails[],
   customerId: string,
 ): ServiceCardWithDetails | null {
-  let latest: ServiceCardWithDetails | null = null;
-  for (const card of cards) {
-    if (card.customer_id !== customerId) continue;
-    if (card.job_status !== 'completed') continue;
-    if (!latest || new Date(card.service_date) > new Date(latest.service_date)) {
-      latest = card;
-    }
-  }
-  return latest;
+  return buildLatestCompletedByCustomer(cards).get(customerId) ?? null;
 }
 
 export function isCardDueThisMonth(
