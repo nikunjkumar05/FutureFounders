@@ -104,57 +104,32 @@ function calcHealthScore(
 }
 
 /**
- * Classify a customer into a final segment based on stored segment,
- * reminder status, and overdue context.
+ * Classify a customer based on the Reminder State Machine.
  *
- * Two classification rule sets exist depending on whether the customer
- * was identified as "due this month" (dueThisMonth context) or only
- * appears in the overdue list.
+ * Transition priority (after active-job override and Not Due):
+ *   3. Ready to Book      — no reminder exists for the current lifecycle
+ *   4. Awaiting Follow-up — reminder sent less than 10 × 24 hours ago
+ *   5. High Churn Risk    — reminder sent 10 × 24 hours ago or more
+ *
+ * The segment is fully derived from reminder timing only.
+ * Overdue days, stored segment, and reminder response status do not
+ * influence the classification — only the elapsed time since the
+ * reminder was sent.
  */
 function classifySegment(
-  storedSegment: CustomerSegment,
   reminder: ReminderResponse | null | undefined,
-  daysOverdue: number,
-  isDueThisMonth: boolean,
 ): 'ready_to_book' | 'follow_up_needed' | 'high_churn_risk' {
-  if (isDueThisMonth) {
-    if (
-      storedSegment === 'ready_to_book' ||
-      reminder?.status === 'responded' ||
-      reminder?.status === 'booked'
-    ) {
-      return 'ready_to_book';
-    }
-    if (
-      storedSegment === 'high_churn_risk' ||
-      daysOverdue > 30 ||
-      reminder?.status === 'ignored'
-    ) {
-      return 'high_churn_risk';
-    }
-    if (reminder?.status === 'sent' || daysOverdue > 0) {
-      return 'follow_up_needed';
-    }
-    if (reminder) {
-      return 'follow_up_needed';
-    }
+  if (!reminder) {
     return 'ready_to_book';
   }
 
-  if (
-    storedSegment === 'high_churn_risk' ||
-    daysOverdue > 30 ||
-    reminder?.status === 'ignored'
-  ) {
+  const hoursSinceReminder =
+    (Date.now() - new Date(reminder.sent_at).getTime()) / (1000 * 60 * 60);
+
+  if (hoursSinceReminder >= 240) {
     return 'high_churn_risk';
   }
-  if (
-    storedSegment === 'ready_to_book' ||
-    reminder?.status === 'responded' ||
-    reminder?.status === 'booked'
-  ) {
-    return 'ready_to_book';
-  }
+
   return 'follow_up_needed';
 }
 
@@ -182,7 +157,7 @@ export interface CustomerIntelligenceInput {
 export function deriveCustomerIntelligence(
   input: CustomerIntelligenceInput,
 ): SegmentedCustomer {
-  const { card, latestCompletedCard, latestReminder, storedSegment, today, todayStr, isDueThisMonth, hasActiveJob } = input;
+  const { card, latestCompletedCard, latestReminder, today, todayStr, hasActiveJob } = input;
 
   if (hasActiveJob) {
     return {
@@ -200,6 +175,22 @@ export function deriveCustomerIntelligence(
     };
   }
 
+  if (card.next_service_date && card.next_service_date > todayStr) {
+    return {
+      id: card.customer_id,
+      name: card.customers?.name ?? 'Unknown',
+      phone: card.customers?.phone ?? '',
+      address: card.customers?.address ?? null,
+      expectedValue: 0,
+      serviceType: card.service_type,
+      serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
+      status: 'not_due',
+      daysOverdue: 0,
+      lastServiceDate: card.service_date,
+      healthScore: 100,
+    };
+  }
+
   const expectedValue = latestCompletedCard
     ? estimateServiceValue(latestCompletedCard)
     : estimateServiceValue(card);
@@ -207,7 +198,7 @@ export function deriveCustomerIntelligence(
   const daysOverdue = calcDaysOverdue(card.next_service_date, today, todayStr);
   const capacity = extractCapacity(card);
   const healthScore = calcHealthScore(daysOverdue, latestReminder, capacity);
-  const status = classifySegment(storedSegment, latestReminder, daysOverdue, isDueThisMonth);
+  const status = classifySegment(latestReminder);
 
   return {
     id: card.customer_id,
