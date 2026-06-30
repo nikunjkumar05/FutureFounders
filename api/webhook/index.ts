@@ -139,10 +139,20 @@ async function processMessage(payload: any) {
     }
 
     if (customer) {
+      const anchorRes = await fetch(
+        `${supabaseUrl}/rest/v1/service_cards?customer_id=eq.${customer.id}&job_status=eq.completed&order=service_date.desc&limit=1&select=id`,
+        { headers }
+      );
+      const anchorCards = await anchorRes.json();
+      const anchorCardId = Array.isArray(anchorCards) && anchorCards.length > 0 ? anchorCards[0].id : null;
+
       const text = messageBody.toLowerCase().trim();
       if (text === "yes" || text === "confirm" || text === "haan") {
+        const sentFilter = anchorCardId
+          ? `customer_id=eq.${customer.id}&service_card_id=eq.${anchorCardId}&status=eq.sent&order=created_at.desc&limit=1`
+          : `customer_id=eq.${customer.id}&status=eq.sent&order=created_at.desc&limit=1`;
         const remsRes = await fetch(
-          `${supabaseUrl}/rest/v1/reminder_responses?customer_id=eq.${customer.id}&status=eq.sent&order=created_at.desc&limit=1`,
+          `${supabaseUrl}/rest/v1/reminder_responses?${sentFilter}`,
           { headers }
         );
         const rems = await remsRes.json();
@@ -160,8 +170,11 @@ async function processMessage(payload: any) {
         }
         await replyViaOpenWA(replyTo, "Namaste! Cleaning book karne ke liye dhanyavad. Kripya timing select karein: 'Morning' (8AM-1PM) ya 'Afternoon' (1PM-6PM)?");
       } else if (text.includes("morning") || text.includes("afternoon")) {
+        const respondedFilter = anchorCardId
+          ? `customer_id=eq.${customer.id}&service_card_id=eq.${anchorCardId}&status=eq.responded&order=created_at.desc&limit=1`
+          : `customer_id=eq.${customer.id}&status=eq.responded&order=created_at.desc&limit=1`;
         const remsRes = await fetch(
-          `${supabaseUrl}/rest/v1/reminder_responses?customer_id=eq.${customer.id}&status=eq.responded&order=created_at.desc&limit=1`,
+          `${supabaseUrl}/rest/v1/reminder_responses?${respondedFilter}`,
           { headers }
         );
         const rems = await remsRes.json();

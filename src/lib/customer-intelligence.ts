@@ -235,11 +235,11 @@ export interface CustomerContext {
 
 export function findLatestReminder(
   reminders: ReminderResponse[],
-  customerId: string,
+  serviceCardId: string,
 ): ReminderResponse | null {
   let latest: ReminderResponse | null = null;
   for (const r of reminders) {
-    if (r.customer_id !== customerId) continue;
+    if (r.service_card_id !== serviceCardId) continue;
     if (!latest || new Date(r.sent_at) > new Date(latest.sent_at)) {
       latest = r;
     }
@@ -303,7 +303,7 @@ export function buildCustomerContext(
   return {
     card: anchor,
     latestCompletedCard: anchor.job_status === 'completed' ? anchor : null,
-    latestReminder: findLatestReminder(reminders, customerId),
+    latestReminder: findLatestReminder(reminders, anchor.id),
     storedSegment: storedCI?.segment ?? 'unknown',
     isDueThisMonth: isCardDueThisMonth(anchor, monthStart, monthEnd),
     hasActiveJob,

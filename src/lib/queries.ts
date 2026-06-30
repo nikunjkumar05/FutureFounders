@@ -30,7 +30,7 @@ import type {
   WageType,
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
-import { buildLatestCompletedByCustomer, customerHasActiveJob, deriveCustomerIntelligence, estimateServiceValue } from './customer-intelligence';
+import { buildLatestCompletedByCustomer, customerHasActiveJob, deriveCustomerIntelligence, estimateServiceValue, findLatestReminder } from './customer-intelligence';
 import { refreshCustomerIntelligence as refreshCI } from './customer-intelligence-sync';
 import { trackEvent } from './analytics';
 
@@ -1356,7 +1356,7 @@ export function useRevenueIntelligence() {
         const customer = deriveCustomerIntelligence({
           card: lifecycleCard,
           latestCompletedCard: lifecycleCard.job_status === 'completed' ? lifecycleCard : null,
-          latestReminder: latestReminderByCustomer.get(cid) ?? null,
+          latestReminder: findLatestReminder(reminders, lifecycleCard.id),
           storedSegment: intelligenceByCustomer.get(cid)?.segment ?? 'unknown',
           today,
           todayStr,
@@ -1375,7 +1375,7 @@ export function useRevenueIntelligence() {
         const customer = deriveCustomerIntelligence({
           card: lifecycleCard,
           latestCompletedCard: lifecycleCard.job_status === 'completed' ? lifecycleCard : null,
-          latestReminder: latestReminderByCustomer.get(cid) ?? null,
+          latestReminder: findLatestReminder(reminders, lifecycleCard.id),
           storedSegment: intelligenceByCustomer.get(cid)?.segment ?? 'unknown',
           today,
           todayStr,
