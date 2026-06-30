@@ -5,7 +5,7 @@ import type {
   CustomerIntelligence,
   CustomerSegment,
 } from './types';
-import { buildCustomerContext, deriveCustomerIntelligence } from './customer-intelligence';
+import { buildCustomerContext, customerHasActiveJob, deriveCustomerIntelligence } from './customer-intelligence';
 
 /**
  * Recalculate customer intelligence for a single customer using the
@@ -69,6 +69,17 @@ export async function refreshCustomerIntelligence(
 
     const reminders = (remindersRes.data ?? []) as ReminderResponse[];
     const storedCI = ciRes.data as CustomerIntelligence | null;
+
+    if (customerHasActiveJob(cards, customerId)) {
+      if (storedCI) {
+        await supabase
+          .from('customer_intelligence')
+          .delete()
+          .eq('merchant_id', merchantId)
+          .eq('customer_id', customerId);
+      }
+      return;
+    }
 
     const context = buildCustomerContext(
       cards,
