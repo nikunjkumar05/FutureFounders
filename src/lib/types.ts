@@ -330,7 +330,7 @@ export interface ReminderResponse {
   created_at: string;
 }
 
-export type CustomerSegment = 'ready_to_book' | 'follow_up_needed' | 'high_churn_risk' | 'unknown';
+export type CustomerSegment = 'not_due' | 'ready_to_book' | 'follow_up_needed' | 'high_churn_risk' | 'scheduled' | 'unknown';
 
 export interface CustomerIntelligence {
   id: string;
