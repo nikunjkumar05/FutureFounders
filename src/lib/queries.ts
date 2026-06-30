@@ -1351,9 +1351,10 @@ export function useRevenueIntelligence() {
       const highChurnRisk: SegmentedCustomer[] = [];
 
       for (const [cid, card] of uniqueDueCustomers) {
+        const lifecycleCard = latestCompletedByCustomer.get(cid) ?? card;
         const customer = deriveCustomerIntelligence({
-          card,
-          latestCompletedCard: latestCompletedByCustomer.get(cid) ?? null,
+          card: lifecycleCard,
+          latestCompletedCard: lifecycleCard.job_status === 'completed' ? lifecycleCard : null,
           latestReminder: latestReminderByCustomer.get(cid) ?? null,
           storedSegment: intelligenceByCustomer.get(cid)?.segment ?? 'unknown',
           today,
@@ -1368,9 +1369,10 @@ export function useRevenueIntelligence() {
 
       for (const [cid, card] of uniqueOverdueCustomers) {
         if (uniqueDueCustomers.has(cid)) continue;
+        const lifecycleCard = latestCompletedByCustomer.get(cid) ?? card;
         const customer = deriveCustomerIntelligence({
-          card,
-          latestCompletedCard: latestCompletedByCustomer.get(cid) ?? null,
+          card: lifecycleCard,
+          latestCompletedCard: lifecycleCard.job_status === 'completed' ? lifecycleCard : null,
           latestReminder: latestReminderByCustomer.get(cid) ?? null,
           storedSegment: intelligenceByCustomer.get(cid)?.segment ?? 'unknown',
           today,

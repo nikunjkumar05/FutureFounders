@@ -262,14 +262,15 @@ export function buildCustomerContext(
   monthEnd: string,
   customerId: string,
 ): CustomerContext | null {
-  const card = cards.find(c => c.customer_id === customerId);
-  if (!card) return null;
+  const anchor = findLatestCompletedCard(cards, customerId)
+    ?? cards.find(c => c.customer_id === customerId);
+  if (!anchor) return null;
 
   return {
-    card,
-    latestCompletedCard: findLatestCompletedCard(cards, customerId),
+    card: anchor,
+    latestCompletedCard: anchor.job_status === 'completed' ? anchor : null,
     latestReminder: findLatestReminder(reminders, customerId),
     storedSegment: storedCI?.segment ?? 'unknown',
-    isDueThisMonth: isCardDueThisMonth(card, monthStart, monthEnd),
+    isDueThisMonth: isCardDueThisMonth(anchor, monthStart, monthEnd),
   };
 }
