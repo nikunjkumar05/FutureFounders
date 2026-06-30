@@ -527,16 +527,22 @@ app.post('/api/webhook', async (req, res) => {
       }
 
       if (customer) {
+        const anchorRes = await fetch(`${supabaseUrl}/rest/v1/service_cards?customer_id=eq.${customer.id}&job_status=eq.completed&order=service_date.desc&limit=1&select=id`, { headers });
+        const anchorCards = await anchorRes.json();
+        const anchorCardId = Array.isArray(anchorCards) && anchorCards.length > 0 ? anchorCards[0].id : null;
+
         const text = messageBody.toLowerCase().trim();
         if (text === 'yes' || text === 'confirm' || text === 'haan') {
-          const remsRes = await fetch(`${supabaseUrl}/rest/v1/reminder_responses?customer_id=eq.${customer.id}&status=eq.sent&order=created_at.desc&limit=1`, { headers });
+          const sentFilter = anchorCardId ? `customer_id=eq.${customer.id}&service_card_id=eq.${anchorCardId}&status=eq.sent&order=created_at.desc&limit=1` : `customer_id=eq.${customer.id}&status=eq.sent&order=created_at.desc&limit=1`;
+          const remsRes = await fetch(`${supabaseUrl}/rest/v1/reminder_responses?${sentFilter}`, { headers });
           const rems = await remsRes.json();
           if (Array.isArray(rems) && rems.length > 0) {
             await fetch(`${supabaseUrl}/rest/v1/reminder_responses?id=eq.${rems[0].id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: 'responded', responded_at: new Date().toISOString(), response: messageBody }) });
           }
           await sendWithRetry(openwaConfig, fromPhone, "Namaste! Cleaning book karne ke liye dhanyavad. Kripya timing select karein: 'Morning' (8AM-1PM) ya 'Afternoon' (1PM-6PM)?");
         } else if (text.includes('morning') || text.includes('afternoon')) {
-          const remsRes = await fetch(`${supabaseUrl}/rest/v1/reminder_responses?customer_id=eq.${customer.id}&status=eq.responded&order=created_at.desc&limit=1`, { headers });
+          const respondedFilter = anchorCardId ? `customer_id=eq.${customer.id}&service_card_id=eq.${anchorCardId}&status=eq.responded&order=created_at.desc&limit=1` : `customer_id=eq.${customer.id}&status=eq.responded&order=created_at.desc&limit=1`;
+          const remsRes = await fetch(`${supabaseUrl}/rest/v1/reminder_responses?${respondedFilter}`, { headers });
           const rems = await remsRes.json();
           if (Array.isArray(rems) && rems.length > 0) {
             const slot = text.includes('morning') ? 'morning' : 'afternoon';
