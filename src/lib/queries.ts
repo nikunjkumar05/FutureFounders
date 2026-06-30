@@ -30,7 +30,7 @@ import type {
   WageType,
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
-import { buildLatestCompletedByCustomer, deriveCustomerIntelligence, estimateServiceValue } from './customer-intelligence';
+import { buildLatestCompletedByCustomer, customerHasActiveJob, deriveCustomerIntelligence, estimateServiceValue } from './customer-intelligence';
 import { refreshCustomerIntelligence as refreshCI } from './customer-intelligence-sync';
 import { trackEvent } from './analytics';
 
@@ -1351,6 +1351,7 @@ export function useRevenueIntelligence() {
       const highChurnRisk: SegmentedCustomer[] = [];
 
       for (const [cid, card] of uniqueDueCustomers) {
+        if (customerHasActiveJob(cards, cid)) continue;
         const lifecycleCard = latestCompletedByCustomer.get(cid) ?? card;
         const customer = deriveCustomerIntelligence({
           card: lifecycleCard,
@@ -1369,6 +1370,7 @@ export function useRevenueIntelligence() {
 
       for (const [cid, card] of uniqueOverdueCustomers) {
         if (uniqueDueCustomers.has(cid)) continue;
+        if (customerHasActiveJob(cards, cid)) continue;
         const lifecycleCard = latestCompletedByCustomer.get(cid) ?? card;
         const customer = deriveCustomerIntelligence({
           card: lifecycleCard,

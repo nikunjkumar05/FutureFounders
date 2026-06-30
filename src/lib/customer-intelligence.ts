@@ -8,6 +8,21 @@ import type {
 import { SERVICE_TYPE_LABELS } from './types';
 
 /**
+ * Check whether a customer has at least one active job
+ * (pending or in-progress service card).
+ *
+ * This is the canonical definition of an "active customer".
+ */
+export function customerHasActiveJob(
+  cards: ServiceCardWithDetails[],
+  customerId: string,
+): boolean {
+  return cards.some(
+    c => c.customer_id === customerId && (c.job_status === 'pending' || c.job_status === 'in_progress'),
+  );
+}
+
+/**
  * Estimate the service value of a service card based on its details.
  */
 export function estimateServiceValue(card: ServiceCardWithDetails): number {
@@ -151,6 +166,7 @@ export interface CustomerIntelligenceInput {
   today: Date;
   todayStr: string;
   isDueThisMonth: boolean;
+  hasActiveJob?: boolean;
 }
 
 /**
@@ -166,7 +182,23 @@ export interface CustomerIntelligenceInput {
 export function deriveCustomerIntelligence(
   input: CustomerIntelligenceInput,
 ): SegmentedCustomer {
-  const { card, latestCompletedCard, latestReminder, storedSegment, today, todayStr, isDueThisMonth } = input;
+  const { card, latestCompletedCard, latestReminder, storedSegment, today, todayStr, isDueThisMonth, hasActiveJob } = input;
+
+  if (hasActiveJob) {
+    return {
+      id: card.customer_id,
+      name: card.customers?.name ?? 'Unknown',
+      phone: card.customers?.phone ?? '',
+      address: card.customers?.address ?? null,
+      expectedValue: 0,
+      serviceType: card.service_type,
+      serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
+      status: 'scheduled',
+      daysOverdue: 0,
+      lastServiceDate: card.service_date,
+      healthScore: 100,
+    };
+  }
 
   const expectedValue = latestCompletedCard
     ? estimateServiceValue(latestCompletedCard)
@@ -198,6 +230,7 @@ export interface CustomerContext {
   latestReminder: ReminderResponse | null;
   storedSegment: CustomerSegment;
   isDueThisMonth: boolean;
+  hasActiveJob: boolean;
 }
 
 export function findLatestReminder(
@@ -262,6 +295,7 @@ export function buildCustomerContext(
   monthEnd: string,
   customerId: string,
 ): CustomerContext | null {
+  const hasActiveJob = customerHasActiveJob(cards, customerId);
   const anchor = findLatestCompletedCard(cards, customerId)
     ?? cards.find(c => c.customer_id === customerId);
   if (!anchor) return null;
@@ -272,5 +306,6 @@ export function buildCustomerContext(
     latestReminder: findLatestReminder(reminders, customerId),
     storedSegment: storedCI?.segment ?? 'unknown',
     isDueThisMonth: isCardDueThisMonth(anchor, monthStart, monthEnd),
+    hasActiveJob,
   };
 }
