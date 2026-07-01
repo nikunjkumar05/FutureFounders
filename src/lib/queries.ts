@@ -80,10 +80,17 @@ export function useUpdateJobStatus() {
     mutationFn: async ({ id, status }: { id: string; status: JobStatus }) => {
       const updates: Record<string, unknown> = { job_status: status };
       if (status === 'completed') {
-        const nextDate = new Date(
-          Date.now() + 180 * 86400000
-        ).toISOString().slice(0, 10);
-        updates.next_service_date = nextDate;
+        const { data: card } = await supabase
+          .from('service_cards')
+          .select('service_date')
+          .eq('id', id)
+          .single();
+        if (card?.service_date) {
+          const nextDate = new Date(
+            new Date(card.service_date).getTime() + 180 * 86400000
+          ).toISOString().slice(0, 10);
+          updates.next_service_date = nextDate;
+        }
       }
       const { data, error } = await supabase
         .from('service_cards')
