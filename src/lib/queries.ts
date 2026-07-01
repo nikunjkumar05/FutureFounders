@@ -80,8 +80,16 @@ export function useUpdateJobStatus() {
     mutationFn: async ({ id, status }: { id: string; status: JobStatus }) => {
       const updates: Record<string, unknown> = { job_status: status };
       if (status === 'completed') {
+        const { data: card, error: fetchError } = await supabase
+          .from('service_cards')
+          .select('service_date')
+          .eq('id', id)
+          .single();
+        if (fetchError) throw fetchError;
+        if (!card) throw new Error('Service card not found');
+        if (!card.service_date) throw new Error('Service card is missing service date');
         const nextDate = new Date(
-          Date.now() + 180 * 86400000
+          new Date(card.service_date).getTime() + 180 * 86400000
         ).toISOString().slice(0, 10);
         updates.next_service_date = nextDate;
       }
