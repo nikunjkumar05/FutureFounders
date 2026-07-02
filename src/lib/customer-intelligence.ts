@@ -118,13 +118,14 @@ function calcHealthScore(
  */
 function classifySegment(
   reminder: ReminderResponse | null | undefined,
+  today: Date = new Date(),
 ): 'ready_to_book' | 'follow_up_needed' | 'high_churn_risk' {
   if (!reminder) {
     return 'ready_to_book';
   }
 
   const hoursSinceReminder =
-    (Date.now() - new Date(reminder.sent_at).getTime()) / (1000 * 60 * 60);
+    (today.getTime() - new Date(reminder.sent_at).getTime()) / (1000 * 60 * 60);
 
   if (hoursSinceReminder >= 240) {
     return 'high_churn_risk';
@@ -198,7 +199,7 @@ export function deriveCustomerIntelligence(
   const daysOverdue = calcDaysOverdue(card.next_service_date, today, todayStr);
   const capacity = extractCapacity(card);
   const healthScore = calcHealthScore(daysOverdue, latestReminder, capacity);
-  const status = classifySegment(latestReminder);
+  const status = classifySegment(latestReminder, today);
 
   return {
     id: card.customer_id,

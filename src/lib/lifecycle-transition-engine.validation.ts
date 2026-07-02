@@ -73,12 +73,12 @@ function makeReminder(
   return {
     merchant_id: MERCHANT_ID,
     customer_id: customerId,
-    sent_at: new Date().toISOString(),
+    sent_at: NOW.toISOString(),
     responded_at: null,
     response: null,
     status: 'sent',
     notes: null,
-    created_at: new Date().toISOString(),
+    created_at: NOW.toISOString(),
     ...overrides,
   };
 }
@@ -314,7 +314,7 @@ assert(s5Result.reminderEligible === false, 'Not reminder eligible');
 // to the previous anchor are ignored by the new lifecycle.
 console.log('\n── Scenario 6: Historical Reminder Isolation ────────────');
 
-const TEN_DAYS_AGO = new Date(Date.now() - 241 * 60 * 60 * 1000).toISOString();
+const TEN_DAYS_AGO = new Date(NOW.getTime() - 241 * 60 * 60 * 1000).toISOString();
 
 const s6CardsAfter: ServiceCardWithDetails[] = [
   makeCard({
@@ -410,13 +410,14 @@ const s8Cards: ServiceCardWithDetails[] = [
   }),
 ];
 
+const s8Reminders: ReminderResponse[] = [];
 const s8CardsBefore = JSON.stringify(s8Cards);
-const s8RemindersBefore = JSON.stringify([]);
+const s8RemindersBefore = JSON.stringify(s8Reminders);
 
 evaluateTransition({
   event: { type: 'job_completed' },
   serviceCards: s8Cards,
-  reminders: [],
+  reminders: s8Reminders,
   customerId: CUSTOMER_ID_A,
   merchantId: MERCHANT_ID,
   today: NOW,
@@ -428,7 +429,7 @@ assert(
   'Input service cards array is not mutated',
 );
 assert(
-  JSON.stringify([]) === s8RemindersBefore,
+  JSON.stringify(s8Reminders) === s8RemindersBefore,
   'Input reminders array is not mutated',
 );
 
