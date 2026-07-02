@@ -32,7 +32,8 @@ import { SERVICE_TYPE_LABELS } from './types';
 import { estimateServiceValue } from './customer-intelligence';
 import { evaluateCustomerAttentionBatch } from './customer-attention-pipeline';
 import type { CustomerAttentionResult } from './customer-attention-pipeline';
-import { refreshCustomerIntelligence as refreshCI } from './customer-intelligence-sync';
+import { evaluateTransitionForCustomer } from './transition-service';
+import { persistTransitionResult } from './persist-transition-result';
 import { trackEvent } from './analytics';
 
 export const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
@@ -108,7 +109,12 @@ export function useUpdateJobStatus() {
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
       if (variables.status === 'completed') {
         trackEvent('job_completed', { job_id: variables.id });
-        refreshCustomerIntelligence(data.customer_id);
+        evaluateTransitionForCustomer(supabase, {
+          merchantId: MERCHANT_ID,
+          customerId: data.customer_id,
+          event: { type: 'job_completed' },
+        }).then(result => persistTransitionResult(supabase, result))
+          .catch(err => console.error('[useUpdateJobStatus] Transition failed:', err));
       }
     },
   });
@@ -194,6 +200,12 @@ export function useCreateJob() {
         service_count: serviceCount,
         total_amount: totalAmount,
       });
+      evaluateTransitionForCustomer(supabase, {
+        merchantId: MERCHANT_ID,
+        customerId: variables.customerId,
+        event: { type: 'job_created' },
+      }).then(result => persistTransitionResult(supabase, result))
+        .catch(err => console.error('[useCreateJob] Transition failed:', err));
     },
   });
 }
@@ -1324,10 +1336,6 @@ export function useDailyBriefing() {
   });
 }
 
-async function refreshCustomerIntelligence(customerId: string) {
-  await refreshCI(supabase, MERCHANT_ID, customerId);
-}
-
 // ─── Revenue Intelligence ────────────────────────────────────────
 
 export function useRevenueIntelligence() {
@@ -1592,7 +1600,17 @@ export function useCreateReminderResponse() {
           status: variables.status,
         });
       }
-      refreshCustomerIntelligence(variables.customerId);
+      evaluateTransitionForCustomer(supabase, {
+        merchantId: MERCHANT_ID,
+        customerId: variables.customerId,
+        event: {
+          type: variables.status === 'sent' ? 'reminder_sent' as const
+            : variables.status === 'responded' ? 'reminder_responded' as const
+            : variables.status === 'booked' ? 'reminder_booked' as const
+            : 'reminder_ignored',
+        },
+      }).then(result => persistTransitionResult(supabase, result))
+        .catch(err => console.error('[useCreateReminderResponse] Transition failed:', err));
     },
   });
 }

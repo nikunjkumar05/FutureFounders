@@ -5,7 +5,8 @@ import {
 } from "../lib/openwa.js";
 import { sendWithRetry } from "../lib/retry.js";
 import { log } from "../lib/logger.js";
-import { refreshCustomerIntelligence } from "../../src/lib/customer-intelligence-sync.js";
+import { evaluateTransitionForCustomer } from "../../src/lib/transition-service.js";
+import { persistTransitionResult } from "../../src/lib/persist-transition-result.js";
 
 const COMPONENT = "webhook";
 const MERCHANT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
@@ -166,7 +167,12 @@ async function processMessage(payload: any) {
               response: messageBody
             })
           });
-          refreshCustomerIntelligence(getSupabaseClient(), customer.merchant_id, customer.id);
+          evaluateTransitionForCustomer(getSupabaseClient(), {
+            merchantId: customer.merchant_id,
+            customerId: customer.id,
+            event: { type: 'reminder_responded' },
+          }).then(result => persistTransitionResult(getSupabaseClient(), result))
+            .catch(err => console.error('[webhook] Transition failed for reminder_responded:', err));
         }
         await replyViaOpenWA(replyTo, "Namaste! Cleaning book karne ke liye dhanyavad. Kripya timing select karein: 'Morning' (8AM-1PM) ya 'Afternoon' (1PM-6PM)?");
       } else if (text.includes("morning") || text.includes("afternoon")) {
@@ -224,7 +230,12 @@ async function processMessage(payload: any) {
             body: JSON.stringify({ status: "booked" })
           });
 
-          refreshCustomerIntelligence(getSupabaseClient(), customer.merchant_id, customer.id);
+          evaluateTransitionForCustomer(getSupabaseClient(), {
+            merchantId: customer.merchant_id,
+            customerId: customer.id,
+            event: { type: 'reminder_booked' },
+          }).then(result => persistTransitionResult(getSupabaseClient(), result))
+            .catch(err => console.error('[webhook] Transition failed for reminder_booked:', err));
 
           await replyViaOpenWA(replyTo, `Dhanyavad! Aapki service kal (${tomorrow}) ${slot} slot ke liye book ho chuki hai. Humara staff scheduled samay par pahunch jayega.`);
         } else {
@@ -334,7 +345,12 @@ async function processMessage(payload: any) {
           headers,
           body: JSON.stringify({ job_status: "completed" }),
         });
-        refreshCustomerIntelligence(getSupabaseClient(), staffMember.merchant_id, job.customer_id);
+        evaluateTransitionForCustomer(getSupabaseClient(), {
+          merchantId: staffMember.merchant_id,
+          customerId: job.customer_id,
+          event: { type: 'job_completed' },
+        }).then(result => persistTransitionResult(getSupabaseClient(), result))
+          .catch(err => console.error('[webhook] Transition failed for job_completed:', err));
         await replyViaOpenWA(replyTo, "Job completed! Inventory levels updated automatically.");
 
         const customerPhone = job.customers?.phone;
