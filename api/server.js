@@ -2,6 +2,7 @@ import express from 'express';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { evaluateCustomerAttentionBatch } from './lib/customer-attention-pipeline.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -696,35 +697,54 @@ app.all('/api/cron/daily-briefing', async (req, res) => {
     const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
     const today = new Date().toISOString().slice(0, 10);
 
-    const [jobsRes, staffRes, attendanceRes, inventoryRes, stockAlertsRes, remindersRes, ticketsRes, merchantRes] = await Promise.all([
-      fetch(`${supabaseUrl}/rest/v1/service_cards?select=*,customers(*),staff(*)&service_date=eq.${today}&merchant_id=eq.${MERCHANT_ID}`, { headers }),
+    const [cardsRes, staffRes, attendanceRes, inventoryRes, stockAlertsRes, remindersPipelineRes, ticketsRes, merchantRes] = await Promise.all([
+      fetch(`${supabaseUrl}/rest/v1/service_cards?select=*,customers(*),staff(*)&merchant_id=eq.${MERCHANT_ID}`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/staff?select=*&merchant_id=eq.${MERCHANT_ID}&is_active=eq.true`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/attendance?select=*,staff(*)&date=eq.${today}&merchant_id=eq.${MERCHANT_ID}&checkin_time=not.is.null`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/inventory?select=*&merchant_id=eq.${MERCHANT_ID}`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/stock_alerts?select=*,inventory(*)&merchant_id=eq.${MERCHANT_ID}&resolved=eq.false`, { headers }),
-      fetch(`${supabaseUrl}/rest/v1/service_cards?select=*,customers(*)&merchant_id=eq.${MERCHANT_ID}&next_service_date=lte.${today}&reminder_sent_at=is.null`, { headers }),
+      fetch(`${supabaseUrl}/rest/v1/reminder_responses?select=*&merchant_id=eq.${MERCHANT_ID}`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/support_tickets?select=id&status=eq.open`, { headers }),
       fetch(`${supabaseUrl}/rest/v1/merchants?select=phone&id=eq.${MERCHANT_ID}`, { headers }),
     ]);
 
-    const jobs = await jobsRes.json();
-    const staff = await staffRes.json();
-    const attendance = await attendanceRes.json();
-    const inventory = await inventoryRes.json();
-    const stockAlerts = await stockAlertsRes.json();
-    const reminders = await remindersRes.json();
+    const allCardsRaw = await cardsRes.json();
+    const allCards = Array.isArray(allCardsRaw) ? allCardsRaw : [];
+    const staffRaw = await staffRes.json();
+    const staff = Array.isArray(staffRaw) ? staffRaw : [];
+    const attendanceRaw = await attendanceRes.json();
+    const attendance = Array.isArray(attendanceRaw) ? attendanceRaw : [];
+    const inventoryRaw = await inventoryRes.json();
+    const inventory = Array.isArray(inventoryRaw) ? inventoryRaw : [];
+    const stockAlertsRaw = await stockAlertsRes.json();
+    const stockAlerts = Array.isArray(stockAlertsRaw) ? stockAlertsRaw : [];
+    const remindersRawData = await remindersPipelineRes.json();
+    const remindersRaw = Array.isArray(remindersRawData) ? remindersRawData : [];
     const ticketsData = await ticketsRes.json();
     const merchantData = await merchantRes.json();
+
+    // Filter for today's jobs
+    const jobs = allCards.filter(c => c.service_date === today);
+
+    // Derive reminders from canonical pipeline
+    const customerIds = [...new Set(allCards.map(c => c.customer_id))];
+    const pipelineResults = customerIds.length > 0
+      ? evaluateCustomerAttentionBatch({ serviceCards: allCards, reminders: remindersRaw, customerId: customerIds[0], merchantId: MERCHANT_ID, today: new Date() }, customerIds)
+      : new Map();
+    const reminderCount = [...pipelineResults.values()].filter(r => r.reminderEligible).length;
+
     const openTickets = Array.isArray(ticketsData) ? ticketsData.length : 0;
     const merchantPhone = Array.isArray(merchantData) && merchantData.length > 0 ? merchantData[0].phone : null;
 
-    const pending = Array.isArray(jobs) ? jobs.filter(j => j.job_status === 'pending').length : 0;
-    const inProgress = Array.isArray(jobs) ? jobs.filter(j => j.job_status === 'in_progress').length : 0;
-    const completed = Array.isArray(jobs) ? jobs.filter(j => j.job_status === 'completed').length : 0;
-    const checkedInIds = new Set(Array.isArray(attendance) ? attendance.map(a => a.staff_id) : []);
-    const checkedInCount = Array.isArray(staff) ? staff.filter(s => checkedInIds.has(s.id)).length : 0;
+    const pending = jobs.filter(j => j.job_status === 'pending').length;
+    const inProgress = jobs.filter(j => j.job_status === 'in_progress').length;
+    const completed = jobs.filter(j => j.job_status === 'completed').length;
+    const checkedInIds = new Set(attendance.map(a => a.staff_id));
+    const checkedInCount = staff.filter(s => checkedInIds.has(s.id)).length;
 
-    const briefingText = `📋 *Daily Operations Briefing*\n📅 ${today}\n\n📌 *Today's Jobs: ${Array.isArray(jobs) ? jobs.length : 0}*\n   Pending: ${pending} · In Progress: ${inProgress} · Completed: ${completed}\n\n👥 *Workers: ${checkedInCount}/${Array.isArray(staff) ? staff.length : 0} active*\n\n🎫 *Open Support Tickets: ${openTickets}*\n\n✅ Open AquaTrak for full details.`;
+    const inventoryAlerts = stockAlerts.length + inventory.filter(i => i.current_stock < i.minimum_threshold).length;
+
+    const briefingText = `📋 *Daily Operations Briefing*\n📅 ${today}\n\n📌 *Today's Jobs: ${jobs.length}*\n   Pending: ${pending} · In Progress: ${inProgress} · Completed: ${completed}\n\n👥 *Workers: ${checkedInCount}/${staff.length} active*\n\n🎫 *Open Support Tickets: ${openTickets}*\n\n✅ Open AquaTrak for full details.`;
 
     let whatsappSent = false;
     if (openwaConfig.apiKey && merchantPhone) {
@@ -734,7 +754,10 @@ app.all('/api/cron/daily-briefing', async (req, res) => {
 
     await fetch(`${supabaseUrl}/rest/v1/cron_logs`, { method: 'POST', headers, body: JSON.stringify({ type: 'daily_briefing', status: 'success', error_message: whatsappSent ? null : 'OpenWA not configured or merchant phone unavailable' }) });
 
-    res.json({ briefing: briefingText, whatsappSent, date: today, timestamp: new Date().toISOString() });
+    res.json({
+      briefing: briefingText, whatsappSent, date: today, timestamp: new Date().toISOString(),
+      summary: { jobs: jobs.length, workers: staff.length, checkedIn: checkedInCount, alerts: inventoryAlerts, reminders: reminderCount, openTickets },
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -795,19 +818,36 @@ app.all('/api/cron/weekly-revenue-insight', async (req, res) => {
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-    const cardsRes = await fetch(`${supabaseUrl}/rest/v1/service_cards?select=*,customers(name,phone)&merchant_id=eq.${MERCHANT_ID}&next_service_date=gte.${monthStart}&next_service_date=lte.${monthEnd}`, { headers });
-    const cards = await cardsRes.json();
-    const remsRes = await fetch(`${supabaseUrl}/rest/v1/reminder_responses?select=customer_id&merchant_id=eq.${MERCHANT_ID}&status=eq.sent`, { headers });
-    const reminders = await remsRes.json();
-    const nonResponderIds = new Set(Array.isArray(reminders) ? reminders.map(r => r.customer_id) : []);
+    // Fetch all cards and reminders for pipeline evaluation
+    const [cardsRes, remsRes] = await Promise.all([
+      fetch(`${supabaseUrl}/rest/v1/service_cards?select=*,customers(name,phone)&merchant_id=eq.${MERCHANT_ID}`, { headers }),
+      fetch(`${supabaseUrl}/rest/v1/reminder_responses?select=*&merchant_id=eq.${MERCHANT_ID}`, { headers }),
+    ]);
+    const cardsRaw = await cardsRes.json();
+    const remindersRaw = await remsRes.json();
+    const allCards = Array.isArray(cardsRaw) ? cardsRaw : [];
+    const allReminders = Array.isArray(remindersRaw) ? remindersRaw : [];
 
+    // Run canonical pipeline
+    const customerIds = [...new Set(allCards.map(c => c.customer_id))];
+    const pipelineResults = customerIds.length > 0
+      ? evaluateCustomerAttentionBatch({ serviceCards: allCards, reminders: allReminders, customerId: customerIds[0], merchantId: MERCHANT_ID, today }, customerIds)
+      : new Map();
+
+    // Filter pipeline results for customers due this month
     let totalRevenue = 0;
     const dueCustomers = [], nonResponders = [];
-    if (Array.isArray(cards)) {
-      for (const card of cards) {
-        totalRevenue += card.service_details?.totalCharge || 1200;
-        dueCustomers.push(card.customers?.name ?? 'Unknown');
-        if (nonResponderIds.has(card.customer_id)) nonResponders.push(card.customers?.name ?? 'Unknown');
+
+    for (const [, result] of pipelineResults) {
+      if (!result.nextServiceDate) continue;
+      if (result.nextServiceDate < monthStart || result.nextServiceDate > monthEnd) continue;
+      if (result.lifecycleState === 'scheduled') continue;
+
+      totalRevenue += result.estimatedRevenue;
+      dueCustomers.push(result.customerName);
+
+      if (result.reminderState === 'awaiting_response') {
+        nonResponders.push(result.customerName);
       }
     }
 

@@ -1,4 +1,5 @@
 import { getOpenWAConfig, sendWhatsAppMessage } from "../lib/openwa.js";
+import { evaluateCustomerAttentionBatch } from "../lib/customer-attention-pipeline.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -144,10 +145,10 @@ export default async function handler(req: any, res: any) {
       Prefer: "return=representation",
     };
 
-    const [jobsRes, staffRes, attendanceRes, inventoryRes, stockAlertsRes, remindersRes, ticketsRes, merchantRes] =
+    const [cardsRes, staffRes, attendanceRes, inventoryRes, stockAlertsRes, remindersPipelineRes, ticketsRes, merchantRes] =
       await Promise.all([
         fetch(
-          `${supabaseUrl}/rest/v1/service_cards?select=*,customers(*),staff(*)&service_date=eq.${today}&merchant_id=eq.${MERCHANT_ID}`,
+          `${supabaseUrl}/rest/v1/service_cards?select=*,customers(*),staff(*)&merchant_id=eq.${MERCHANT_ID}`,
           { headers }
         ),
         fetch(
@@ -167,7 +168,7 @@ export default async function handler(req: any, res: any) {
           { headers }
         ),
         fetch(
-          `${supabaseUrl}/rest/v1/service_cards?select=*,customers(*)&merchant_id=eq.${MERCHANT_ID}&next_service_date=lte.${today}&reminder_sent_at=is.null`,
+          `${supabaseUrl}/rest/v1/reminder_responses?select=*&merchant_id=eq.${MERCHANT_ID}`,
           { headers }
         ),
         fetch(
@@ -180,21 +181,47 @@ export default async function handler(req: any, res: any) {
         ),
       ]);
 
-    const jobs = await jobsRes.json();
+    const allCards = await cardsRes.json();
     const staff = await staffRes.json();
     const attendance = await attendanceRes.json();
     const inventory = await inventoryRes.json();
     const stockAlerts = await stockAlertsRes.json();
-    const reminders = await remindersRes.json();
+    const remindersRaw = await remindersPipelineRes.json();
     const ticketsData = await ticketsRes.json();
     const merchantData = await merchantRes.json();
+
+    // Filter for today's jobs
+    const jobs = Array.isArray(allCards)
+      ? allCards.filter((c: any) => c.service_date === today)
+      : [];
+
+    // Derive reminders from canonical pipeline
+    const cards = Array.isArray(allCards) ? allCards : [];
+    const reminders = Array.isArray(remindersRaw) ? remindersRaw : [];
+    const customerIds = [...new Set(cards.map((c: any) => c.customer_id))];
+    const pipelineResults = customerIds.length > 0
+      ? evaluateCustomerAttentionBatch({
+          serviceCards: cards,
+          reminders,
+          customerId: customerIds[0],
+          merchantId: MERCHANT_ID,
+          today: new Date(),
+        }, customerIds)
+      : new Map();
+
+    const reminderEntries: { customers: { name: string } }[] = [];
+    for (const [, result] of pipelineResults) {
+      if (result.reminderEligible) {
+        reminderEntries.push({ customers: { name: result.customerName } });
+      }
+    }
 
     const openTickets = Array.isArray(ticketsData) ? ticketsData.length : 0;
     const merchantPhone = Array.isArray(merchantData) && merchantData.length > 0
       ? merchantData[0].phone
       : null;
 
-    const payload = { jobs, staff, attendance, inventory, stock_alerts: stockAlerts, reminders, openTickets };
+    const payload = { jobs, staff, attendance, inventory, stock_alerts: stockAlerts, reminders: reminderEntries, openTickets };
     const briefingText = buildBriefingText(payload, today);
 
     let whatsappSent = false;
@@ -229,7 +256,7 @@ export default async function handler(req: any, res: any) {
           checkedIn: attendance.length,
           alerts: (stockAlerts.length +
             inventory.filter((i: any) => i.current_stock < i.minimum_threshold).length),
-          reminders: reminders.length,
+          reminders: reminderEntries.length,
           openTickets,
         },
       })

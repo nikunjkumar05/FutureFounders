@@ -1,6 +1,7 @@
 import { getOpenWAConfig } from "../lib/openwa.js";
 import { sendWithRetry } from "../lib/retry.js";
 import { log } from "../lib/logger.js";
+import { evaluateCustomerAttentionBatch } from "../lib/customer-attention-pipeline.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,38 +41,50 @@ export default async function handler(req: any, res: any) {
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-    // Fetch customers due this month
-    const cardsRes = await fetch(
-      `${supabaseUrl}/rest/v1/service_cards?select=*,customers(name,phone)&merchant_id=eq.${MERCHANT_ID}&next_service_date=gte.${monthStart}&next_service_date=lte.${monthEnd}`,
-      { headers }
-    );
+    // Fetch all cards and reminders for pipeline evaluation
+    const [cardsRes, remsRes] = await Promise.all([
+      fetch(
+        `${supabaseUrl}/rest/v1/service_cards?select=*,customers(name,phone)&merchant_id=eq.${MERCHANT_ID}`,
+        { headers }
+      ),
+      fetch(
+        `${supabaseUrl}/rest/v1/reminder_responses?select=*&merchant_id=eq.${MERCHANT_ID}`,
+        { headers }
+      ),
+    ]);
+
     const cards = await cardsRes.json();
-
-    // Fetch non-responded reminders
-    const remsRes = await fetch(
-      `${supabaseUrl}/rest/v1/reminder_responses?select=customer_id&merchant_id=eq.${MERCHANT_ID}&status=eq.sent`,
-      { headers }
-    );
     const reminders = await remsRes.json();
-    const nonResponderIds = new Set(
-      Array.isArray(reminders) ? reminders.map((r: any) => r.customer_id) : []
-    );
+    const allCards = Array.isArray(cards) ? cards : [];
+    const allReminders = Array.isArray(reminders) ? reminders : [];
 
-    // Calculate revenue
+    // Run canonical pipeline for all customers
+    const customerIds = [...new Set(allCards.map((c: any) => c.customer_id))];
+    const pipelineResults = customerIds.length > 0
+      ? evaluateCustomerAttentionBatch({
+          serviceCards: allCards,
+          reminders: allReminders,
+          customerId: customerIds[0],
+          merchantId: MERCHANT_ID,
+          today,
+        }, customerIds)
+      : new Map();
+
+    // Filter pipeline results for customers due this month
     let totalRevenue = 0;
     const dueCustomers: string[] = [];
     const nonResponders: string[] = [];
 
-    if (Array.isArray(cards)) {
-      for (const card of cards) {
-        const details = card.service_details || {};
-        const charge = details.totalCharge || 1200;
-        totalRevenue += charge;
-        dueCustomers.push(card.customers?.name ?? "Unknown");
+    for (const [, result] of pipelineResults) {
+      if (!result.nextServiceDate) continue;
+      if (result.nextServiceDate < monthStart || result.nextServiceDate > monthEnd) continue;
+      if (result.lifecycleState === 'scheduled') continue;
 
-        if (nonResponderIds.has(card.customer_id)) {
-          nonResponders.push(card.customers?.name ?? "Unknown");
-        }
+      totalRevenue += result.estimatedRevenue;
+      dueCustomers.push(result.customerName);
+
+      if (result.reminderState === 'awaiting_response') {
+        nonResponders.push(result.customerName);
       }
     }
 
