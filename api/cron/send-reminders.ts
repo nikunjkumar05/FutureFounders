@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { refreshCustomerIntelligence } from "../../src/lib/customer-intelligence-sync.js";
+import { evaluateTransitionForCustomer } from "../../src/lib/transition-service.js";
+import { persistTransitionResult } from "../../src/lib/persist-transition-result.js";
 import { getOpenWAConfig } from "../lib/openwa.js";
 import { sendWithRetry } from "../lib/retry.js";
 
@@ -142,11 +143,15 @@ export default async function handler(req: any, res: any) {
           }
 
           try {
-            await refreshCustomerIntelligence(
+            const transitionResult = await evaluateTransitionForCustomer(
               getSupabaseClient(),
-              card.merchant_id,
-              card.customer_id,
+              {
+                merchantId: card.merchant_id,
+                customerId: card.customer_id,
+                event: { type: 'reminder_sent' },
+              },
             );
+            await persistTransitionResult(getSupabaseClient(), transitionResult);
           } catch (ciErr: any) {
             await fetch(`${supabaseUrl}/rest/v1/cron_logs`, {
               method: "POST",

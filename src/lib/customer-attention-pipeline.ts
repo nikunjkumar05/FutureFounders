@@ -14,12 +14,7 @@
 //    Duplicated logic: 240-hour threshold for follow_up vs high_churn_risk.
 //    Status: Already a shared helper used by this pipeline.
 //
-// 3. src/lib/customer-intelligence-sync.ts :: refreshCustomerIntelligence()
-//    Purpose: Fetch raw data for one customer, derive CI, persist to DB.
-//    Duplicated logic: Calls deriveCustomerIntelligence() — already canonical.
-//    Status: Correct consumer of the derivation. No change needed.
-//
-// 4. src/lib/queries.ts :: useRevenueIntelligence() (lines 1294-1511)
+// 3. src/lib/queries.ts :: useRevenueIntelligence() (lines 1294-1511)
 //    Purpose: Revenue Intelligence dashboard data.
 //    Duplicated logic:
 //      - "due this month" filter: next_service_date >= monthStart && <= monthEnd

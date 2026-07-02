@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { refreshCustomerIntelligence } from './customer-intelligence-sync';
+import { evaluateTransitionForCustomer } from './transition-service';
+import { persistTransitionResult } from './persist-transition-result';
 
 export interface BackfillResult {
   totalCustomers: number;
@@ -13,8 +14,8 @@ export interface BackfillResult {
  * Rebuild the Customer Intelligence cache for every customer.
  *
  * Iterates the `customers` table in configurable batches and calls
- * `refreshCustomerIntelligence()` for each one.  Customers without
- * service cards are silently skipped by the sync pipeline.
+ * `evaluateTransitionForCustomer()` and `persistTransitionResult()` for each one.  Customers without
+ * service cards are silently skipped by the Transition Service.
  *
  * Safe to execute repeatedly — the underlying upsert is idempotent.
  */
@@ -56,7 +57,14 @@ export async function backfillCustomerIntelligence(
   for (let i = 0; i < customers.length; i += batchSize) {
     const batch = customers.slice(i, i + batchSize);
     const settled = await Promise.allSettled(
-      batch.map(c => refreshCustomerIntelligence(supabase, merchantId, c.id)),
+      batch.map(async (c) => {
+        const result = await evaluateTransitionForCustomer(supabase, {
+          merchantId,
+          customerId: c.id,
+          event: { type: 'temporal_evaluation' },
+        });
+        await persistTransitionResult(supabase, result);
+      }),
     );
 
     for (let j = 0; j < settled.length; j++) {
