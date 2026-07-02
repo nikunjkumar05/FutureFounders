@@ -1480,8 +1480,8 @@ export function useRevenueIntelligence() {
 
       const atRiskRevenue = highChurnRisk.reduce((sum, c) => sum + c.expectedValue, 0) + additionalAtRisk;
 
-      // Total unique customers with next_service_date this month (all states)
-      const customersDue = dueSetCustomerIds.size;
+      // Total customers whose canonical lifecycle state is ready_to_book
+      const customersDue = readyToBook.length;
 
       // Additional unique customers serviced this month (not in due set)
       const additionalUniqueCustomers = new Set<string>();
