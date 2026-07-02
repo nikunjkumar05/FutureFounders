@@ -64,12 +64,12 @@ function makeReminder(overrides: Partial<ReminderResponse> & { id: string; servi
   return {
     merchant_id: MERCHANT_ID,
     customer_id: CUSTOMER_ID,
-    sent_at: new Date().toISOString(),
+    sent_at: NOW.toISOString(),
     responded_at: null,
     response: null,
     status: 'sent',
     notes: null,
-    created_at: new Date().toISOString(),
+    created_at: NOW.toISOString(),
     ...overrides,
   };
 }
@@ -178,8 +178,7 @@ assert(s3Result.reminderState === 'awaiting_response', 'Reminder state is awaiti
 // A customer whose reminder reached the 10 × 24 hour threshold.
 console.log('\n── Scenario 4: High Churn Risk ────────────────────────');
 
-// Use Date.now() here because classifySegment() reads the system clock.
-const TEN_DAYS_AGO = new Date(Date.now() - 241 * 60 * 60 * 1000).toISOString();
+const TEN_DAYS_AGO = new Date(NOW.getTime() - 241 * 60 * 60 * 1000).toISOString();
 
 const scenario4Cards: ServiceCardWithDetails[] = [
   makeCard({
@@ -381,12 +380,13 @@ const cards8: ServiceCardWithDetails[] = [
   }),
 ];
 
+const reminders8: ReminderResponse[] = [];
 const cards8Before = JSON.stringify(cards8);
-const reminders8Before = JSON.stringify([]);
+const reminders8Before = JSON.stringify(reminders8);
 
 evaluateCustomerAttention({
   serviceCards: cards8,
-  reminders: [],
+  reminders: reminders8,
   customerId: CUSTOMER_ID,
   merchantId: MERCHANT_ID,
   today: NOW,
@@ -397,7 +397,7 @@ assert(
   'Input service cards array is not mutated',
 );
 assert(
-  JSON.stringify([]) === reminders8Before,
+  JSON.stringify(reminders8) === reminders8Before,
   'Input reminders array is not mutated',
 );
 
