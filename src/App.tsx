@@ -65,9 +65,9 @@ function App() {
               </Routes>
             </Suspense>
           </ErrorBoundary>
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
   );
 }
 

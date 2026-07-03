@@ -64,7 +64,15 @@ export default function RevenueIntelligence() {
         customerId: customer.id,
         status: 'sent',
       }),
-    ]).finally(() => setSendingCustomerId(null));
+    ]).then((results) => {
+      const rejected = results.filter((r) => r.status === 'rejected');
+      if (rejected.length > 0) {
+        const errors = rejected.map((r) => (r as PromiseRejectedResult).reason);
+        for (const err of errors) {
+          console.error('[ActionCenter] Reminder mutation failed:', err);
+        }
+      }
+    }).finally(() => setSendingCustomerId(null));
   }, [sendingCustomerId, markReminder, createReminderResponse]);
 
   const metrics = useMemo(() => {
