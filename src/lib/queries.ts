@@ -1403,6 +1403,7 @@ export function useRevenueIntelligence() {
           daysOverdue: result.daysOverdue,
           lastServiceDate: result.lifecycleAnchorDate,
           healthScore: result.healthScore,
+          anchorCardId: result.lifecycleAnchorId,
         };
       }
 
