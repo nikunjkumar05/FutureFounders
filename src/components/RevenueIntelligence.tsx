@@ -1,6 +1,7 @@
-import { useRevenueIntelligence } from '../lib/queries';
-import { memo, useMemo } from 'react';
+import { useRevenueIntelligence, useMarkReminderSent, useCreateReminderResponse } from '../lib/queries';
+import { memo, useMemo, useState, useCallback } from 'react';
 import type { SegmentedCustomer } from '../lib/types';
+import { trackEvent } from '../lib/analytics';
 import {
   TrendingUp,
   Users,
@@ -13,14 +14,58 @@ import {
   Phone,
   UserCheck,
   UserX,
+  Bell,
+  Loader2,
 } from 'lucide-react';
 
 function formatINR(n: number): string {
   return '₹' + n.toLocaleString('en-IN');
 }
 
+const reminderMessages: Record<string, string> = {
+  standard_cleaning: `Namaste {name}! Aapke paani ki tanki ki safai ka samay aa gaya hai. Gande tank se bimariyan failti hain. Aaj hi safai book karein! Reply YES to confirm or call 9876543210. — AquaClean Services`,
+  deep_cleaning: `Hi {name}! It's time for your deep cleaning service. Our intensive cleaning removes all buildup and bacteria. Book now! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+  sofa_cleaning: `Hi {name}! It's time for your sofa cleaning service. Keep your furniture fresh and hygienic! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+  seats_cleaning: `Hi {name}! It's time for your seats cleaning service. Enjoy a fresh and clean ride! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+  carpet_cleaning: `Hi {name}! It's time for your carpet cleaning service. Keep your carpets fresh and hygienic! Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+  custom_service: `Hi {name}! It's time for your service with AquaClean Services. Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
+};
+
 export default function RevenueIntelligence() {
   const { data, isLoading } = useRevenueIntelligence();
+  const markReminder = useMarkReminderSent();
+  const createReminderResponse = useCreateReminderResponse();
+  const [sendingCustomerId, setSendingCustomerId] = useState<string | null>(null);
+
+  const handleCall = useCallback((phone: string) => {
+    window.open(`tel:91${phone}`);
+  }, []);
+
+  const handleSendReminder = useCallback((customer: SegmentedCustomer) => {
+    if (sendingCustomerId === customer.id) return;
+    if (!customer.anchorCardId) return;
+
+    setSendingCustomerId(customer.id);
+
+    const template = reminderMessages[customer.serviceType] ?? reminderMessages.standard_cleaning;
+    const message = template.replace('{name}', customer.name);
+    window.open(`https://wa.me/91${customer.phone}?text=${encodeURIComponent(message)}`);
+
+    trackEvent('reminder_sent', {
+      customer_id: customer.id,
+      customer_name: customer.name,
+      service_type: customer.serviceType,
+    });
+
+    Promise.allSettled([
+      markReminder.mutateAsync({ cardId: customer.anchorCardId }),
+      createReminderResponse.mutateAsync({
+        serviceCardId: customer.anchorCardId,
+        customerId: customer.id,
+        status: 'sent',
+      }),
+    ]).finally(() => setSendingCustomerId(null));
+  }, [sendingCustomerId, markReminder, createReminderResponse]);
 
   const metrics = useMemo(() => {
     if (!data) return [];
@@ -147,11 +192,22 @@ export default function RevenueIntelligence() {
         </div>
       </div>
 
-      {/* Customer Segments */}
+      {/* Customer Segments — Action Center */}
       <div className="space-y-3">
-        <ReadyToBookSection customers={data.segments.readyToBook} />
-        <FollowUpSection customers={data.segments.followUpNeeded} />
-        <ChurnRiskSection customers={data.segments.highChurnRisk} />
+        <ReadyToBookSection
+          customers={data.segments.readyToBook}
+          onCall={handleCall}
+          onSendReminder={handleSendReminder}
+          sendingCustomerId={sendingCustomerId}
+        />
+        <FollowUpSection
+          customers={data.segments.followUpNeeded}
+          onCall={handleCall}
+        />
+        <ChurnRiskSection
+          customers={data.segments.highChurnRisk}
+          onCall={handleCall}
+        />
       </div>
 
       {/* Insights */}
@@ -248,7 +304,11 @@ const AnalyticTile = memo(function AnalyticTile({ label, value }: { label: strin
   );
 });
 
-function CustomerRow({ customer, icon }: { customer: SegmentedCustomer; icon: React.ReactNode }) {
+function CustomerRow({ customer, icon, actions }: {
+  customer: SegmentedCustomer;
+  icon: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
   const score = customer.healthScore ?? 100;
   const healthColor =
     score >= 80
@@ -258,36 +318,86 @@ function CustomerRow({ customer, icon }: { customer: SegmentedCustomer; icon: Re
       : 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/20';
 
   return (
-    <div className="flex items-center justify-between py-2.5 px-3 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <div className="shrink-0">{icon}</div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-navy-900 dark:text-surface-100 truncate">
-            {customer.name}
-          </p>
-          <p className="text-xs text-surface-500 dark:text-surface-400 truncate">
-            {customer.serviceTypeLabel}
-            {customer.daysOverdue > 0 && (
-              <span className="text-amber-600 dark:text-amber-400 ml-1">
-                · {customer.daysOverdue}d overdue
-              </span>
-            )}
+    <div className="py-2 px-3 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="shrink-0">{icon}</div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-navy-900 dark:text-surface-100 truncate">
+              {customer.name}
+            </p>
+            <p className="text-xs text-surface-500 dark:text-surface-400 truncate">
+              {customer.serviceTypeLabel}
+              {customer.daysOverdue > 0 && (
+                <span className="text-amber-600 dark:text-amber-400 ml-1">
+                  · {customer.daysOverdue}d overdue
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0 ml-3">
+          <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${healthColor}`}>
+            Health: {score}
+          </div>
+          <p className="text-sm font-semibold text-navy-900 dark:text-surface-100">
+            {formatINR(customer.expectedValue)}
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-3 shrink-0 ml-3">
-        <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${healthColor}`}>
-          Health: {score}
+      {actions && (
+        <div className="flex items-center gap-2 mt-2 ml-9">
+          {actions}
         </div>
-        <p className="text-sm font-semibold text-navy-900 dark:text-surface-100">
-          {formatINR(customer.expectedValue)}
-        </p>
-      </div>
+      )}
     </div>
   );
 }
 
-function ReadyToBookSection({ customers }: { customers: SegmentedCustomer[] }) {
+function CallButton({ phone, onCall }: { phone: string; onCall: (phone: string) => void }) {
+  return (
+    <button
+      onClick={() => onCall(phone)}
+      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md
+        bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-300
+        hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+    >
+      <Phone size={12} />
+      Call
+    </button>
+  );
+}
+
+function SendReminderButton({
+  customer,
+  onSendReminder,
+  disabled,
+}: {
+  customer: SegmentedCustomer;
+  onSendReminder: (customer: SegmentedCustomer) => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      onClick={() => onSendReminder(customer)}
+      disabled={disabled}
+      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md
+        bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300
+        hover:bg-emerald-100 dark:hover:bg-emerald-900/40
+        disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+    >
+      {disabled ? <Loader2 size={12} className="animate-spin" /> : <Bell size={12} />}
+      Send Reminder
+    </button>
+  );
+}
+
+function ReadyToBookSection({ customers, onCall, onSendReminder, sendingCustomerId }: {
+  customers: SegmentedCustomer[];
+  onCall: (phone: string) => void;
+  onSendReminder: (customer: SegmentedCustomer) => void;
+  sendingCustomerId: string | null;
+}) {
   if (customers.length === 0) return null;
   return (
     <div className="card-base overflow-hidden">
@@ -302,6 +412,16 @@ function ReadyToBookSection({ customers }: { customers: SegmentedCustomer[] }) {
             key={c.id}
             customer={c}
             icon={<UserCheck size={16} className="text-emerald-500" />}
+            actions={
+              <div className="flex items-center gap-2">
+                <CallButton phone={c.phone} onCall={onCall} />
+                <SendReminderButton
+                  customer={c}
+                  onSendReminder={onSendReminder}
+                  disabled={sendingCustomerId === c.id}
+                />
+              </div>
+            }
           />
         ))}
       </div>
@@ -309,7 +429,10 @@ function ReadyToBookSection({ customers }: { customers: SegmentedCustomer[] }) {
   );
 }
 
-function FollowUpSection({ customers }: { customers: SegmentedCustomer[] }) {
+function FollowUpSection({ customers, onCall }: {
+  customers: SegmentedCustomer[];
+  onCall: (phone: string) => void;
+}) {
   if (customers.length === 0) return null;
   return (
     <div className="card-base overflow-hidden">
@@ -324,6 +447,7 @@ function FollowUpSection({ customers }: { customers: SegmentedCustomer[] }) {
             key={c.id}
             customer={c}
             icon={<Phone size={16} className="text-amber-500" />}
+            actions={<CallButton phone={c.phone} onCall={onCall} />}
           />
         ))}
       </div>
@@ -331,7 +455,10 @@ function FollowUpSection({ customers }: { customers: SegmentedCustomer[] }) {
   );
 }
 
-function ChurnRiskSection({ customers }: { customers: SegmentedCustomer[] }) {
+function ChurnRiskSection({ customers, onCall }: {
+  customers: SegmentedCustomer[];
+  onCall: (phone: string) => void;
+}) {
   if (customers.length === 0) return null;
   return (
     <div className="card-base overflow-hidden border-red-200 dark:border-red-900/50">
@@ -346,6 +473,7 @@ function ChurnRiskSection({ customers }: { customers: SegmentedCustomer[] }) {
             key={c.id}
             customer={c}
             icon={<AlertTriangle size={16} className="text-red-500" />}
+            actions={<CallButton phone={c.phone} onCall={onCall} />}
           />
         ))}
       </div>

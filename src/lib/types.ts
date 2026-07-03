@@ -357,6 +357,8 @@ export interface SegmentedCustomer {
   daysOverdue: number;
   lastServiceDate: string | null;
   healthScore: number;
+  /** The service_card_id that anchors this customer's lifecycle. */
+  anchorCardId?: string;
 }
 
 export interface ReminderAnalytics {
