@@ -566,7 +566,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   };
 
   const createDefaultItem = (st: ServiceType): ServiceItem => {
-    const base: ServiceItem = { id: generateItemId(), quantity: 1, price: 0 };
+    const base: ServiceItem = { id: generateItemId(), quantity: 0, price: 0 };
     switch (st) {
       case 'standard_cleaning':
       case 'deep_cleaning':
@@ -666,6 +666,15 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
       );
       if (invalidCap) {
         setError('Please set a valid capacity for all tank cleaning items');
+        setSubmitting(false);
+        return;
+      }
+
+      const invalidQty = serviceGroups.some(g =>
+        g.items.some(item => !item.quantity || item.quantity < 1)
+      );
+      if (invalidQty) {
+        setError('Quantity must be at least 1 for all service items');
         setSubmitting(false);
         return;
       }
@@ -905,7 +914,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                       </div>
                       <div>
                         <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Quantity</label>
-                        <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                        <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                           className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                       </div>
                     </div>
@@ -930,7 +939,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                       </div>
                       <div>
                         <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Quantity</label>
-                        <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                        <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                           className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                       </div>
                     </div>
@@ -949,7 +958,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Quantity</label>
-                        <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                        <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                           className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                       </div>
                     </div>
@@ -964,7 +973,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                       </div>
                       <div>
                         <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Quantity</label>
-                        <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                        <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                           className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                       </div>
                     </div>
@@ -980,7 +989,7 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Quantity</label>
-                          <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                          <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(currentServiceIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                             className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white dark:bg-surface-700 dark:text-white" />
                         </div>
                         <div>
@@ -1187,7 +1196,7 @@ function parseCardToServiceGroups(card: ServiceCardWithDetails): ServiceGroup[] 
 }
 
 function createDefaultEditItem(st: ServiceType): ServiceItem {
-  const base: ServiceItem = { id: generateItemId(), quantity: 1, price: 0 };
+  const base: ServiceItem = { id: generateItemId(), quantity: 0, price: 0 };
   switch (st) {
     case 'standard_cleaning':
     case 'deep_cleaning':
@@ -1268,6 +1277,10 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
       g.items.some(item => item.capacity === -1 || (item.capacity != null && item.capacity < 1))
     );
     if (invalidCap) { setError('Please set a valid capacity for all tank cleaning items'); return; }
+    const invalidQty = serviceGroups.some(g =>
+      g.items.some(item => !item.quantity || item.quantity < 1)
+    );
+    if (invalidQty) { setError('Quantity must be at least 1 for all service items'); return; }
     setError('');
     setSubmitting(true);
     try {
@@ -1411,7 +1424,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                             </div>
                             <div>
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
-                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                              <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                                 className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
                             </div>
                             <div>
@@ -1441,7 +1454,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                             </div>
                             <div>
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
-                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                              <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                                 className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
                             </div>
                             <div>
@@ -1465,7 +1478,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
-                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                              <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                                 className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
                             </div>
                             <div>
@@ -1485,7 +1498,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                             </div>
                             <div>
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
-                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                              <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                                 className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
                             </div>
                             <div>
@@ -1505,7 +1518,7 @@ function EditJobModal({ card, onClose }: { card: ServiceCardWithDetails; onClose
                             </div>
                             <div>
                               <label className="block text-[10px] font-medium text-surface-500 dark:text-surface-400 mb-0.5">Qty</label>
-                              <input type="number" min={1} value={item.quantity} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 1 })}
+                              <input type="number" min={1} value={item.quantity || ''} onChange={e => updateServiceItem(groupIdx, itemIdx, { quantity: parseInt(e.target.value) || 0 })}
                                 className="w-full px-2 py-1.5 rounded border border-surface-200 dark:border-surface-600 text-xs bg-white dark:bg-surface-700 dark:text-white" />
                             </div>
                             <div>
