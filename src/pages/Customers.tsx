@@ -28,7 +28,7 @@ import ContactPicker from '../components/ContactPicker';
 import DuplicateWarningModal from '../components/DuplicateWarningModal';
 import TimeFilter from '../components/TimeFilter';
 import { type TimePeriod, isInRange, groupByMonthYear } from '../lib/timeUtils';
-import type { Customer, DuplicateCheckResult, ServiceCardWithDetails, ServiceType, ServiceGroup } from '../lib/types';
+import type { Customer, DuplicateCheckResult, ServiceCardWithDetails, ServiceType, ServiceGroup, ServiceItem } from '../lib/types';
 import { SERVICE_TYPE_LABELS, PREDEFINED_SOFA_TYPES, getServicesFromDetails, getTotalCharge } from '../lib/types';
 import { PhoneLink } from '../components/PhoneLink';
 
@@ -357,6 +357,28 @@ function ServiceHistoryModal({
   cards: ServiceCardWithDetails[];
   onClose: () => void;
 }) {
+  const groupedByMonth = useMemo(() => {
+    const groups: { key: string; cards: ServiceCardWithDetails[] }[] = [];
+    let currentKey = '';
+    let currentGroup: ServiceCardWithDetails[] = [];
+    for (const card of cards) {
+      const d = new Date(card.service_date + 'T00:00:00');
+      const key = d.toLocaleDateString('en-IN', { year: 'numeric', month: 'long' });
+      if (key !== currentKey) {
+        if (currentGroup.length > 0) {
+          groups.push({ key: currentKey, cards: currentGroup });
+        }
+        currentKey = key;
+        currentGroup = [];
+      }
+      currentGroup.push(card);
+    }
+    if (currentGroup.length > 0) {
+      groups.push({ key: currentKey, cards: currentGroup });
+    }
+    return groups;
+  }, [cards]);
+
   return (
     <div className="fixed inset-0 bg-navy-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-surface-700 rounded-xl w-full max-w-lg max-h-[80vh] shadow-xl overflow-hidden">
@@ -372,7 +394,7 @@ function ServiceHistoryModal({
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto max-h-[calc(80vh-120px)]">
+        <div className="p-5 overflow-y-auto max-h-[calc(80vh-120px)] scrollbar-thin">
           {customer.notes && (
             <div className="mb-4 bg-surface-50 dark:bg-surface-900/50 rounded-lg p-3">
               <p className="text-xs font-medium text-surface-500 dark:text-surface-400 mb-1">Notes</p>
@@ -380,7 +402,7 @@ function ServiceHistoryModal({
             </div>
           )}
 
-          <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-200 mb-3 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-200 mb-4 flex items-center gap-2">
             <ClipboardList size={16} className="text-navy-600" />
             Service History
             <span className="text-xs font-normal text-surface-400 dark:text-surface-500">({cards.length} total)</span>
@@ -389,139 +411,189 @@ function ServiceHistoryModal({
           {cards.length === 0 ? (
             <p className="text-sm text-surface-400 dark:text-surface-500 text-center py-8">No service history yet</p>
           ) : (
-            <div className="space-y-3">
-              {cards.map((card) => {
-                const details = card.service_details as Record<string, unknown>;
-                const services = getServicesFromDetails(details);
-                const statusLabel = card.job_status === 'completed'
-                  ? 'Completed'
-                  : card.job_status === 'in_progress'
-                  ? 'In Progress'
-                  : 'Pending';
-                return (
-                  <div key={card.id} className="border border-surface-200 dark:border-surface-700 rounded-xl p-4 space-y-3 hover:shadow-sm transition-shadow">
-                    {/* Status & service date */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3">
-                        <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Status</h3>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          card.job_status === 'completed' ? 'badge-ok'
-                            : card.job_status === 'in_progress' ? 'badge-info'
-                            : 'badge-warn'
-                        }`}>{statusLabel}</span>
-                      </div>
-                      <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3">
-                        <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Service date</h3>
-                        <p className="text-sm font-display font-medium text-surface-900 dark:text-surface-100">
-                          {new Date(card.service_date + 'T00:00:00').toLocaleDateString('en-IN', {
-                            weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
-                          })}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Services */}
-                    <div>
-                      <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-3">Services ({services.length})</h3>
-                      <div className="space-y-3">
-                        {(services.length > 0 ? services : [{ serviceType: card.service_type as ServiceType, items: [], totalPrice: 0 } as ServiceGroup]).map((svc, idx) => (
-                          <div key={idx} className="border border-surface-200 dark:border-surface-700 rounded-xl p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm font-display font-semibold text-surface-900 dark:text-surface-100">{SERVICE_TYPE_LABELS[svc.serviceType as ServiceType] ?? svc.serviceType}</p>
-                              {svc.totalPrice > 0 && <span className="font-mono text-sm font-semibold text-cyan-600 dark:text-cyan-400">₹{svc.totalPrice.toLocaleString('en-IN')}</span>}
-                            </div>
-                            {svc.items.length > 0 ? (
-                              <div className="space-y-1">
-                                {svc.items.map((item, itemIdx) => (
-                                  <div key={item.id ?? itemIdx} className="flex items-center justify-between text-sm text-surface-700 dark:text-surface-200 bg-surface-50 dark:bg-surface-800/50 rounded-lg px-3 py-2">
-                                    <div>
-                                      <span className="text-cyan-600 dark:text-cyan-400">
-                                        {svc.serviceType === 'standard_cleaning' || svc.serviceType === 'deep_cleaning'
-                                          ? `${item.capacity || 0}L Tank`
-: svc.serviceType === 'sofa_cleaning'
-                                           ? !item.sofaType
-                                             ? 'Standard Sofa'
-                                             : PREDEFINED_SOFA_TYPES.includes(item.sofaType)
-                                             ? `${item.sofaType} Sofa`
-                                             : item.sofaType
-                                          : svc.serviceType === 'seats_cleaning'
-                                          ? 'Seat'
-                                          : svc.serviceType === 'carpet_cleaning'
-                                          ? `${item.carpetArea || 0} sq ft`
-                                          : svc.serviceType === 'custom_service'
-                                          ? `${item.serviceName || 'Service'}${item.notes ? ` — ${item.notes}` : ''}`
-                                          : ''}
-                                      </span>
-                                      <span className="ml-2">
-                                        <span className="text-surface-900 dark:text-surface-100 font-semibold">Qty:</span>
-                                        <span className="text-surface-900 dark:text-surface-100 font-semibold"> {item.quantity}</span>
-                                        {item.price > 0 && (
-                                          <>
-                                            <span className="text-surface-400 dark:text-surface-500"> · </span>
-                                            <span className="text-amber-600 dark:text-amber-300">₹{item.price.toLocaleString('en-IN')}/unit</span>
-                                          </>
-                                        )}
-                                      </span>
-                                    </div>
-                                    {item.price > 0 && <span className="font-mono text-cyan-600 dark:text-cyan-400 font-medium ml-2">₹{(item.price * item.quantity).toLocaleString('en-IN')}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-sm text-surface-500 dark:text-surface-400">1 service</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Pricing */}
-                    {(() => {
-                      const totalCharge = getTotalCharge(card.service_details as Record<string, unknown>);
-                      const discount = card.discount ?? 0;
-                      if (totalCharge <= 0) return null;
-                      const finalAmount = totalCharge - discount;
-                      return (
-                        <div className="space-y-2">
-                          <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-3 flex items-center justify-between">
-                            <span className="text-sm font-display font-medium text-surface-600 dark:text-surface-300">Original Total</span>
-                            <span className="font-mono text-sm text-surface-700 dark:text-surface-300">₹{totalCharge.toLocaleString('en-IN')}</span>
-                          </div>
-                          {discount > 0 && (
-                            <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-xl p-3 flex items-center justify-between">
-                              <span className="text-sm font-display font-medium text-amber-700 dark:text-amber-300">Discount</span>
-                              <span className="font-mono text-sm text-amber-700 dark:text-amber-300">−₹{discount.toLocaleString('en-IN')}</span>
-                            </div>
-                          )}
-                          <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-4 flex items-center justify-between">
-                            <span className="text-sm font-display font-semibold text-cyan-700 dark:text-cyan-300">Final Amount</span>
-                            <span className="font-mono text-lg font-bold text-cyan-700 dark:text-cyan-300">₹{finalAmount.toLocaleString('en-IN')}</span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Next service */}
-                    {card.next_service_date && (
-                      <div className="bg-cyan-50 dark:bg-cyan-950/50 border border-cyan-200 dark:border-cyan-800 rounded-xl p-3">
-                        <p className="text-sm text-cyan-700 dark:text-cyan-300">Next service due: {new Date(card.next_service_date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                      </div>
-                    )}
-
-                    {/* Notes */}
-                    {card.notes && (
-                      <div className="bg-surface-50 dark:bg-surface-800/50 rounded-xl p-4">
-                        <h3 className="text-sm font-display font-semibold text-surface-600 dark:text-surface-300 uppercase tracking-wide mb-1.5">Notes</h3>
-                        <p className="text-body-sm text-surface-700 dark:text-surface-200">{card.notes}</p>
-                      </div>
-                    )}
+            <div className="space-y-6">
+              {groupedByMonth.map((group) => (
+                <div key={group.key}>
+                  <h4 className="text-[10px] font-display font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-widest mb-3">
+                    {group.key}
+                  </h4>
+                  <div className="space-y-3">
+                    {group.cards.map((card) => (
+                      <VisitCard key={card.id} card={card} />
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function renderItemDescription(serviceType: ServiceType, item: ServiceItem): string {
+  switch (serviceType) {
+    case 'standard_cleaning':
+    case 'deep_cleaning':
+      return `${item.capacity || 0}L Tank`;
+    case 'sofa_cleaning':
+      if (!item.sofaType) return 'Standard Sofa';
+      return PREDEFINED_SOFA_TYPES.includes(item.sofaType)
+        ? `${item.sofaType} Sofa`
+        : item.sofaType;
+    case 'seats_cleaning':
+      return 'Seat';
+    case 'carpet_cleaning':
+      return `${item.carpetArea || 0} sq ft`;
+    case 'custom_service':
+      return `${item.serviceName || 'Service'}${item.notes ? ` — ${item.notes}` : ''}`;
+    default: {
+      const _exhaustive: never = serviceType;
+      return '';
+    }
+  }
+}
+
+function VisitCard({ card }: { card: ServiceCardWithDetails }) {
+  const details = card.service_details as Record<string, unknown>;
+  const services = getServicesFromDetails(details);
+  const totalCharge = getTotalCharge(details);
+  const discount = card.discount ?? 0;
+  const finalAmount = totalCharge - discount;
+
+  const serviceDate = new Date(card.service_date + 'T00:00:00');
+  const formattedDate = serviceDate.toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const weekday = serviceDate.toLocaleDateString('en-IN', { weekday: 'long' });
+
+  const statusLabel = card.job_status === 'completed'
+    ? 'Completed'
+    : card.job_status === 'in_progress'
+    ? 'In Progress'
+    : 'Pending';
+
+  const statusClass = card.job_status === 'completed'
+    ? 'badge-ok'
+    : card.job_status === 'in_progress'
+    ? 'badge-info'
+    : 'badge-warn';
+
+  const displayServices = services.length > 0
+    ? services
+    : [{ serviceType: card.service_type as ServiceType, items: [], totalPrice: 0 } as ServiceGroup];
+
+  return (
+    <div className="bg-white dark:bg-surface-800 rounded-xl border border-surface-200 dark:border-surface-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+      {/* Visit header — date is the primary visual anchor */}
+      <div className="px-5 py-4 border-b border-surface-100 dark:border-surface-700/50">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-display-sm font-display font-bold text-surface-900 dark:text-white leading-tight">
+              {formattedDate}
+            </p>
+            <p className="text-body-xs text-surface-500 dark:text-surface-400 mt-0.5">
+              {weekday}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusClass}`}>
+              {statusLabel}
+            </span>
+            {totalCharge > 0 && (
+              <span className="font-mono text-data-base font-semibold text-cyan-600 dark:text-cyan-400">
+                ₹{finalAmount.toLocaleString('en-IN')}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Services — flat list, no nested cards */}
+      <div className="px-5 py-4 space-y-4">
+        {displayServices.map((svc, idx) => (
+          <div key={idx}>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-body-sm font-display font-semibold text-surface-900 dark:text-surface-100">
+                {SERVICE_TYPE_LABELS[svc.serviceType as ServiceType] ?? svc.serviceType}
+              </span>
+              {svc.totalPrice > 0 && (
+                <span className="font-mono text-data-sm text-cyan-600 dark:text-cyan-400">
+                  ₹{svc.totalPrice.toLocaleString('en-IN')}
+                </span>
+              )}
+            </div>
+            {svc.items.length > 0 ? (
+              <div className="space-y-1">
+                {svc.items.map((item, itemIdx) => (
+                  <div
+                    key={item.id ?? itemIdx}
+                    className="flex items-center justify-between text-body-sm text-surface-700 dark:text-surface-200 pl-3 border-l-2 border-cyan-200 dark:border-cyan-800"
+                  >
+                    <span>
+                      <span className="text-cyan-700 dark:text-cyan-300 font-semibold">
+                        {renderItemDescription(svc.serviceType as ServiceType, item)}
+                      </span>
+                      <span className="text-cyan-600 dark:text-cyan-400 ml-1.5 font-bold">
+                        × {item.quantity}
+                      </span>
+                      {item.price > 0 && (
+                        <span className="text-amber-600 dark:text-amber-400">
+                          {' '}· ₹{item.price.toLocaleString('en-IN')}/unit
+                        </span>
+                      )}
+                    </span>
+                    {item.price > 0 && (
+                      <span className="font-mono text-data-sm font-semibold text-cyan-600 dark:text-cyan-400 ml-2">
+                        ₹{(item.price * item.quantity).toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-body-xs text-surface-500 dark:text-surface-400 pl-3">1 service</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Footer — compact pricing, next service, notes */}
+      {(totalCharge > 0 || discount > 0 || card.next_service_date || card.notes) && (
+        <div className="px-5 py-3 bg-surface-50 dark:bg-surface-900/30 border-t border-surface-100 dark:border-surface-700/50 space-y-2">
+          {totalCharge > 0 && (
+            <div className="flex items-center justify-between text-body-xs">
+              <span className="text-surface-500 dark:text-surface-400">
+                Total: ₹{totalCharge.toLocaleString('en-IN')}
+                {discount > 0 && (
+                  <span className="text-amber-600 dark:text-amber-400 ml-2">
+                    −₹{discount.toLocaleString('en-IN')} discount
+                  </span>
+                )}
+              </span>
+              <span className="font-mono text-data-sm font-semibold text-cyan-700 dark:text-cyan-300">
+                ₹{finalAmount.toLocaleString('en-IN')}
+              </span>
+            </div>
+          )}
+
+          {card.next_service_date && (
+            <p className="text-body-xs text-cyan-700 dark:text-cyan-300">
+              Next service: {new Date(card.next_service_date + 'T00:00:00').toLocaleDateString('en-IN', {
+                day: 'numeric', month: 'short', year: 'numeric',
+              })}
+            </p>
+          )}
+
+          {card.notes && (
+            <div>
+              <p className="text-body-xs font-medium text-surface-500 dark:text-surface-400 mb-0.5">Notes</p>
+              <p className="text-body-xs text-surface-700 dark:text-surface-300">{card.notes}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
