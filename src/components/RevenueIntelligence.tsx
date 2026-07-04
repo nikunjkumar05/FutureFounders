@@ -1,4 +1,4 @@
-import { useRevenueIntelligence, useMarkReminderSent, useCreateReminderResponse } from '../lib/queries';
+import { useRevenueIntelligence, useMarkReminderSent, useCreateReminderResponse, useMonthlyRevenue } from '../lib/queries';
 import { memo, useMemo, useState, useCallback } from 'react';
 import type { SegmentedCustomer } from '../lib/types';
 import { trackEvent } from '../lib/analytics';
@@ -36,6 +36,12 @@ export default function RevenueIntelligence() {
   const markReminder = useMarkReminderSent();
   const createReminderResponse = useCreateReminderResponse();
   const [sendingCustomerId, setSendingCustomerId] = useState<string | null>(null);
+
+  const now = new Date();
+  const currentMonthValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthValue);
+  const [selYear, selMonth] = selectedMonth.split('-').map(Number);
+  const { data: monthlyData, isLoading: monthlyLoading } = useMonthlyRevenue(selYear, selMonth);
 
   const handleCall = useCallback((phone: string) => {
     window.open(`tel:91${phone}`);
@@ -157,31 +163,35 @@ export default function RevenueIntelligence() {
         ))}
       </div>
 
-      {/* Monthly Revenue Forecast Widget */}
-      <div className="card-base p-4 border border-surface-200 dark:border-surface-700 bg-gradient-to-r from-navy-50/50 to-cyan-50/50 dark:from-navy-950/20 dark:to-cyan-950/20">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp size={16} className="text-cyan-500" />
-          <h3 className="text-xs font-display font-semibold text-navy-900 dark:text-surface-100 uppercase tracking-wide">
-            Monthly Revenue Forecast
-          </h3>
+      {/* Monthly Revenue Widget */}
+      <div className="card-base p-4 border border-surface-200 dark:border-surface-700 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 dark:from-emerald-950/20 dark:to-teal-950/20">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <DollarSign size={16} className="text-emerald-500" />
+            <h3 className="text-xs font-display font-semibold text-navy-900 dark:text-surface-100 uppercase tracking-wide">
+              Monthly Revenue
+            </h3>
+          </div>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="text-xs border border-surface-200 dark:border-surface-600 rounded px-2 py-1 bg-white dark:bg-surface-800 text-navy-900 dark:text-surface-100 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+          />
         </div>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
+        {monthlyLoading ? (
+          <div className="h-10 w-56 bg-surface-200 dark:bg-surface-700 rounded animate-pulse" />
+        ) : (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
             <p className="text-sm text-surface-700 dark:text-surface-300 font-medium">
-              This month: <span className="text-navy-900 dark:text-white font-bold">{data.forecast?.jobsCount || 0} jobs due</span> = <span className="text-cyan-600 dark:text-cyan-400 font-bold">{formatINR(data.forecast?.expected || 0)} expected</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatINR(monthlyData?.totalRevenue || 0)}</span>
+              {' '}total
+            </p>
+            <p className="text-xs text-surface-500 dark:text-surface-400">
+              {monthlyData?.completedJobCount ?? 0} completed job{monthlyData?.completedJobCount !== 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-4 text-xs font-medium">
-            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              Confirmed: {formatINR(data.forecast?.confirmed || 0)}
-            </span>
-            <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
-              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-              At Risk: {formatINR(data.forecast?.atRisk || 0)}
-            </span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Reminder Analytics */}

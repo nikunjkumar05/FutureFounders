@@ -30,6 +30,7 @@ import type {
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
 import { estimateServiceValue } from './customer-intelligence';
+import { calculateMonthlyRevenue } from './monthly-revenue';
 import { evaluateCustomerAttentionBatch } from './customer-attention-pipeline';
 import type { CustomerAttentionResult } from './customer-attention-pipeline';
 import { evaluateTransitionForCustomer } from './transition-service';
@@ -1554,6 +1555,30 @@ export function useRevenueIntelligence() {
         },
         insights,
       } satisfies RevenueIntelligence;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useMonthlyRevenue(year: number, month: number) {
+  return useQuery({
+    queryKey: ['monthly_revenue', year, month],
+    queryFn: async () => {
+      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+      const monthEnd = new Date(year, month, 0).toISOString().slice(0, 10);
+
+      const { data, error } = await supabase
+        .from('service_cards')
+        .select('*')
+        .eq('merchant_id', MERCHANT_ID)
+        .eq('job_status', 'completed')
+        .gte('service_date', monthStart)
+        .lte('service_date', monthEnd);
+
+      if (error) throw error;
+
+      const cards = (data ?? []) as unknown as ServiceCardWithDetails[];
+      return calculateMonthlyRevenue(cards, year, month);
     },
     staleTime: 30_000,
   });
