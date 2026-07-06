@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { evaluateTransitionForCustomer } from "../lib/transition-service.js";
-import { persistTransitionResult } from "../lib/persist-transition-result.js";
+import { evaluateTransitionForCustomer, persistTransitionResult } from "../lib/transition-pipeline.js";
 import { getOpenWAConfig } from "../lib/openwa.js";
 import { sendWithRetry } from "../lib/retry.js";
 

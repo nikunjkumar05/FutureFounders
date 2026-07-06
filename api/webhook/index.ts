@@ -5,8 +5,7 @@ import {
 } from "../lib/openwa.js";
 import { sendWithRetry } from "../lib/retry.js";
 import { log } from "../lib/logger.js";
-import { evaluateTransitionForCustomer } from "../lib/transition-service.js";
-import { persistTransitionResult } from "../lib/persist-transition-result.js";
+import { evaluateTransitionForCustomer, persistTransitionResult } from "../lib/transition-pipeline.js";
 
 const COMPONENT = "webhook";
 const MERCHANT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";

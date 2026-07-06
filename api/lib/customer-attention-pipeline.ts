@@ -1,15 +1,120 @@
 // Self-contained customer attention pipeline for api/ (no src/ imports)
-import type {
-  ServiceCardWithDetails,
-  ReminderResponse,
-} from './types';
-import {
-  customerHasActiveJob,
-  buildLatestCompletedByCustomer,
-  findLatestReminder,
-  deriveCustomerIntelligence,
-  isCardDueThisMonth,
-} from './customer-intelligence';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+export type JobStatus = 'pending' | 'in_progress' | 'completed';
+
+export type ServiceType =
+  | 'standard_cleaning'
+  | 'deep_cleaning'
+  | 'sofa_cleaning'
+  | 'seats_cleaning'
+  | 'carpet_cleaning'
+  | 'custom_service';
+
+export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  standard_cleaning: 'Tank Cleaning',
+  deep_cleaning: 'Deep Cleaning',
+  sofa_cleaning: 'Sofa Cleaning',
+  seats_cleaning: 'Seats Cleaning',
+  carpet_cleaning: 'Carpet Cleaning',
+  custom_service: 'Custom Service',
+};
+
+export interface Customer {
+  id: string;
+  merchant_id: string;
+  name: string;
+  phone: string;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export type WageType = 'daily' | 'weekly' | 'monthly';
+
+export interface Staff {
+  id: string;
+  merchant_id: string;
+  name: string;
+  phone: string;
+  daily_wage_inr: number;
+  wage_type: WageType;
+  wage_amount: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ServiceCard {
+  id: string;
+  customer_id: string;
+  merchant_id: string;
+  service_type: ServiceType;
+  service_details: Record<string, unknown>;
+  service_date: string;
+  next_service_date: string | null;
+  job_status: JobStatus;
+  technician_id: string | null;
+  discount: number;
+  notes: string | null;
+  feedback_sent: boolean;
+  feedback_rating: string | null;
+  reminder_sent_at: string | null;
+  created_at: string;
+  customers?: Customer;
+  staff?: Staff;
+}
+
+export interface ServiceCardWithDetails extends Omit<ServiceCard, 'staff'> {
+  customers: Customer;
+  staff: Staff | null;
+}
+
+export type ReminderStatus = 'sent' | 'responded' | 'booked' | 'ignored';
+
+export interface ReminderResponse {
+  id: string;
+  service_card_id: string;
+  merchant_id: string;
+  customer_id: string;
+  sent_at: string;
+  responded_at: string | null;
+  response: string | null;
+  status: ReminderStatus;
+  notes: string | null;
+  created_at: string;
+}
+
+export type CustomerSegment = 'not_due' | 'ready_to_book' | 'follow_up_needed' | 'high_churn_risk' | 'scheduled' | 'unknown';
+
+export interface CustomerIntelligence {
+  id: string;
+  merchant_id: string;
+  customer_id: string;
+  segment: CustomerSegment;
+  estimated_revenue: number;
+  last_reminder_response: string | null;
+  last_contacted_at: string | null;
+  notes: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+export interface SegmentedCustomer {
+  id: string;
+  name: string;
+  phone: string;
+  address: string | null;
+  expectedValue: number;
+  serviceType: string;
+  serviceTypeLabel: string;
+  status: string;
+  daysOverdue: number;
+  lastServiceDate: string | null;
+  healthScore: number;
+  anchorCardId?: string;
+}
 
 export type LifecycleState =
   | 'scheduled'
@@ -50,6 +155,220 @@ export interface CustomerAttentionResult {
   estimatedRevenue: number;
   reason: string;
 }
+
+// ─── Customer Intelligence Helpers ──────────────────────────────────────────
+
+export function customerHasActiveJob(
+  cards: ServiceCardWithDetails[],
+  customerId: string,
+): boolean {
+  return cards.some(
+    c => c.customer_id === customerId && (c.job_status === 'pending' || c.job_status === 'in_progress'),
+  );
+}
+
+export function estimateServiceValue(card: ServiceCardWithDetails): number {
+  const details = (card.service_details ?? {}) as Record<string, unknown>;
+
+  if (typeof details.totalCharge === 'number') return details.totalCharge;
+
+  if (Array.isArray(details.services)) {
+    const groups = details.services as Array<{ totalPrice?: number; items?: Array<{ price?: number; quantity?: number }> }>;
+    return groups.reduce((sum, g) => {
+      if (g.totalPrice) return sum + g.totalPrice;
+      if (g.items) {
+        return sum + g.items.reduce((s, i) => s + (i.price ?? 0) * (i.quantity ?? 1), 0);
+      }
+      return sum;
+    }, 0);
+  }
+
+  const tankCapacity = (details.totalCapacity as number) || (details.tankCapacity as number) || 1000;
+  const pricing: Record<string, number> = {
+    standard_cleaning: 1200,
+    deep_cleaning: 1800,
+    sofa_cleaning: 1500,
+    seats_cleaning: 1200,
+    carpet_cleaning: 2000,
+    custom_service: 1000,
+  };
+  const basePrice = pricing[card.service_type] ?? 1000;
+  if (card.service_type === 'standard_cleaning' || card.service_type === 'deep_cleaning') {
+    return Math.round(basePrice * (tankCapacity / 1000));
+  }
+  return basePrice;
+}
+
+function calcDaysOverdue(
+  nextServiceDate: string | null,
+  today: Date,
+  todayStr: string,
+): number {
+  if (!nextServiceDate) return 0;
+  if (nextServiceDate >= todayStr) return 0;
+  return Math.floor(
+    (today.getTime() - new Date(nextServiceDate + 'T00:00:00').getTime()) / 86400000,
+  );
+}
+
+function extractCapacity(card: ServiceCardWithDetails): number {
+  const details = (card.service_details || {}) as Record<string, unknown>;
+  return (details.tankCapacity || details.totalCapacity || 1000) as number;
+}
+
+function calcHealthScore(
+  daysOverdue: number,
+  reminder: ReminderResponse | null | undefined,
+  capacity: number,
+): number {
+  let score = 100;
+  score -= Math.min(daysOverdue * 1.5, 60);
+  if (reminder?.status === 'ignored') {
+    score -= 20;
+  } else if (reminder?.status === 'sent') {
+    score -= 10;
+  }
+  if (capacity > 1000) {
+    score -= 10;
+  }
+  return Math.max(0, Math.round(score));
+}
+
+function classifySegment(
+  reminder: ReminderResponse | null | undefined,
+  today: Date = new Date(),
+): 'ready_to_book' | 'follow_up_needed' | 'high_churn_risk' {
+  if (!reminder) {
+    return 'ready_to_book';
+  }
+
+  const hoursSinceReminder =
+    (today.getTime() - new Date(reminder.sent_at).getTime()) / (1000 * 60 * 60);
+
+  if (hoursSinceReminder >= 240) {
+    return 'high_churn_risk';
+  }
+
+  return 'follow_up_needed';
+}
+
+export interface CustomerIntelligenceInput {
+  card: ServiceCardWithDetails;
+  latestCompletedCard: ServiceCardWithDetails | null;
+  latestReminder: ReminderResponse | null;
+  storedSegment: CustomerSegment;
+  today: Date;
+  todayStr: string;
+  isDueThisMonth: boolean;
+  hasActiveJob?: boolean;
+}
+
+export function deriveCustomerIntelligence(
+  input: CustomerIntelligenceInput,
+): SegmentedCustomer {
+  const { card, latestCompletedCard, latestReminder, today, todayStr, hasActiveJob } = input;
+
+  if (hasActiveJob) {
+    return {
+      id: card.customer_id,
+      name: card.customers?.name ?? 'Unknown',
+      phone: card.customers?.phone ?? '',
+      address: card.customers?.address ?? null,
+      expectedValue: 0,
+      serviceType: card.service_type,
+      serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
+      status: 'scheduled',
+      daysOverdue: 0,
+      lastServiceDate: card.service_date,
+      healthScore: 100,
+    };
+  }
+
+  if (card.next_service_date && card.next_service_date > todayStr) {
+    return {
+      id: card.customer_id,
+      name: card.customers?.name ?? 'Unknown',
+      phone: card.customers?.phone ?? '',
+      address: card.customers?.address ?? null,
+      expectedValue: 0,
+      serviceType: card.service_type,
+      serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
+      status: 'not_due',
+      daysOverdue: 0,
+      lastServiceDate: card.service_date,
+      healthScore: 100,
+    };
+  }
+
+  const expectedValue = latestCompletedCard
+    ? estimateServiceValue(latestCompletedCard)
+    : estimateServiceValue(card);
+
+  const daysOverdue = calcDaysOverdue(card.next_service_date, today, todayStr);
+  const capacity = extractCapacity(card);
+  const healthScore = calcHealthScore(daysOverdue, latestReminder, capacity);
+  const status = classifySegment(latestReminder, today);
+
+  return {
+    id: card.customer_id,
+    name: card.customers?.name ?? 'Unknown',
+    phone: card.customers?.phone ?? '',
+    address: card.customers?.address ?? null,
+    expectedValue,
+    serviceType: card.service_type,
+    serviceTypeLabel: SERVICE_TYPE_LABELS[card.service_type] ?? card.service_type,
+    status,
+    daysOverdue,
+    lastServiceDate: card.service_date,
+    healthScore,
+  };
+}
+
+export function findLatestReminder(
+  reminders: ReminderResponse[],
+  serviceCardId: string,
+): ReminderResponse | null {
+  let latest: ReminderResponse | null = null;
+  for (const r of reminders) {
+    if (r.service_card_id !== serviceCardId) continue;
+    if (!latest || new Date(r.sent_at) > new Date(latest.sent_at)) {
+      latest = r;
+    }
+  }
+  return latest;
+}
+
+export function buildLatestCompletedByCustomer(
+  cards: ServiceCardWithDetails[],
+): Map<string, ServiceCardWithDetails> {
+  const map = new Map<string, ServiceCardWithDetails>();
+  for (const card of cards) {
+    if (card.job_status !== 'completed') continue;
+    const existing = map.get(card.customer_id);
+    if (!existing || new Date(card.service_date) > new Date(existing.service_date)) {
+      map.set(card.customer_id, card);
+    }
+  }
+  return map;
+}
+
+export function findLatestCompletedCard(
+  cards: ServiceCardWithDetails[],
+  customerId: string,
+): ServiceCardWithDetails | null {
+  return buildLatestCompletedByCustomer(cards).get(customerId) ?? null;
+}
+
+export function isCardDueThisMonth(
+  card: ServiceCardWithDetails,
+  monthStart: string,
+  monthEnd: string,
+): boolean {
+  if (!card.next_service_date) return false;
+  return card.next_service_date >= monthStart && card.next_service_date <= monthEnd;
+}
+
+// ─── Attention Pipeline ─────────────────────────────────────────────────────
 
 function buildAttentionState(state: LifecycleState): AttentionState {
   if (state === 'ready_to_book' || state === 'follow_up_needed' || state === 'high_churn_risk') {
