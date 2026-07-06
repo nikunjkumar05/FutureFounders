@@ -145,7 +145,7 @@ export default async function handler(req: any, res: any) {
       Prefer: "return=representation",
     };
 
-    const [cardsRes, staffRes, attendanceRes, inventoryRes, stockAlertsRes, remindersPipelineRes, ticketsRes, merchantRes] =
+    const [cardsRes, staffRes, attendanceRes, inventoryRes, stockAlertsRes, remindersPipelineRes, ticketsRes] =
       await Promise.all([
         fetch(
           `${supabaseUrl}/rest/v1/service_cards?select=*,customers(*),staff(*)&merchant_id=eq.${MERCHANT_ID}`,
@@ -175,10 +175,6 @@ export default async function handler(req: any, res: any) {
           `${supabaseUrl}/rest/v1/support_tickets?select=id&status=eq.open`,
           { headers }
         ),
-        fetch(
-          `${supabaseUrl}/rest/v1/merchants?select=phone&id=eq.${MERCHANT_ID}`,
-          { headers }
-        ),
       ]);
 
     const allCards = await cardsRes.json();
@@ -188,7 +184,6 @@ export default async function handler(req: any, res: any) {
     const stockAlerts = await stockAlertsRes.json();
     const remindersRaw = await remindersPipelineRes.json();
     const ticketsData = await ticketsRes.json();
-    const merchantData = await merchantRes.json();
 
     // Filter for today's jobs
     const jobs = Array.isArray(allCards)
@@ -216,9 +211,8 @@ export default async function handler(req: any, res: any) {
     }
 
     const openTickets = Array.isArray(ticketsData) ? ticketsData.length : 0;
-    const merchantPhone = Array.isArray(merchantData) && merchantData.length > 0
-      ? merchantData[0].phone
-      : null;
+    // TEMP: hardcoded phone for testing
+    const merchantPhone = "91-9358549335";
 
     const payload = { jobs, staff, attendance, inventory, stock_alerts: stockAlerts, reminders: reminderEntries, openTickets };
     const briefingText = buildBriefingText(payload, today);

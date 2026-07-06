@@ -113,13 +113,8 @@ export default async function handler(req: any, res: any) {
     const message = lines.join("\n");
 
     // Send to merchant
-    const merchantRes = await fetch(
-      `${supabaseUrl}/rest/v1/merchants?select=phone&id=eq.${MERCHANT_ID}`,
-      { headers }
-    );
-    const merchantData = await merchantRes.json();
-    const merchantPhone =
-      Array.isArray(merchantData) && merchantData.length > 0 ? merchantData[0].phone : null;
+    // TEMP: hardcoded phone for testing
+    const merchantPhone = "91-9358549335";
 
     let whatsappSent = false;
     if (merchantPhone && openwaConfig.apiKey) {

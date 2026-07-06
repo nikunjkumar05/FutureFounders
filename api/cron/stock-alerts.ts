@@ -79,20 +79,16 @@ export default async function handler(req: any, res: any) {
 
     // Send WhatsApp alert to merchant
     if (created > 0 || lowItems.length > 0) {
-      const merchantRes = await fetch(
-        `${supabaseUrl}/rest/v1/merchants?select=phone&id=eq.${MERCHANT_ID}`,
-        { headers }
-      );
-      const merchantData = await merchantRes.json();
-      const merchantPhone =
-        Array.isArray(merchantData) && merchantData.length > 0 ? merchantData[0].phone : null;
+      // TEMP: hardcoded phone for testing
+    const merchantPhone = "91-9358549335";
 
-      if (merchantPhone && openwaConfig.apiKey) {
+    if (merchantPhone && openwaConfig.apiKey) {
         const lines = lowItems.map(
           (item: any) => `• ${item.item_name}: ${item.current_stock}${item.unit} (min: ${item.minimum_threshold}${item.unit})`
         );
         const message = `⚠️ *Low Stock Alert*\n\n${lines.join("\n")}\n\nPlease reorder supplies.`;
-        await sendWithRetry(openwaConfig, merchantPhone, message);
+        const stockResult = await sendWithRetry(openwaConfig, merchantPhone, message);
+        if (!stockResult.ok) log.warn('stock-alerts', 'Failed to send alert', { error: stockResult.error });
       }
     }
 
