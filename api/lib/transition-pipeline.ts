@@ -4,7 +4,7 @@ import type {
   ServiceCardWithDetails,
   ReminderResponse,
   CustomerSegment,
-} from './customer-attention-pipeline';
+} from './customer-attention-pipeline.js';
 import {
   evaluateCustomerAttention,
   type CustomerAttentionInput,
@@ -14,7 +14,7 @@ import {
   type RequiredAction,
   type ReminderState,
   buildLatestCompletedByCustomer,
-} from './customer-attention-pipeline';
+} from './customer-attention-pipeline.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
