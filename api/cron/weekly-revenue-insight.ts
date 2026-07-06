@@ -64,7 +64,6 @@ export default async function handler(req: any, res: any) {
       ? evaluateCustomerAttentionBatch({
           serviceCards: allCards,
           reminders: allReminders,
-          customerId: customerIds[0],
           merchantId: MERCHANT_ID,
           today,
         }, customerIds)

@@ -580,7 +580,6 @@ export function useDashboardMetrics() {
         ? evaluateCustomerAttentionBatch({
             serviceCards: cards,
             reminders: reminderResponses,
-            customerId: customerIds[0],
             merchantId: MERCHANT_ID,
             today: new Date(),
           }, customerIds)
@@ -1202,7 +1201,6 @@ export function useDailyBriefing() {
         ? evaluateCustomerAttentionBatch({
             serviceCards: allCards,
             reminders,
-            customerId: customerIds[0],
             merchantId: MERCHANT_ID,
             today: new Date(),
           }, customerIds)
@@ -1381,7 +1379,6 @@ export function useRevenueIntelligence() {
         ? evaluateCustomerAttentionBatch({
             serviceCards: cards,
             reminders,
-            customerId: customerIds[0],
             merchantId: MERCHANT_ID,
             today,
           }, customerIds)

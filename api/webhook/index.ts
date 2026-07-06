@@ -37,7 +37,15 @@ export default async function handler(req: any, res: any) {
         rawBody += chunk;
       }
 
-      const payload = JSON.parse(rawBody);
+      let payload: any;
+      try {
+        payload = JSON.parse(rawBody);
+      } catch {
+        res.writeHead(400, { "Content-Type": "application/json", ...corsHeaders });
+        res.end(JSON.stringify({ status: "error", error: "Invalid JSON" }));
+        return;
+      }
+
       const event = payload.event;
       const data = payload.data;
 

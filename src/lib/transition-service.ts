@@ -134,7 +134,8 @@ async function resolvePreviousLifecycleState(
 
     if (error || !data) return null;
     return segmentToLifecycleState(data.segment as CustomerSegment);
-  } catch {
+  } catch (err) {
+    console.error('[resolvePreviousLifecycleState] Failed to resolve previous state:', err);
     return null;
   }
 }

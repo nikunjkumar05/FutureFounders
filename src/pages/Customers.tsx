@@ -448,10 +448,8 @@ function renderItemDescription(serviceType: ServiceType, item: ServiceItem): str
       return `${item.carpetArea || 0} sq ft`;
     case 'custom_service':
       return `${item.serviceName || 'Service'}${item.notes ? ` — ${item.notes}` : ''}`;
-    default: {
-      const _exhaustive: never = serviceType;
+    default:
       return '';
-    }
   }
 }
 

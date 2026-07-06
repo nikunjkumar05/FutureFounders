@@ -308,8 +308,9 @@ export function evaluateCustomerAttention(
 
   const today = todayArg ?? new Date();
   const todayStr = today.toISOString().slice(0, 10);
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const [year, month] = todayStr.split('-').map(Number);
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+  const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, '0')}`;
 
   const hasActiveJob = customerHasActiveJob(serviceCards, customerId);
 
@@ -375,12 +376,13 @@ export function evaluateCustomerAttention(
  * Customers without cards throw an error.
  *
  * @param input - Pipeline input containing all relevant data.
+ *   The `customerId` field is not required here — it is overridden per customer.
  * @param customerIds - The customers to evaluate (defaults to all unique
  *   customer IDs found in serviceCards).
  * @returns A map of customerId → CustomerAttentionResult.
  */
 export function evaluateCustomerAttentionBatch(
-  input: CustomerAttentionInput,
+  input: Omit<CustomerAttentionInput, 'customerId'>,
   customerIds?: string[],
 ): Map<string, CustomerAttentionResult> {
   const ids = customerIds
