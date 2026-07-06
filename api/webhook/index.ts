@@ -247,7 +247,7 @@ async function processMessage(payload: any) {
           await replyViaOpenWA(replyTo, `Dhanyavad! Aapki service kal (${tomorrow}) ${slot} slot ke liye book ho chuki hai. Humara staff scheduled samay par pahunch jayega.`);
 
           // TEMP: hardcoded phone for testing
-          const merchantPhone = "91-9358549335";
+          const merchantPhone = "919358549335";
           if (merchantPhone && config.apiKey) {
             const slotLabel = slot === "morning" ? "8AM-1PM" : "1PM-6PM";
             const notification = `🛎️ *New Booking*\n\nCustomer: ${customer.name}\nPhone: ${customer.phone}\nDate: ${tomorrow}\nSlot: ${slotLabel}\n\nPlease assign a technician.`;

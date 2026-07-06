@@ -114,7 +114,7 @@ export default async function handler(req: any, res: any) {
 
     // Send to merchant
     // TEMP: hardcoded phone for testing
-    const merchantPhone = "91-9358549335";
+    const merchantPhone = "919358549335";
 
     let whatsappSent = false;
     if (merchantPhone && openwaConfig.apiKey) {

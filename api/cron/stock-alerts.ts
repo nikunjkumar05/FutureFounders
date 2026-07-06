@@ -80,7 +80,7 @@ export default async function handler(req: any, res: any) {
     // Send WhatsApp alert to merchant
     if (created > 0 || lowItems.length > 0) {
       // TEMP: hardcoded phone for testing
-    const merchantPhone = "91-9358549335";
+    const merchantPhone = "919358549335";
 
     if (merchantPhone && openwaConfig.apiKey) {
         const lines = lowItems.map(

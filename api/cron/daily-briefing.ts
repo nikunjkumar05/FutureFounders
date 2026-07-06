@@ -212,7 +212,7 @@ export default async function handler(req: any, res: any) {
 
     const openTickets = Array.isArray(ticketsData) ? ticketsData.length : 0;
     // TEMP: hardcoded phone for testing
-    const merchantPhone = "91-9358549335";
+    const merchantPhone = "919358549335";
 
     const payload = { jobs, staff, attendance, inventory, stock_alerts: stockAlerts, reminders: reminderEntries, openTickets };
     const briefingText = buildBriefingText(payload, today);
