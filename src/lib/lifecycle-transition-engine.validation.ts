@@ -62,6 +62,7 @@ function makeCard(
       created_at: THREE_MONTHS_AGO,
     },
     staff: null,
+    amc_contract_id: null,
     ...overrides,
   };
 }
