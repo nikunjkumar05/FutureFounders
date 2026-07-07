@@ -56,6 +56,7 @@ function makeCard(overrides: Partial<ServiceCardWithDetails> & { id: string }): 
       created_at: THREE_MONTHS_AGO,
     },
     staff: null,
+    amc_contract_id: null,
     ...overrides,
   };
 }

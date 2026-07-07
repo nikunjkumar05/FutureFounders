@@ -137,6 +137,7 @@ export interface ServiceCard {
   feedback_sent: boolean;
   feedback_rating: string | null;
   reminder_sent_at: string | null;
+  amc_contract_id: string | null;
   created_at: string;
   customers?: Customer;
   staff?: Staff;
@@ -245,6 +246,29 @@ export interface ServiceCardWithDetails extends Omit<ServiceCard, 'staff'> {
 
 export interface AttendanceWithStaff extends Attendance {
   staff: Staff;
+}
+
+// ─── AMC Contracts ──────────────────────────────────────────────
+
+export type AmcContractStatus = 'active' | 'paused' | 'cancelled' | 'expired';
+
+export type AmcFrequency = 'monthly' | 'quarterly' | 'biannual' | 'annual';
+
+export interface AmcContract {
+  id: string;
+  merchant_id: string;
+  customer_id: string;
+  start_date: string;
+  end_date: string;
+  frequency: AmcFrequency;
+  status: AmcContractStatus;
+  service_template: Record<string, unknown>;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface AmcContractWithDetails extends AmcContract {
+  customers: Customer;
 }
 
 // ─── Daily Briefing ──────────────────────────────────────────────
