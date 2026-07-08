@@ -44,11 +44,11 @@ export function isDateFuture(dateStr: string, today: Date): boolean {
 }
 
 export function earliestDate(a: string, b: string): string {
-  return a < b ? a : b;
+  return isBefore(toDate(a), toDate(b)) ? a : b;
 }
 
 export function latestDate(a: string, b: string): string {
-  return a > b ? a : b;
+  return isAfter(toDate(a), toDate(b)) ? a : b;
 }
 
 export function isValidFrequency(value: string): value is AmcFrequency {

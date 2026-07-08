@@ -109,41 +109,53 @@ assert(s4.isOverdue === false, 'evaluateSchedule due today: not overdue');
 assert(s4.daysUntilDue === 0, 'evaluateSchedule due today: daysUntilDue = 0');
 assert(s4.daysOverdue === 0, 'evaluateSchedule due today: daysOverdue = 0');
 
-// Scenario 5: Schedule evaluation — overdue
+// Scenario 5: Schedule evaluation — due today (biannual)
 const s5 = evaluateSchedule(
   makeContract({ id: 's5', start_date: ONE_YEAR_AGO, frequency: 'biannual' }),
   ['2026-01-01'],
   NOW,
 );
-assert(s5.nextVisitDate === '2026-07-01', 'evaluateSchedule overdue: nextVisitDate = Jul 1');
-assert(s5.isDue === true, 'evaluateSchedule overdue: isDue = true');
-assert(s5.isOverdue === false, 'evaluateSchedule overdue: not overdue (today = Jul 1)');
+assert(s5.nextVisitDate === '2026-07-01', 'evaluateSchedule due today (biannual): nextVisitDate = Jul 1');
+assert(s5.isDue === true, 'evaluateSchedule due today (biannual): isDue = true');
+assert(s5.isOverdue === false, 'evaluateSchedule due today (biannual): not overdue');
 
-// Scenario 6: Schedule evaluation — future
+// Scenario 6: Schedule evaluation — overdue
 const s6 = evaluateSchedule(
-  makeContract({ id: 's6', start_date: SIX_MONTHS_AGO, frequency: 'biannual' }),
+  makeContract({ id: 's6', start_date: '2024-01-01', end_date: '2027-06-30', frequency: 'biannual' }),
+  ['2025-07-01'],
+  NOW,
+);
+assert(s6.nextVisitDate === '2026-01-01', 'evaluateSchedule overdue: nextVisitDate = Jan 1');
+assert(s6.isDue === true, 'evaluateSchedule overdue: isDue = true');
+assert(s6.isOverdue === true, 'evaluateSchedule overdue: isOverdue = true');
+assert(s6.daysUntilDue < 0, 'evaluateSchedule overdue: daysUntilDue negative');
+assert(s6.daysOverdue > 0, 'evaluateSchedule overdue: daysOverdue positive');
+
+// Scenario 7: Schedule evaluation — future
+const s7 = evaluateSchedule(
+  makeContract({ id: 's7', start_date: SIX_MONTHS_AGO, frequency: 'biannual' }),
   ['2026-04-01'],
   NOW,
 );
-assert(s6.nextVisitDate === '2026-10-01', 'evaluateSchedule future: nextVisitDate = Oct 1');
-assert(s6.isDue === false, 'evaluateSchedule future: isDue = false');
-assert(s6.isOverdue === false, 'evaluateSchedule future: not overdue');
-assert(s6.daysUntilDue > 0, 'evaluateSchedule future: daysUntilDue positive');
+assert(s7.nextVisitDate === '2026-10-01', 'evaluateSchedule future: nextVisitDate = Oct 1');
+assert(s7.isDue === false, 'evaluateSchedule future: isDue = false');
+assert(s7.isOverdue === false, 'evaluateSchedule future: not overdue');
+assert(s7.daysUntilDue > 0, 'evaluateSchedule future: daysUntilDue positive');
 
-// Scenario 7: computeDueDates — biannual contract
-const s7Contract = makeContract({ id: 's7', start_date: '2026-01-01', end_date: '2026-12-31', frequency: 'biannual' });
-const s7DueDates = computeDueDates(s7Contract);
-assert(s7DueDates.length === 2, 'computeDueDates biannual: 2 due dates');
-assert(s7DueDates[0] === '2026-01-01', 'computeDueDates biannual: first = Jan 1');
-assert(s7DueDates[1] === '2026-07-01', 'computeDueDates biannual: second = Jul 1');
+// Scenario 9: computeDueDates — biannual contract
+const s9Contract = makeContract({ id: 's9', start_date: '2026-01-01', end_date: '2026-12-31', frequency: 'biannual' });
+const s9DueDates = computeDueDates(s9Contract);
+assert(s9DueDates.length === 2, 'computeDueDates biannual: 2 due dates');
+assert(s9DueDates[0] === '2026-01-01', 'computeDueDates biannual: first = Jan 1');
+assert(s9DueDates[1] === '2026-07-01', 'computeDueDates biannual: second = Jul 1');
 
-// Scenario 8: computeDueDates — monthly contract
-const s8Contract = makeContract({ id: 's8', start_date: '2026-01-01', end_date: '2026-03-31', frequency: 'monthly' });
-const s8DueDates = computeDueDates(s8Contract);
-assert(s8DueDates.length === 3, 'computeDueDates monthly Q1: 3 due dates');
-assert(s8DueDates[0] === '2026-01-01', 'computeDueDates monthly Q1: Jan');
-assert(s8DueDates[1] === '2026-02-01', 'computeDueDates monthly Q1: Feb');
-assert(s8DueDates[2] === '2026-03-01', 'computeDueDates monthly Q1: Mar');
+// Scenario 10: computeDueDates — monthly contract
+const s10Contract = makeContract({ id: 's10', start_date: '2026-01-01', end_date: '2026-03-31', frequency: 'monthly' });
+const s10DueDates = computeDueDates(s10Contract);
+assert(s10DueDates.length === 3, 'computeDueDates monthly Q1: 3 due dates');
+assert(s10DueDates[0] === '2026-01-01', 'computeDueDates monthly Q1: Jan');
+assert(s10DueDates[1] === '2026-02-01', 'computeDueDates monthly Q1: Feb');
+assert(s10DueDates[2] === '2026-03-01', 'computeDueDates monthly Q1: Mar');
 
 // ─── Contract Service — State Evaluation ─────────────────────────────────────
 

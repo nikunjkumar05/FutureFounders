@@ -1,4 +1,4 @@
-import { isAfter, parseISO, startOfDay, differenceInCalendarMonths } from 'date-fns';
+import { isAfter, parseISO, startOfDay } from 'date-fns';
 import type { AmcContract, AmcContractStatus } from './types';
 import type {
   AmcContractState,
@@ -9,12 +9,15 @@ import type {
 } from './amc-types';
 import { evaluateSchedule } from './amc-scheduling';
 import {
-  toDate,
   isDatePast,
-  getFrequencyMonths,
   isValidFrequency,
+  countVisitsInPeriod,
 } from './amc-utils';
 
+// NOTE: Contract expiry semantics are an unresolved product decision.
+// Currently, an active contract past its end_date is evaluated as "expired".
+// The business rule may change to use visit completion, merchant action,
+// or another trigger. Revisit during AMC lifecycle implementation.
 export function evaluateContractState(
   contract: AmcContract,
   today: Date,
@@ -66,15 +69,17 @@ export function checkRenewalEligibility(
     return { eligible: false, daysUntilExpiry: 0, reason: 'Contract is paused' };
   }
 
-  const expiredBeforeToday = isAfter(endStart, todayStart) ? false : true;
+  const isExpired = !isAfter(endStart, todayStart);
   const diffDays = Math.round(
     (endStart.getTime() - todayStart.getTime()) / 86400000,
   );
 
-  if (expiredBeforeToday) {
+  if (isExpired) {
     return { eligible: true, daysUntilExpiry: diffDays, reason: 'Contract has expired — renewal recommended' };
   }
 
+  // NOTE: 30-day renewal window is an implementation assumption, not a
+  // finalized business rule. Confirm during Renewal/Attention implementation.
   if (diffDays <= 30) {
     return { eligible: true, daysUntilExpiry: diffDays, reason: `Contract expires in ${diffDays} days — within renewal window` };
   }
@@ -86,12 +91,11 @@ export function computeProgress(
   contract: AmcContract,
   completedVisitDates: string[],
 ): AmcProgress {
-  const months = getFrequencyMonths(contract.frequency);
-  const diffMonths = differenceInCalendarMonths(
-    toDate(contract.end_date),
-    toDate(contract.start_date),
+  const expectedVisits = countVisitsInPeriod(
+    contract.start_date,
+    contract.end_date,
+    contract.frequency,
   );
-  const expectedVisits = Math.floor(diffMonths / months) + 1;
   const completedVisits = Math.min(completedVisitDates.length, expectedVisits);
 
   return {
