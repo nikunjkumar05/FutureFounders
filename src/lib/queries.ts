@@ -1833,7 +1833,10 @@ export function useUpdateAmcContract() {
       if (input.frequency !== undefined && !isValidFrequency(input.frequency)) {
         throw new Error(`Invalid frequency: "${input.frequency}"`);
       }
-      if (input.startDate && input.endDate) {
+      if (input.startDate !== undefined || input.endDate !== undefined) {
+        if (input.startDate === undefined || input.endDate === undefined) {
+          throw new Error('startDate and endDate must be updated together');
+        }
         const dateErrors = validateContractDates(input.startDate, input.endDate);
         if (dateErrors.length > 0) {
           throw new Error(dateErrors.join('; '));
