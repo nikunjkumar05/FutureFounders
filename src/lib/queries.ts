@@ -1705,6 +1705,10 @@ export function useSendFeedback() {
 }
 
 // ─── AMC Contracts ──────────────────────────────────────────────
+// All AMC queries unconditionally join customers(*). Every AMC UI view
+// displays customer names alongside contracts, and fetching without the
+// join would require a separate per-row query. This matches the existing
+// useServiceCards pattern (also unconditionally joins customers(*), staff(*)).
 
 export function useAmcContracts() {
   return useQuery({
@@ -1855,6 +1859,13 @@ export function useUpdateAmcContract() {
     },
   });
 }
+
+// NOTE: Status mutations (pause/resume/cancel) require the caller to
+// provide the contract's current status. If the caller supplies a stale
+// status due to a concurrent update, the domain validation passes but
+// the Supabase update still succeeds (no optimistic locking). This is a
+// pre-existing TOCTOU pattern — useUpdateJobStatus has the same design.
+// Add server-side status verification if this becomes a real contention point.
 
 export function usePauseAmcContract() {
   const qc = useQueryClient();
