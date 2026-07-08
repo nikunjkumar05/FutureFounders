@@ -27,6 +27,10 @@ import type {
   SegmentedCustomer,
   ReminderStatus,
   WageType,
+  AmcContract,
+  AmcContractWithDetails,
+  AmcContractStatus,
+  AmcFrequency,
 } from './types';
 import { SERVICE_TYPE_LABELS } from './types';
 import { estimateServiceValue } from './customer-intelligence';
@@ -36,6 +40,8 @@ import type { CustomerAttentionResult } from './customer-attention-pipeline';
 import { evaluateTransitionForCustomer } from './transition-service';
 import { persistTransitionResult } from './persist-transition-result';
 import { trackEvent } from './analytics';
+import { validateContract, validateContractDates, validateStatusTransition } from './amc-contract-service';
+import { isValidFrequency } from './amc-utils';
 
 export const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
@@ -1695,5 +1701,237 @@ export function useSendFeedback() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['service_cards'] }),
+  });
+}
+
+// ─── AMC Contracts ──────────────────────────────────────────────
+// All AMC queries unconditionally join customers(*). Every AMC UI view
+// displays customer names alongside contracts, and fetching without the
+// join would require a separate per-row query. This matches the existing
+// useServiceCards pattern (also unconditionally joins customers(*), staff(*)).
+
+export function useAmcContracts() {
+  return useQuery({
+    queryKey: ['amc_contracts'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .select('*, customers(*)')
+        .eq('merchant_id', MERCHANT_ID)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as AmcContractWithDetails[];
+    },
+  });
+}
+
+export function useAmcContract(id: string) {
+  return useQuery({
+    queryKey: ['amc_contracts', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .select('*, customers(*)')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return data as unknown as AmcContractWithDetails;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useAmcActiveContracts() {
+  return useQuery({
+    queryKey: ['amc_contracts', 'active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .select('*, customers(*)')
+        .eq('merchant_id', MERCHANT_ID)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as AmcContractWithDetails[];
+    },
+  });
+}
+
+export function useAmcCustomerContracts(customerId: string) {
+  return useQuery({
+    queryKey: ['amc_contracts', 'customer', customerId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .select('*, customers(*)')
+        .eq('merchant_id', MERCHANT_ID)
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as AmcContractWithDetails[];
+    },
+    enabled: !!customerId,
+  });
+}
+
+export function useCreateAmcContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      customerId: string;
+      startDate: string;
+      endDate: string;
+      frequency: AmcFrequency;
+      serviceTemplate?: Record<string, unknown>;
+      notes?: string;
+    }) => {
+      const errors = validateContract({
+        merchant_id: MERCHANT_ID,
+        customer_id: input.customerId,
+        start_date: input.startDate,
+        end_date: input.endDate,
+        frequency: input.frequency,
+        service_template: input.serviceTemplate,
+        notes: input.notes ?? null,
+      });
+      if (errors.length > 0) {
+        throw new Error(errors.join('; '));
+      }
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .insert({
+          merchant_id: MERCHANT_ID,
+          customer_id: input.customerId,
+          start_date: input.startDate,
+          end_date: input.endDate,
+          frequency: input.frequency,
+          service_template: input.serviceTemplate ?? {},
+          notes: input.notes ?? null,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as AmcContract;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+    },
+  });
+}
+
+export function useUpdateAmcContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      startDate?: string;
+      endDate?: string;
+      frequency?: AmcFrequency;
+      serviceTemplate?: Record<string, unknown>;
+      notes?: string | null;
+    }) => {
+      if (input.frequency !== undefined && !isValidFrequency(input.frequency)) {
+        throw new Error(`Invalid frequency: "${input.frequency}"`);
+      }
+      if (input.startDate !== undefined || input.endDate !== undefined) {
+        if (input.startDate === undefined || input.endDate === undefined) {
+          throw new Error('startDate and endDate must be updated together');
+        }
+        const dateErrors = validateContractDates(input.startDate, input.endDate);
+        if (dateErrors.length > 0) {
+          throw new Error(dateErrors.join('; '));
+        }
+      }
+      const payload: Record<string, unknown> = {};
+      if (input.startDate !== undefined) payload.start_date = input.startDate;
+      if (input.endDate !== undefined) payload.end_date = input.endDate;
+      if (input.frequency !== undefined) payload.frequency = input.frequency;
+      if (input.serviceTemplate !== undefined) payload.service_template = input.serviceTemplate;
+      if (input.notes !== undefined) payload.notes = input.notes;
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .update(payload)
+        .eq('id', input.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as AmcContract;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+    },
+  });
+}
+
+// NOTE: Status mutations (pause/resume/cancel) require the caller to
+// provide the contract's current status. If the caller supplies a stale
+// status due to a concurrent update, the domain validation passes but
+// the Supabase update still succeeds (no optimistic locking). This is a
+// pre-existing TOCTOU pattern — useUpdateJobStatus has the same design.
+// Add server-side status verification if this becomes a real contention point.
+
+export function usePauseAmcContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; currentStatus: AmcContractStatus }) => {
+      if (!validateStatusTransition(input.currentStatus, 'paused')) {
+        throw new Error(`Cannot pause a contract with status "${input.currentStatus}"`);
+      }
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .update({ status: 'paused' })
+        .eq('id', input.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as AmcContract;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+    },
+  });
+}
+
+export function useResumeAmcContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; currentStatus: AmcContractStatus }) => {
+      if (!validateStatusTransition(input.currentStatus, 'active')) {
+        throw new Error(`Cannot resume a contract with status "${input.currentStatus}"`);
+      }
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .update({ status: 'active' })
+        .eq('id', input.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as AmcContract;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+    },
+  });
+}
+
+export function useCancelAmcContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; currentStatus: AmcContractStatus }) => {
+      if (!validateStatusTransition(input.currentStatus, 'cancelled')) {
+        throw new Error(`Cannot cancel a contract with status "${input.currentStatus}"`);
+      }
+      const { data, error } = await supabase
+        .from('amc_contracts')
+        .update({ status: 'cancelled' })
+        .eq('id', input.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as AmcContract;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+    },
   });
 }
