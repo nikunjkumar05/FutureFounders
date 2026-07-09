@@ -1935,3 +1935,19 @@ export function useCancelAmcContract() {
     },
   });
 }
+
+export function useDeleteAmcContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string }) => {
+      const { error } = await supabase
+        .from('amc_contracts')
+        .delete()
+        .eq('id', input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+    },
+  });
+}
