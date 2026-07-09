@@ -12,6 +12,7 @@ const Customers = lazy(() => import('./pages/Customers'));
 const Inventory = lazy(() => import('./pages/Inventory'));
 const Attendance = lazy(() => import('./pages/Attendance'));
 const Jobs = lazy(() => import('./pages/Jobs'));
+const AmcContracts = lazy(() => import('./pages/AmcContracts'));
 const SupportTickets = lazy(() => import('./pages/SupportTickets'));
 const Login = lazy(() => import('./pages/Login'));
 
@@ -59,6 +60,7 @@ function App() {
                     <Route path="/inventory" element={<Inventory />} />
                     <Route path="/attendance" element={<Attendance />} />
                     <Route path="/jobs" element={<Jobs />} />
+                    <Route path="/amc" element={<AmcContracts />} />
                     <Route path="/tickets" element={<SupportTickets />} />
                   </Route>
                 </Route>
