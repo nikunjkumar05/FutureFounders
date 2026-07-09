@@ -32,7 +32,7 @@ const STATUS_CONFIG: Record<AmcContractStatus, { label: string; badge: string; c
   active: { label: 'Active', badge: 'badge-ok', color: 'text-navy-600 dark:text-navy-400' },
   paused: { label: 'Paused', badge: 'badge-warn', color: 'text-amber-600 dark:text-amber-400' },
   cancelled: { label: 'Cancelled', badge: 'bg-surface-100 text-surface-600 dark:bg-surface-700 dark:text-surface-400', color: 'text-surface-500 dark:text-surface-400' },
-  expired: { label: 'Active', badge: 'badge-ok', color: 'text-navy-600 dark:text-navy-400' },
+  completed: { label: 'Completed', badge: 'badge-info', color: 'text-cyan-600 dark:text-cyan-400' },
 };
 
 const FREQUENCY_LABELS: Record<AmcFrequency, string> = {
@@ -59,7 +59,7 @@ const statusTabs: { status: AmcContractStatus | 'all'; label: string }[] = [
 ];
 
 function isActiveStatus(status: AmcContractStatus): boolean {
-  return status === 'active' || status === 'expired';
+  return status === 'active';
 }
 
 export default function AmcContracts() {

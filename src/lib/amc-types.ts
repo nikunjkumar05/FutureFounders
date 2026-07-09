@@ -1,6 +1,6 @@
 import type { AmcContract, AmcFrequency } from './types';
 
-export type AmcContractState = 'active' | 'paused' | 'cancelled' | 'expired';
+export type AmcContractState = 'active' | 'paused' | 'cancelled' | 'completed';
 
 export interface AmcScheduleResult {
   nextVisitDate: string;

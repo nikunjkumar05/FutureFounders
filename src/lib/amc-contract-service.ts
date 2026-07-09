@@ -9,26 +9,14 @@ import type {
 } from './amc-types';
 import { evaluateSchedule } from './amc-scheduling';
 import {
-  isDatePast,
   isValidFrequency,
   countVisitsInPeriod,
 } from './amc-utils';
 
-// NOTE: Contract expiry semantics are an unresolved product decision.
-// Currently, an active contract past its end_date is evaluated as "expired".
-// The business rule may change to use visit completion, merchant action,
-// or another trigger. Revisit during AMC lifecycle implementation.
 export function evaluateContractState(
   contract: AmcContract,
-  today: Date,
 ): AmcContractState {
-  if (contract.status === 'active') {
-    if (isDatePast(contract.end_date, today)) {
-      return 'expired';
-    }
-    return 'active';
-  }
-  return contract.status;
+  return contract.status as AmcContractState;
 }
 
 export function checkVisitAllowed(
@@ -36,7 +24,7 @@ export function checkVisitAllowed(
   completedVisitDates: string[],
   today: Date,
 ): AmcVisitAllowance {
-  const state = evaluateContractState(contract, today);
+  const state = evaluateContractState(contract);
 
   if (state !== 'active') {
     return { allowed: false, reason: `Contract is ${state}` };
@@ -57,7 +45,7 @@ export function checkRenewalEligibility(
   contract: AmcContract,
   today: Date,
 ): AmcRenewalEvaluation {
-  const state = evaluateContractState(contract, today);
+  const state = evaluateContractState(contract);
   const todayStart = startOfDay(today);
   const endStart = startOfDay(parseISO(contract.end_date));
 
@@ -69,17 +57,18 @@ export function checkRenewalEligibility(
     return { eligible: false, daysUntilExpiry: 0, reason: 'Contract is paused' };
   }
 
-  const isExpired = !isAfter(endStart, todayStart);
+  if (state === 'completed') {
+    return { eligible: true, daysUntilExpiry: 0, reason: 'Contract is completed — renewal recommended' };
+  }
+
   const diffDays = Math.round(
     (endStart.getTime() - todayStart.getTime()) / 86400000,
   );
 
-  if (isExpired) {
-    return { eligible: true, daysUntilExpiry: diffDays, reason: 'Contract has expired — renewal recommended' };
+  if (!isAfter(endStart, todayStart)) {
+    return { eligible: true, daysUntilExpiry: diffDays, reason: 'Contract end date has passed — renewal recommended' };
   }
 
-  // NOTE: 30-day renewal window is an implementation assumption, not a
-  // finalized business rule. Confirm during Renewal/Attention implementation.
   if (diffDays <= 30) {
     return { eligible: true, daysUntilExpiry: diffDays, reason: `Contract expires in ${diffDays} days — within renewal window` };
   }
@@ -110,7 +99,7 @@ export function evaluateContract(
   completedVisitDates: string[],
   today: Date,
 ): AmcContractEvaluation {
-  const state = evaluateContractState(contract, today);
+  const state = evaluateContractState(contract);
   const schedule = state === 'active'
     ? evaluateSchedule(contract, completedVisitDates, today)
     : null;
@@ -150,10 +139,10 @@ export function validateContractDates(
 }
 
 const VALID_TRANSITIONS: Record<AmcContractStatus, AmcContractStatus[]> = {
-  active: ['paused', 'cancelled', 'expired'],
+  active: ['paused', 'cancelled'],
   paused: ['active', 'cancelled'],
   cancelled: [],
-  expired: [],
+  completed: [],
 };
 
 export function validateStatusTransition(
@@ -161,6 +150,14 @@ export function validateStatusTransition(
   to: AmcContractStatus,
 ): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+export function isContractComplete(
+  contract: AmcContract,
+  completedVisitDates: string[],
+): boolean {
+  const progress = computeProgress(contract, completedVisitDates);
+  return progress.completedVisits >= progress.expectedVisits;
 }
 
 export function validateContract(
