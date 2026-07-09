@@ -25,7 +25,7 @@ import {
 import type { AmcContractWithDetails, AmcContractStatus, AmcFrequency, ServiceType, ServiceGroup, ServiceItem } from '../lib/types';
 import { SERVICE_TYPE_LABELS, generateItemId } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
-import { validateContract, validateContractDates } from '../lib/amc-contract-service';
+import { validateContractDates } from '../lib/amc-contract-service';
 import { isValidFrequency } from '../lib/amc-utils';
 
 const STATUS_CONFIG: Record<AmcContractStatus, { label: string; badge: string; color: string }> = {
@@ -284,7 +284,7 @@ function ContractCard({ contract, onView, onEdit, onDelete }: {
       )}
 
       <div className="flex gap-2">
-        {isActiveStatus(contract.status) && (
+        {contract.status === 'active' && (
           <>
             <button onClick={handlePause} disabled={pauseContract.isPending}
               className="flex-1 flex items-center justify-center gap-1.5 text-xs font-display font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/50 py-2 rounded-xl transition-colors disabled:opacity-50">
@@ -675,14 +675,13 @@ function CreateContractModal({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setErrors([]);
 
-    const validationErrors = validateContract({
-      merchant_id: '',
-      customer_id: customerId,
-      start_date: startDate,
-      end_date: endDate,
-      frequency,
-      notes: notes || null,
-    });
+    const validationErrors = validateContractDates(startDate, endDate);
+    if (!customerId) {
+      validationErrors.push('customer_id is required');
+    }
+    if (!isValidFrequency(frequency)) {
+      validationErrors.push(`invalid frequency: "${frequency}" — must be one of: monthly, quarterly, biannual, annual`);
+    }
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
