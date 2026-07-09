@@ -32,7 +32,7 @@ import type {
   AmcContractStatus,
   AmcFrequency,
 } from './types';
-import { SERVICE_TYPE_LABELS } from './types';
+import { SERVICE_TYPE_LABELS, buildServiceDetails } from './types';
 import { estimateServiceValue } from './customer-intelligence';
 import { calculateMonthlyRevenue } from './monthly-revenue';
 import { evaluateCustomerAttentionBatch } from './customer-attention-pipeline';
@@ -40,8 +40,8 @@ import type { CustomerAttentionResult } from './customer-attention-pipeline';
 import { evaluateTransitionForCustomer } from './transition-service';
 import { persistTransitionResult } from './persist-transition-result';
 import { trackEvent } from './analytics';
-import { validateContract, validateContractDates, validateStatusTransition } from './amc-contract-service';
-import { isValidFrequency } from './amc-utils';
+import { validateContract, validateContractDates, validateStatusTransition, isContractComplete } from './amc-contract-service';
+import { addInterval, isValidFrequency } from './amc-utils';
 
 export const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
@@ -91,22 +91,33 @@ export function useUpdateJobStatus() {
       if (status === 'completed') {
         const { data: card, error: fetchError } = await supabase
           .from('service_cards')
-          .select('service_date')
+          .select('service_date, amc_contract_id')
           .eq('id', id)
           .single();
         if (fetchError) throw fetchError;
         if (!card) throw new Error('Service card not found');
         if (!card.service_date) throw new Error('Service card is missing service date');
-        const nextDate = new Date(
-          new Date(card.service_date).getTime() + 180 * 86400000
-        ).toISOString().slice(0, 10);
-        updates.next_service_date = nextDate;
+
+        if (card.amc_contract_id) {
+          const { data: contract, error: cErr } = await supabase
+            .from('amc_contracts')
+            .select('frequency')
+            .eq('id', card.amc_contract_id)
+            .single();
+          if (cErr) throw cErr;
+          if (!contract) throw new Error(`AMC contract ${card.amc_contract_id} not found for card ${id}`);
+          updates.next_service_date = addInterval(card.service_date, contract.frequency);
+        } else {
+          updates.next_service_date = new Date(
+            new Date(card.service_date).getTime() + 180 * 86400000
+          ).toISOString().slice(0, 10);
+        }
       }
       const { data, error } = await supabase
         .from('service_cards')
         .update(updates)
         .eq('id', id)
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at, amc_contract_id')
         .single();
       if (error) throw error;
       return data;
@@ -116,6 +127,14 @@ export function useUpdateJobStatus() {
       qc.invalidateQueries({ queryKey: ['dashboard_metrics'] });
       if (variables.status === 'completed') {
         trackEvent('job_completed', { job_id: variables.id });
+        const card = data as Record<string, unknown>;
+        if (card.amc_contract_id) {
+          checkAndCompleteAmcContract(card.amc_contract_id as string)
+            .then(completed => {
+              if (completed) qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+            })
+            .catch(err => console.error('[useUpdateJobStatus] AMC completion failed:', err));
+        }
         evaluateTransitionForCustomer(supabase, {
           merchantId: MERCHANT_ID,
           customerId: data.customer_id,
@@ -125,6 +144,36 @@ export function useUpdateJobStatus() {
       }
     },
   });
+}
+
+async function checkAndCompleteAmcContract(contractId: string): Promise<boolean> {
+  const { data: contract, error: cErr } = await supabase
+    .from('amc_contracts')
+    .select('*')
+    .eq('id', contractId)
+    .single();
+  if (cErr) throw cErr;
+  if (!contract) throw new Error(`AMC contract ${contractId} referenced but not found`);
+
+  if (contract.status === 'completed' || contract.status === 'cancelled') return false;
+
+  const { data: completedCards } = await supabase
+    .from('service_cards')
+    .select('service_date')
+    .eq('amc_contract_id', contractId)
+    .eq('job_status', 'completed');
+
+  const completedDates = (completedCards ?? []).map(c => c.service_date);
+
+  if (isContractComplete(contract, completedDates)) {
+    await supabase
+      .from('amc_contracts')
+      .update({ status: 'completed' })
+      .eq('id', contractId);
+    return true;
+  }
+
+  return false;
 }
 
 // Create job
@@ -1811,10 +1860,44 @@ export function useCreateAmcContract() {
         .select()
         .single();
       if (error) throw error;
-      return data as unknown as AmcContract;
+      const contract = data as unknown as AmcContract;
+
+      // Create first Service Card (idempotent — skip if already exists)
+      const { data: existingCards } = await supabase
+        .from('service_cards')
+        .select('id')
+        .eq('amc_contract_id', contract.id)
+        .limit(1);
+
+      if (!existingCards || existingCards.length === 0) {
+        const template = (contract.service_template ?? {}) as Record<string, unknown>;
+        const groups = (Array.isArray(template.services) ? template.services : []) as ServiceGroup[];
+        const serviceDetails = groups.length > 0 ? buildServiceDetails(groups) : {};
+        const serviceType = groups.length > 0 ? groups[0].serviceType : 'standard_cleaning';
+
+        const { error: cardErr } = await supabase
+          .from('service_cards')
+          .insert({
+            customer_id: contract.customer_id,
+            merchant_id: MERCHANT_ID,
+            service_type: serviceType,
+            service_details: serviceDetails,
+            service_date: contract.start_date,
+            next_service_date: addInterval(contract.start_date, contract.frequency),
+            amc_contract_id: contract.id,
+            notes: contract.notes ?? null,
+          });
+        if (cardErr) {
+          await supabase.from('amc_contracts').delete().eq('id', contract.id);
+          throw new Error('Failed to create first AMC visit: ' + cardErr.message);
+        }
+      }
+
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+      qc.invalidateQueries({ queryKey: ['service_cards'] });
     },
   });
 }

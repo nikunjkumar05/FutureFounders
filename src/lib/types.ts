@@ -250,7 +250,7 @@ export interface AttendanceWithStaff extends Attendance {
 
 // ─── AMC Contracts ──────────────────────────────────────────────
 
-export type AmcContractStatus = 'active' | 'paused' | 'cancelled' | 'expired';
+export type AmcContractStatus = 'active' | 'paused' | 'cancelled' | 'completed';
 
 export type AmcFrequency = 'monthly' | 'quarterly' | 'biannual' | 'annual';
 

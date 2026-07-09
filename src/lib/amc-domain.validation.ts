@@ -164,28 +164,24 @@ console.log('\n── Contract Service — State Evaluation ──────�
 // Scenario 9: Active contract — status active, end_date in future
 const c1 = evaluateContractState(
   makeContract({ id: 'c1', status: 'active', end_date: '2027-06-30' }),
-  NOW,
 );
 assert(c1 === 'active', 'evaluateContractState: active status + future end_date = active');
 
-// Scenario 10: Expired contract — status active but end_date in past
+// Scenario 10: Active contract with past end_date — no longer dynamically expired
 const c2 = evaluateContractState(
   makeContract({ id: 'c2', status: 'active', end_date: YESTERDAY }),
-  NOW,
 );
-assert(c2 === 'expired', 'evaluateContractState: active status + past end_date = expired');
+assert(c2 === 'active', 'evaluateContractState: active status + past end_date = active (no dynamic expiry)');
 
 // Scenario 11: Paused contract
 const c3 = evaluateContractState(
   makeContract({ id: 'c3', status: 'paused', end_date: '2027-06-30' }),
-  NOW,
 );
 assert(c3 === 'paused', 'evaluateContractState: paused = paused');
 
 // Scenario 12: Cancelled contract
 const c4 = evaluateContractState(
   makeContract({ id: 'c4', status: 'cancelled', end_date: '2027-06-30' }),
-  NOW,
 );
 assert(c4 === 'cancelled', 'evaluateContractState: cancelled = cancelled');
 
@@ -201,14 +197,14 @@ const v1 = checkVisitAllowed(
 );
 assert(v1.allowed === true, 'checkVisitAllowed: active contract next visit within bounds = allowed');
 
-// Scenario 14: Expired contract
+// Scenario 14: Completed contract
 const v2 = checkVisitAllowed(
-  makeContract({ id: 'v2', status: 'active', end_date: YESTERDAY }),
-  [],
+  makeContract({ id: 'v2', status: 'completed', end_date: '2027-06-30' }),
+  ['2026-06-01'],
   NOW,
 );
-assert(v2.allowed === false, 'checkVisitAllowed: expired contract = not allowed');
-assert(v2.reason.includes('expired'), 'checkVisitAllowed: reason mentions expired');
+assert(v2.allowed === false, 'checkVisitAllowed: completed contract = not allowed');
+assert(v2.reason.includes('completed'), 'checkVisitAllowed: reason mentions completed');
 
 // Scenario 15: Paused contract
 const v3 = checkVisitAllowed(
@@ -253,12 +249,12 @@ const r2 = checkRenewalEligibility(
 assert(r2.eligible === true, 'checkRenewalEligibility: within 30-day window = eligible');
 assert(r2.daysUntilExpiry <= 30, 'checkRenewalEligibility: daysUntilExpiry <= 30');
 
-// Scenario 20: Expired contract
+// Scenario 20: Completed contract
 const r3 = checkRenewalEligibility(
-  makeContract({ id: 'r3', end_date: YESTERDAY }),
+  makeContract({ id: 'r3', status: 'completed', end_date: '2027-06-30' }),
   NOW,
 );
-assert(r3.eligible === true, 'checkRenewalEligibility: expired = eligible for renewal');
+assert(r3.eligible === true, 'checkRenewalEligibility: completed = eligible for renewal');
 
 // Scenario 21: Cancelled contract
 const r4 = checkRenewalEligibility(
@@ -330,7 +326,7 @@ assert(validateStatusTransition('paused', 'cancelled') === true, 'validateStatus
 
 // Scenario 30: Invalid status transitions
 assert(validateStatusTransition('cancelled', 'active') === false, 'validateStatusTransition: cancelled→active = invalid');
-assert(validateStatusTransition('expired', 'active') === false, 'validateStatusTransition: expired→active = invalid');
+assert(validateStatusTransition('completed', 'active') === false, 'validateStatusTransition: completed→active = invalid');
 assert(validateStatusTransition('active', 'active') === false, 'validateStatusTransition: active→active = invalid (not a transition)');
 
 // Scenario 31: Full contract validation
@@ -380,16 +376,16 @@ assert(e1.visitAllowed.allowed === true, 'evaluateContract: visit allowed');
 assert(e1.renewal.eligible === false, 'evaluateContract: renewal not eligible yet');
 assert(e1.progress.expectedVisits > 0, 'evaluateContract: progress computed');
 
-// Scenario 35: Expired contract
+// Scenario 35: Completed contract
 const e2 = evaluateContract(
-  makeContract({ id: 'e2', start_date: ONE_YEAR_AGO, end_date: YESTERDAY, frequency: 'monthly' }),
-  [],
+  makeContract({ id: 'e2', start_date: ONE_YEAR_AGO, end_date: '2027-06-30', status: 'completed', frequency: 'monthly' }),
+  ['2026-01-01', '2026-02-01', '2026-03-01'],
   NOW,
 );
-assert(e2.state === 'expired', 'evaluateContract expired: state = expired');
-assert(e2.schedule === null, 'evaluateContract expired: no schedule computed');
-assert(e2.visitAllowed.allowed === false, 'evaluateContract expired: visit not allowed');
-assert(e2.renewal.eligible === true, 'evaluateContract expired: eligible for renewal');
+assert(e2.state === 'completed', 'evaluateContract completed: state = completed');
+assert(e2.schedule === null, 'evaluateContract completed: no schedule computed');
+assert(e2.visitAllowed.allowed === false, 'evaluateContract completed: visit not allowed');
+assert(e2.renewal.eligible === true, 'evaluateContract completed: eligible for renewal');
 
 // ─── Deterministic Output ─────────────────────────────────────────────────────
 
