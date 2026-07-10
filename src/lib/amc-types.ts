@@ -1,4 +1,4 @@
-import type { AmcContract, AmcFrequency } from './types';
+import type { AmcContract, AmcContractWithDetails, AmcFrequency } from './types';
 
 export type AmcContractState = 'active' | 'paused' | 'cancelled' | 'completed';
 
@@ -41,4 +41,10 @@ export interface AmcFrequencyConfig {
   months: number;
   approximateDays: number;
   label: string;
+}
+
+export interface AmcContractDueInfo {
+  contract: AmcContractWithDetails;
+  nextDueDate: string;
+  daysUntilDue: number;
 }

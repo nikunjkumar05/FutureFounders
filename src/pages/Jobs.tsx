@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useServiceCards, useUpdateJobStatus, useCreateJob, useUpdateJob, useDeleteJob, useStaff, useCustomers, useSendFeedback, useAddCustomer, checkDuplicateCustomer } from '../lib/queries';
 import { trackEvent } from '../lib/analytics';
 import { format } from 'date-fns';
@@ -20,7 +20,7 @@ import {
   Search,
   Map as MapIcon,
 } from 'lucide-react';
-import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, DuplicateCheckResult } from '../lib/types';
+import type { JobStatus, ServiceCardWithDetails, ServiceType, ServiceItem, ServiceGroup, DuplicateCheckResult, AmcFrequency } from '../lib/types';
 import { SERVICE_TYPE_LABELS, WAGE_TYPE_LABELS, PREDEFINED_SOFA_TYPES, generateItemId, buildServiceDetails, getGroupTotal } from '../lib/types';
 import { TableSkeleton } from '../components/LoadingSkeleton';
 
@@ -502,7 +502,13 @@ const serviceOptions: { value: ServiceType; label: string }[] = [
 
 type CreateStep = 'select_customer' | 'select_service' | 'service_details' | 'assign_worker' | 'schedule' | 'review';
 
-function CreateJobModal({ onClose }: { onClose: () => void }) {
+export function CreateJobModal({ onClose, initialCustomerId, initialServiceGroups, amcContractId, frequency }: {
+  onClose: () => void;
+  initialCustomerId?: string;
+  initialServiceGroups?: ServiceGroup[];
+  amcContractId?: string;
+  frequency?: AmcFrequency;
+}) {
   const { data: customers } = useCustomers();
   const { data: staff } = useStaff();
   const createJob = useCreateJob();
@@ -510,6 +516,16 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<CreateStep>('select_customer');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initialCustomerId && initialServiceGroups && initialServiceGroups.length > 0) {
+      setSelectedCustomerId(initialCustomerId);
+      const uniqueTypes = [...new Set(initialServiceGroups.map(g => g.serviceType as ServiceType))];
+      setSelectedServiceTypes(uniqueTypes);
+      setServiceGroups(initialServiceGroups);
+      setStep('assign_worker');
+    }
+  }, [initialCustomerId, initialServiceGroups]);
 
   // Step 1: Customer
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -689,6 +705,8 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         technicianId: technicianId || undefined,
         notes: jobNotes || undefined,
         services: serviceGroups,
+        amcContractId,
+        frequency,
       });
 
       if (!result) {
@@ -728,6 +746,8 @@ function CreateJobModal({ onClose }: { onClose: () => void }) {
         technicianId: technicianId || undefined,
         notes: jobNotes || undefined,
         services: serviceGroups,
+        amcContractId,
+        frequency,
       });
 
       if (!result) {
