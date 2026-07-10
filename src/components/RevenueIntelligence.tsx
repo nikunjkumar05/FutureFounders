@@ -1,7 +1,9 @@
-import { useRevenueIntelligence, useMarkReminderSent, useCreateReminderResponse, useMonthlyRevenue } from '../lib/queries';
+import { useRevenueIntelligence, useMarkReminderSent, useCreateReminderResponse, useMonthlyRevenue, useAmcContractsDue } from '../lib/queries';
 import { memo, useMemo, useState, useCallback } from 'react';
-import type { SegmentedCustomer } from '../lib/types';
+import type { SegmentedCustomer, ServiceGroup, AmcFrequency } from '../lib/types';
+import type { AmcContractDueInfo } from '../lib/amc-types';
 import { trackEvent } from '../lib/analytics';
+import { CreateJobModal } from '../pages/Jobs';
 import {
   TrendingUp,
   Users,
@@ -16,6 +18,7 @@ import {
   UserX,
   Bell,
   Loader2,
+  Calendar,
 } from 'lucide-react';
 
 function formatINR(n: number): string {
@@ -35,7 +38,14 @@ export default function RevenueIntelligence() {
   const { data, isLoading } = useRevenueIntelligence();
   const markReminder = useMarkReminderSent();
   const createReminderResponse = useCreateReminderResponse();
+  const { data: dueContracts } = useAmcContractsDue();
   const [sendingCustomerId, setSendingCustomerId] = useState<string | null>(null);
+  const [schedulingContract, setSchedulingContract] = useState<{
+    customerId: string;
+    serviceGroups: ServiceGroup[];
+    contractId: string;
+    frequency: AmcFrequency;
+  } | null>(null);
 
   const now = new Date();
   const currentMonthValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -80,6 +90,17 @@ export default function RevenueIntelligence() {
       }
     }).finally(() => setSendingCustomerId(null));
   }, [sendingCustomerId, markReminder, createReminderResponse]);
+
+  const handleScheduleVisit = useCallback((contract: AmcContractDueInfo) => {
+    const template = (contract.contract.service_template ?? {}) as Record<string, unknown>;
+    const groups = (Array.isArray(template.services) ? template.services : []) as ServiceGroup[];
+    setSchedulingContract({
+      customerId: contract.contract.customer_id,
+      serviceGroups: groups,
+      contractId: contract.contract.id,
+      frequency: contract.contract.frequency,
+    });
+  }, []);
 
   const metrics = useMemo(() => {
     if (!data) return [];
@@ -145,6 +166,7 @@ export default function RevenueIntelligence() {
   if (!data) return null;
 
   return (
+    <>
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-2">
@@ -210,6 +232,12 @@ export default function RevenueIntelligence() {
         </div>
       </div>
 
+      {/* AMC Due Visits */}
+      <AmcDueSection
+        contracts={dueContracts ?? []}
+        onSchedule={handleScheduleVisit}
+      />
+
       {/* Customer Segments — Action Center */}
       <div className="space-y-3">
         <ReadyToBookSection
@@ -248,6 +276,17 @@ export default function RevenueIntelligence() {
         </div>
       )}
     </div>
+
+    {schedulingContract && (
+      <CreateJobModal
+        onClose={() => setSchedulingContract(null)}
+        initialCustomerId={schedulingContract.customerId}
+        initialServiceGroups={schedulingContract.serviceGroups}
+        amcContractId={schedulingContract.contractId}
+        frequency={schedulingContract.frequency}
+      />
+    )}
+  </>
   );
 }
 
@@ -494,6 +533,52 @@ function ChurnRiskSection({ customers, onCall }: {
             actions={<CallButton phone={c.phone} onCall={onCall} />}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function AmcDueSection({ contracts, onSchedule }: {
+  contracts: AmcContractDueInfo[];
+  onSchedule: (contract: AmcContractDueInfo) => void;
+}) {
+  if (contracts.length === 0) return null;
+  return (
+    <div className="card-base overflow-hidden border border-navy-200 dark:border-navy-700">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-100 dark:border-surface-800 bg-navy-50/50 dark:bg-navy-950/30">
+        <Calendar size={16} className="text-navy-600 dark:text-navy-400" />
+        <h3 className="text-sm font-display font-semibold text-navy-900 dark:text-surface-100">AMC Due Visits</h3>
+        <span className="ml-auto text-xs font-medium text-navy-600 dark:text-navy-400">{contracts.length}</span>
+      </div>
+      <div className="divide-y divide-surface-100 dark:divide-surface-800">
+        {contracts.map((item) => {
+          const customer = item.contract.customers;
+          return (
+            <div key={item.contract.id} className="py-2 px-3 rounded-lg hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Calendar size={16} className="text-navy-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-navy-900 dark:text-surface-100 truncate">
+                      {customer?.name ?? 'Unknown Customer'}
+                    </p>
+                    <p className="text-xs text-surface-500 dark:text-surface-400">
+                      {item.contract.frequency} · {item.daysUntilDue > 0 ? `Due in ${item.daysUntilDue}d` : item.daysUntilDue === 0 ? 'Due today' : `Overdue by ${Math.abs(item.daysUntilDue)}d`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onSchedule(item)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md
+                    bg-navy-600 text-white hover:bg-navy-700 transition-colors shrink-0 ml-3"
+                >
+                  <Calendar size={12} />
+                  Schedule Visit
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -61,3 +61,13 @@ export function computeDueDates(
 
   return dates;
 }
+
+export function isVisitDue(
+  contract: AmcContract,
+  completedVisitDates: string[],
+  today: Date,
+): boolean {
+  if (contract.status !== 'active') return false;
+  const nextDate = computeNextVisitDate(contract, completedVisitDates);
+  return !isAfter(startOfDay(parseISO(nextDate)), startOfDay(today));
+}

@@ -32,6 +32,7 @@ import type {
   AmcContractStatus,
   AmcFrequency,
 } from './types';
+import type { AmcContractDueInfo } from './amc-types';
 import { SERVICE_TYPE_LABELS, buildServiceDetails } from './types';
 import { estimateServiceValue } from './customer-intelligence';
 import { calculateMonthlyRevenue } from './monthly-revenue';
@@ -41,7 +42,8 @@ import { evaluateTransitionForCustomer } from './transition-service';
 import { persistTransitionResult } from './persist-transition-result';
 import { trackEvent } from './analytics';
 import { validateContract, validateContractDates, validateStatusTransition, isContractComplete } from './amc-contract-service';
-import { addInterval, isValidFrequency } from './amc-utils';
+import { addInterval, isValidFrequency, daysBetween } from './amc-utils';
+import { isVisitDue, computeNextVisitDate } from './amc-scheduling';
 
 export const MERCHANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 
@@ -188,10 +190,14 @@ export function useCreateJob() {
       technicianId?: string;
       notes?: string;
       services?: ServiceGroup[];
+      amcContractId?: string;
+      frequency?: AmcFrequency;
     }) => {
-      const nextDate = new Date(
-        new Date(job.serviceDate).getTime() + 180 * 86400000
-      ).toISOString().slice(0, 10);
+      const nextDate = job.frequency
+        ? addInterval(job.serviceDate, job.frequency)
+        : new Date(
+            new Date(job.serviceDate).getTime() + 180 * 86400000
+          ).toISOString().slice(0, 10);
 
       const payload: Record<string, unknown> = {
         customer_id: job.customerId,
@@ -204,11 +210,15 @@ export function useCreateJob() {
         notes: job.notes ?? null,
       };
 
+      if (job.amcContractId) {
+        payload.amc_contract_id = job.amcContractId;
+      }
+
       console.log('[useCreateJob] Inserting:', JSON.stringify(payload, null, 2));
       const { data, error } = await supabase
         .from('service_cards')
         .insert(payload)
-        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at')
+        .select('id, customer_id, merchant_id, service_type, service_details, service_date, next_service_date, job_status, technician_id, discount, notes, feedback_sent, feedback_rating, reminder_sent_at, created_at, amc_contract_id')
         .single();
       if (error) {
         console.error('[useCreateJob] Insert error:', JSON.stringify(error, null, 2));
@@ -256,6 +266,9 @@ export function useCreateJob() {
         service_count: serviceCount,
         total_amount: totalAmount,
       });
+      if (variables.amcContractId) {
+        qc.invalidateQueries({ queryKey: ['amc_contracts'] });
+      }
       evaluateTransitionForCustomer(supabase, {
         merchantId: MERCHANT_ID,
         customerId: variables.customerId,
@@ -1820,6 +1833,68 @@ export function useAmcCustomerContracts(customerId: string) {
       return (data ?? []) as unknown as AmcContractWithDetails[];
     },
     enabled: !!customerId,
+  });
+}
+
+export function useAmcContractsDue() {
+  return useQuery({
+    queryKey: ['amc_contracts', 'due'],
+    staleTime: 15_000,
+    queryFn: async () => {
+      const today = new Date();
+
+      const { data: contracts, error: cErr } = await supabase
+        .from('amc_contracts')
+        .select('*, customers(*)')
+        .eq('merchant_id', MERCHANT_ID)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (cErr) throw cErr;
+      const activeContracts = (contracts ?? []) as unknown as AmcContractWithDetails[];
+      if (activeContracts.length === 0) return [];
+
+      const contractIds = activeContracts.map(c => c.id);
+      const { data: cards, error: cardsErr } = await supabase
+        .from('service_cards')
+        .select('*')
+        .eq('merchant_id', MERCHANT_ID)
+        .in('amc_contract_id', contractIds)
+        .order('service_date', { ascending: false });
+
+      if (cardsErr) throw cardsErr;
+      const allCards = (cards ?? []) as ServiceCardWithDetails[];
+
+      const cardsByContract = new Map<string, ServiceCardWithDetails[]>();
+      for (const card of allCards) {
+        if (!card.amc_contract_id) continue;
+        const list = cardsByContract.get(card.amc_contract_id) ?? [];
+        list.push(card);
+        cardsByContract.set(card.amc_contract_id, list);
+      }
+
+      const result: AmcContractDueInfo[] = [];
+      for (const contract of activeContracts) {
+        const contractCards = cardsByContract.get(contract.id) ?? [];
+
+        const hasPendingCard = contractCards.some(
+          c => c.job_status === 'pending' || c.job_status === 'in_progress'
+        );
+        if (hasPendingCard) continue;
+
+        const completedCards = contractCards.filter(c => c.job_status === 'completed');
+        const completedVisitDates = completedCards.map(c => c.service_date);
+
+        if (!isVisitDue(contract, completedVisitDates, today)) continue;
+
+        const nextDueDate = computeNextVisitDate(contract, completedVisitDates);
+        const daysUntilDue = daysBetween(today.toISOString().slice(0, 10), nextDueDate);
+
+        result.push({ contract, nextDueDate, daysUntilDue });
+      }
+
+      return result;
+    },
   });
 }
 
