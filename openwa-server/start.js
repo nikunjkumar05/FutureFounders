@@ -137,9 +137,10 @@ app.post('/api/sessions/:sessionId/messages/send-text', apiKeyCheck, async (req,
 });
 
 // Webhook forwarding helper
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://localhost:3000/api/webhook';
 const forwardToWebhook = async (payload) => {
     try {
-        const response = await fetch('http://localhost:3000/api/webhook', {
+        const response = await fetch(WEBHOOK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
