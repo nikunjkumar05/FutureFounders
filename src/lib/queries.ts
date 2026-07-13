@@ -1750,7 +1750,22 @@ export function useSendFeedback() {
       const phone = c.customers?.phone ?? null;
       const name = c.customers?.name ?? null;
       if (phone) {
-        const message = `Thank you for choosing AquaClean Services, ${name ?? 'Valued Customer'}!\n\nPlease rate our service:\n⭐ Google Review: https://g.page/r/review\n⭐ JustDial Review: https://justdial.com/review`;
+        const message = `*Hi! 😊*
+
+Thank you for choosing *Vishant Cleaning Services*. We hope you're happy with our service.
+
+Your feedback means a lot to us and helps other customers choose a trusted cleaning service.
+
+If you were satisfied with our work, we'd really appreciate it if you could take a minute to leave us a *5-star Google review!* ⭐⭐⭐⭐⭐
+
+👉 https://g.page/r/CcZzKfcCeo9jEBM/review
+
+Your support motivates our team to continue delivering the best cleaning services in Jabalpur.
+
+Thank you for your trust and support! 🙏
+
+*Vishant Cleaning Services*
+📞 7354646061`;
         window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(message)}`);
       }
       const { data, error } = await supabase

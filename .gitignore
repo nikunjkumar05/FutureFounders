@@ -22,3 +22,4 @@ AquaTrak_Score85_Strategy.pdf
 *.sw?
 .env
 .vercel
+supabase/.temp/
