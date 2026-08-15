@@ -3,6 +3,7 @@ import { memo, useMemo, useState, useCallback } from 'react';
 import type { SegmentedCustomer, ServiceGroup, AmcFrequency } from '../lib/types';
 import type { AmcContractDueInfo } from '../lib/amc-types';
 import { trackEvent } from '../lib/analytics';
+import { normalizeIndianPhone } from '../lib/phone';
 import { CreateJobModal } from '../pages/Jobs';
 import {
   TrendingUp,
@@ -54,7 +55,12 @@ export default function RevenueIntelligence() {
   const { data: monthlyData, isLoading: monthlyLoading } = useMonthlyRevenue(selYear, selMonth);
 
   const handleCall = useCallback((phone: string) => {
-    window.open(`tel:91${phone}`);
+    const normalized = normalizeIndianPhone(phone);
+    if (!normalized) {
+      alert(`Cannot call this customer: invalid phone number "${phone}".`);
+      return;
+    }
+    window.open(`tel:${normalized}`);
   }, []);
 
   const handleSendReminder = useCallback((customer: SegmentedCustomer) => {
@@ -65,7 +71,13 @@ export default function RevenueIntelligence() {
 
     const template = reminderMessages[customer.serviceType] ?? reminderMessages.standard_cleaning;
     const message = template.replace('{name}', customer.name);
-    window.open(`https://wa.me/91${customer.phone}?text=${encodeURIComponent(message)}`);
+    const waNumber = normalizeIndianPhone(customer.phone);
+    if (!waNumber) {
+      alert(`Cannot send a reminder to ${customer.name}: invalid phone number "${customer.phone}".`);
+      setSendingCustomerId(null);
+      return;
+    }
+    window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`);
 
     trackEvent('reminder_sent', {
       customer_id: customer.id,
