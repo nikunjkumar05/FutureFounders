@@ -31,6 +31,7 @@ import { type TimePeriod, isInRange, groupByMonthYear } from '../lib/timeUtils';
 import type { Customer, DuplicateCheckResult, ServiceCardWithDetails, ServiceType, ServiceGroup, ServiceItem } from '../lib/types';
 import { SERVICE_TYPE_LABELS, PREDEFINED_SOFA_TYPES, getServicesFromDetails, getTotalCharge } from '../lib/types';
 import { PhoneLink } from '../components/PhoneLink';
+import { normalizeIndianPhone } from '../lib/phone';
 
 export default function Customers() {
   const { data: customers, isLoading } = useCustomers();
@@ -214,8 +215,13 @@ function CustomerRow({
       custom_service: `Hi ${customer.name}! It's time for your service with AquaClean Services. Reply YES to confirm or call us at 9876543210. — AquaClean Services`,
     };
     const template = messages[type] ?? messages.standard_cleaning;
+    const waNumber = normalizeIndianPhone(customer.phone);
+    if (!waNumber) {
+      alert(`Cannot send a reminder to ${customer.name}: invalid phone number "${customer.phone}".`);
+      return;
+    }
     window.open(
-      `https://wa.me/91${customer.phone}?text=${encodeURIComponent(template)}`
+      `https://wa.me/${waNumber}?text=${encodeURIComponent(template)}`
     );
     markReminder.mutate({ cardId: latestCard.id });
     trackEvent('reminder_sent', { customer_id: customer.id, customer_name: customer.name, service_type: latestCard.service_type });

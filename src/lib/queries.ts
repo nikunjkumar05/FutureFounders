@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
+import { normalizeIndianPhone } from './phone';
 import type {
   Customer,
   DuplicateCheckResult,
@@ -1750,6 +1751,11 @@ export function useSendFeedback() {
       const phone = c.customers?.phone ?? null;
       const name = c.customers?.name ?? null;
       if (phone) {
+        const waNumber = normalizeIndianPhone(phone);
+        if (!waNumber) {
+          alert(`Cannot send a feedback request to ${name ?? 'this customer'}: invalid phone number "${phone}".`);
+          return;
+        }
         const message = `*Hi! 😊*
 
 Thank you for choosing *Vishant Cleaning Services*. We hope you're happy with our service.
@@ -1766,7 +1772,7 @@ Thank you for your trust and support! 🙏
 
 *Vishant Cleaning Services*
 📞 7354646061`;
-        window.open(`https://wa.me/91${phone}?text=${encodeURIComponent(message)}`);
+        window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`);
       }
       const { data, error } = await supabase
         .from('service_cards')
