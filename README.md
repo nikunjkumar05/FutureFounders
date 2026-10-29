@@ -16,8 +16,8 @@ Lean SMB operations platform for water tank cleaning businesses. Built for the O
                     │   PostgreSQL + RLS   │
                     └──┬───────┬───────┬───┘
                        │       │       │
-             ┌──────────┘       │       └──────────┐
-             ▼                  ▼                  ▼
+             ┌─────────┘       │       └──────────┐
+             ▼                 ▼                  ▼
      ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
      │ Serverless    │  │ Serverless    │  │ Serverless   │
      │ Function     │  │ Function     │  │ Function    │
